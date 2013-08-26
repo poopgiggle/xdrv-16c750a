@@ -4,7 +4,7 @@ xdrv-16c750a
 Xenomai Real-Time driver for 16C750A UARTs found in TI AM335x series MPUs.
 
 Dependencies:
-- Xenomai v2.6.2.1
+- Linux kernel with Xenomai v2.6.2.1 (https://github.com/nradulovic/linux-am335x)
 
 Supported UART modes:
 - basic UART mode [supported]
