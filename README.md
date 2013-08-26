@@ -12,6 +12,6 @@ Supported UART modes:
 - CIT mode [not supported]
 
 
-Driver uses Xenomai message queue services to exchange data with application. For driver configuration IOCTL system is used, but in the near future this may change.
+Driver uses Xenomai message queue services to exchange data with application. For driver configuration IOCTL system is used, but this may change in the near future.
 
 Before using this driver you must disable in-kernel omap drivers.
