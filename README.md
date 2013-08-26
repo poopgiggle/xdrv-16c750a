@@ -15,3 +15,9 @@ Supported UART modes:
 Driver uses Xenomai message queue services to exchange data with application. For driver configuration IOCTL system is used, but this may change in the near future.
 
 Before using this driver you must disable in-kernel omap drivers.
+
+# Building
+
+    make clean
+    make modules
+    
