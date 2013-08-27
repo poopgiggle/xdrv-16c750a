@@ -151,13 +151,9 @@ enum hwUart {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_UART)
 };
 
-const unsigned long hwIo[] = {
-    UART_DATA_TABLE(UART_DATA_EXPAND_AS_MEM)
-};
+extern const unsigned long hwIo[];
 
-const unsigned long hwIrq[] = {
-    UART_DATA_TABLE(UART_DATA_EXPAND_AS_IRQ)
-};
+extern const unsigned long hwIrq[];
 
 /*============================================================  DATA TYPES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/

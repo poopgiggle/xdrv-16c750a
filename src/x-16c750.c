@@ -37,12 +37,11 @@
 /*TODO: Pogledati verzioniranje*/
 #include <linux/version.h>
 
-#include <rtdm/rtserial.h>
-#include <rtdm/rtdm_driver.h>
-#include <native/queue.h>
-
+#include "x-16c750.h"
 #include "x-16c750_regs.h"
 #include "x-16c750_cfg.h"
+#include "plat.h"
+#include "log.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/
 
@@ -50,49 +49,7 @@
 #define DEF_DRV_VERSION_MINOR           0
 #define DEF_DRV_VERSION_PATCH           0
 
-#define LOG_INFO(msg, ...)                                                      \
-    printk(KERN_INFO CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
-
-#define LOG_WARN(msg, ...)                                                      \
-    printk(KERN_WARNING CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
-
-#define LOG_ERR(msg, ...)                                                       \
-    printk(KERN_ERR CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
-
-#define LOG_WARN_IF(expr, msg, ...)                                             \
-    do {                                                                        \
-        if ((expr)) {                                                           \
-            LOG_WARN(msg, ##__VA_ARGS__);                                       \
-        }                                                                       \
-    } while (0)
-
 /*======================================================  LOCAL DATA TYPES  ==*/
-
-/**@brief       States of the context process
- */
-enum ctxState {
-    STATE_INIT,
-    STATE_RX_ALLOC,                                                             /**<@brief STATE_RX_ALLOC                                   */
-    STATE_TX_ALLOC,                                                             /**<@brief STATE_TX_ALLOC                                   */
-    STATE_REQ_IO,
-    STATE_REMAP_IO
-};
-
-/**@brief       UART device context structure
- */
-struct uartCtx {
-    rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
-    rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
-    rtser_config_t      cfg;                                                    /**<@brief Current device configuration                     */
-    unsigned long *     ioremap;
-    RT_QUEUE            buffTxHandle;                                           /**<@brief TX buffer handle                                 */
-    RT_QUEUE            buffRxHandle;                                           /**<@brief RX buffer handle                                 */
-    void *              buffTx;                                                 /**<@brief TX buffer storage                                */
-    void *              buffRx;                                                 /**<@brief RX buffer storage                                */
-    enum ctxState       state;
-    int                 id;                                                 /**<@brief UART ID number (maybe unused)                    */
-};
-
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 
 static void hwUartRegWr(
@@ -201,7 +158,7 @@ static struct uartCtx gUartCtx;
 /*======================================================  GLOBAL VARIABLES  ==*/
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Nenad Radulovic <nenad.radulovic@netico-group.com");
+MODULE_AUTHOR("Nenad Radulovic <nenad.radulovic@netico-group.com>");
 MODULE_DESCRIPTION("Real-time 16C750 device driver");
 MODULE_SUPPORTED_DEVICE("16C750");
 
@@ -234,12 +191,6 @@ static void xUartCtxCleanup(
     struct uartCtx *    uartCtx) {
 
     switch (uartCtx->state) {
-        case STATE_REQ_IO : {
-            release_mem_region(
-                hwIo[uartCtx->id],
-                HW_IOMAP_SIZE);
-            /* fall through */
-        }
 
         case STATE_RX_ALLOC: {
             (void)rt_queue_flush(
@@ -298,29 +249,6 @@ static int xUartCtxCreate(
     uartCtx->state  = STATE_RX_ALLOC;
     uartCtx->id     = CFG_UART;
 
-    if (NULL == request_mem_region(hwIo[uartCtx->id], HW_IOMAP_SIZE, CFG_DRV_NAME)) {
-        LOG_WARN("could not request IO memory: %p, size: %d", (void *)hwIo[uartCtx->id], HW_IOMAP_SIZE);
-
-        return (-ENOMEM);
-    }
-    uartCtx->state  = STATE_REQ_IO;
-    uartCtx->ioremap = ioremap(
-        hwIo[uartCtx->id],
-        HW_IOMAP_SIZE);
-
-    if (NULL == uartCtx->ioremap) {
-        LOG_WARN("could not remap IO memory: %p, size: %d", (void *)hwIo[uartCtx->id], HW_IOMAP_SIZE);
-
-        return (-ENOMEM);
-    }
-    uartCtx->state  = STATE_REMAP_IO;
-    hwUartRegWr(
-        uartCtx,
-        wSYSC,
-        SYSC_SOFTRESET);
-
-    while (0U == hwUartRegRd(uartCtx, rSYSS));
-
     hwUartRegWr(
         uartCtx,
         wLCR,
@@ -329,6 +257,9 @@ static int xUartCtxCreate(
         uartCtx,
         wIER,
         0U);
+    retval = hwUartRegRd(
+        uartCtx,
+        rIER);
 
     return (retval);
 }
@@ -338,11 +269,6 @@ static int xUartCtxDestroy(
 
     int                 retval;
 
-    iounmap(
-        uartCtx->ioremap);
-    release_mem_region(
-        hwIo[uartCtx->id],
-        HW_IOMAP_SIZE);
     retval = rt_queue_flush(
         &uartCtx->buffRxHandle);
     LOG_WARN_IF(0 != retval, "failed to flush RX buffer");
@@ -446,6 +372,9 @@ int __init moduleInit(
     int                 retval;
 
     LOG_INFO("Real-Time driver for UART: %d", CFG_UART);
+    gUartCtx.id = CFG_UART;
+    retval = platInit(
+        &gUartCtx);
     LOG_INFO("Creating device context");
     retval = xUartCtxCreate(
         &gUartCtx);
@@ -476,6 +405,7 @@ void __exit moduleTerm(
     retval = xUartCtxDestroy(
         &gUartCtx);
     LOG_WARN_IF(0 != retval, "context destroy failed");
+    retval = platTerm();
 }
 
 module_init(moduleInit);
