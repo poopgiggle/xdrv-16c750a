@@ -3,3 +3,11 @@
 .settings/
 Debug/
 Release/
+*.o
+*.o.cmd
+*.ko.cmd
+*.ko
+.tmp_versions/
+*~
+Module.symvers
+modules.order
