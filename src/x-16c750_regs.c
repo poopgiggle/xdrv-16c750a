@@ -36,11 +36,11 @@
 /*=======================================================  LOCAL VARIABLES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
 
-const unsigned long hwIo[] = {
+const unsigned long gHwIomap[] = {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_MEM)
 };
 
-const unsigned long hwIrq[] = {
+const unsigned long gHwIrqNum[] = {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_IRQ)
 };
 

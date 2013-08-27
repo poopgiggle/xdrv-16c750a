@@ -302,7 +302,7 @@ static int xUartOpen(
     rtdm_lock_init(&uartCtx->lock);
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
-        hwIrq[uartCtx->id],
+        gHwIrqNum[uartCtx->id],
         xUartIrqHandle,
         RTDM_IRQTYPE_EDGE,
         ctx->device->proc_name,

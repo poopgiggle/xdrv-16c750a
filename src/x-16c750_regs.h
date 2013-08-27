@@ -24,7 +24,6 @@
  * @file
  * @author  	Nenad Radulovic
  * @brief       Register definitions of 16C750 UART hardware
- * @addtogroup  module_impl
  *********************************************************************//** @{ */
 
 #if !defined(X_16C750_REGS_H_)
@@ -151,9 +150,9 @@ enum hwUart {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_UART)
 };
 
-extern const unsigned long hwIo[];
+extern const unsigned long gHwIomap[];
 
-extern const unsigned long hwIrq[];
+extern const unsigned long gHwIrqNum[];
 
 /*============================================================  DATA TYPES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
