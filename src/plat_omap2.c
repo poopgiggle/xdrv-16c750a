@@ -23,15 +23,17 @@
  *//***********************************************************************//**
  * @file
  * @author      Nenad Radulovic
- * @brief       Short desciption of file
- * @addtogroup  module_impl
+ * @brief       Platform level device initalization
  *********************************************************************//** @{ */
 
 /*=========================================================  INCLUDE FILES  ==*/
+
 #include <linux/string.h>
 #include <asm-generic/errno.h>
 #include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
+#include "x-16c750_cfg.h"
+#include "x-16c750_regs.h"
 #include "plat.h"
 #include "log.h"
 
@@ -39,6 +41,7 @@
 /*======================================================  LOCAL DATA TYPES  ==*/
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 /*=======================================================  LOCAL VARIABLES  ==*/
+
 struct omap_hwmod * gHwmod;
 
 /*======================================================  GLOBAL VARIABLES  ==*/
@@ -57,7 +60,7 @@ int platInit(
         uartName,
         sizeof(uartName),
         "uart%d",
-        uartCtx->id+1);
+        uartCtx->id + 1U);
     LOG_INFO("OMAP HWMOD: creating %s device", uartName);
     gHwmod = omap_hwmod_lookup(
         uartName);
@@ -91,9 +94,20 @@ int platInit(
         &platDev->dev);
     retval = omap_device_enable_clocks(
         to_omap_device(platDev));
+
+    if (RETVAL_SUCCESS != retval) {
+        LOG_WARN("OMAP UART: can't enable device clocks");
+
+        return (retval);
+    }
     retval = omap_device_enable(
         platDev);
-    LOG_WARN_IF(0 != retval,"OMAP UART: can't enable device");
+
+    if (RETVAL_SUCCESS != retval) {
+        LOG_WARN("OMAP UART: can't enable device");
+
+        return (retval);
+    }
     uartCtx->ioremap = omap_device_get_rt_va(
         platDev->archdata.od);
     LOG_INFO("using ioremap addr: %p", uartCtx->ioremap);
@@ -101,10 +115,16 @@ int platInit(
     return (retval);
 }
 
+int platCleanup(
+    struct uartCtx *    uartCtx) {
+
+    return (RETVAL_SUCCESS);
+}
+
 int platTerm(
     void) {
 
-    return (0);
+    return (RETVAL_SUCCESS);
 }
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/

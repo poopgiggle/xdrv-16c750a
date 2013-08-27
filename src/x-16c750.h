@@ -23,12 +23,11 @@
  *//***********************************************************************//**
  * @file
  * @author  	Nenad Radulovic
- * @brief       Interface of x-16c175.
- * @addtogroup  module_intf
+ * @brief       Driver level shared types
  *********************************************************************//** @{ */
 
-#if !defined(X_16C175_H_)
-#define X_16C175_H_
+#if !defined(X_16C750_H_)
+#define X_16C750_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
 
@@ -38,7 +37,10 @@
 
 /*===============================================================  MACRO's  ==*/
 
-/** @} *//*-------------------------------------------------------------------*/
+/**@brief       Return value: operation was successful
+ */
+#define RETVAL_SUCCESS                  0
+
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {
@@ -54,11 +56,9 @@ extern "C" {
 /**@brief       States of the context process
  */
 enum ctxState {
-    STATE_INIT,
-    STATE_RX_ALLOC,                                                             /**<@brief STATE_RX_ALLOC                                   */
-    STATE_TX_ALLOC,                                                             /**<@brief STATE_TX_ALLOC                                   */
-    STATE_REQ_IO,
-    STATE_REMAP_IO
+    STATE_INIT,                                                                                                                               //!< STATE_INIT
+    STATE_RX_ALLOC,                                                             /**<@brief STATE_RX_ALLOC                                   *///!< STATE_RX_ALLOC
+    STATE_TX_ALLOC,                                                             /**<@brief STATE_TX_ALLOC                                   *///!< STATE_TX_ALLOC
 };
 
 /**@brief       UART device context structure
@@ -78,21 +78,7 @@ struct uartCtx {
 
 /** @} *//*-------------------------------------------------------------------*/
 /*======================================================  GLOBAL VARIABLES  ==*/
-
-/*------------------------------------------------------------------------*//**
- * @name        Variables group
- * @brief       brief description
- * @{ *//*--------------------------------------------------------------------*/
-
-/** @} *//*-------------------------------------------------------------------*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
-
-/*------------------------------------------------------------------------*//**
- * @name        Function group
- * @brief       brief description
- * @{ *//*--------------------------------------------------------------------*/
-
-/** @} *//*-------------------------------------------------------------------*/
 /*--------------------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
 }
@@ -100,6 +86,6 @@ struct uartCtx {
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
- * END of x-16c175.h
+ * END of x-16c750.h
  ******************************************************************************/
-#endif /* X_16C175_H_ */
+#endif /* X_16C750_H_ */

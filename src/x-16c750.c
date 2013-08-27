@@ -108,10 +108,7 @@ static int xUartWr(
     size_t              bytes);
 
 static int xUartIrqHandle(
-    rtdm_irq_t *        irqHandle) {
-
-    return 0;
-}
+    rtdm_irq_t *        irqHandle);
 
 /*=======================================================  LOCAL VARIABLES  ==*/
 
@@ -227,7 +224,7 @@ static int xUartCtxCreate(
         Q_UNLIMITED,
         Q_PRIO | Q_SHARED);
 
-    if (0 != retval) {
+    if (RETVAL_SUCCESS != retval) {
         LOG_WARN("failed to create buffer");
 
         return (retval);
@@ -241,14 +238,18 @@ static int xUartCtxCreate(
         Q_UNLIMITED,
         Q_PRIO | Q_SHARED);
 
-    if (0 != retval) {
+    if (RETVAL_SUCCESS != retval) {
         LOG_WARN("failed to create buffer");
 
         return (retval);
     }
     uartCtx->state  = STATE_RX_ALLOC;
-    uartCtx->id     = CFG_UART;
+    retval = rtdm_dev_register(
+            &gUartDev);                                                         /* TODO: This must be parameterized                         */
 
+    if (RETVAL_SUCCESS != retval) {
+        LOG_WARN("could not register XENO device driver");
+    }
     hwUartRegWr(
         uartCtx,
         wLCR,
@@ -286,6 +287,7 @@ static int xUartCtxDestroy(
 }
 
 /**@brief       Named device open handler
+ * @details     This function will setup LATE real-time aspects of driver
  */
 static int xUartOpen(
     struct rtdm_dev_context * ctx,
@@ -306,7 +308,7 @@ static int xUartOpen(
         ctx->device->proc_name,
         uartCtx);
 
-    if (0 != retval) {
+    if (RETVAL_SUCCESS != retval) {
         LOG_WARN("could not register interrupt");
 
         return (retval);
@@ -327,7 +329,7 @@ static int xUartClose(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo) {
 
-    return (0);
+    return (RETVAL_SUCCESS);
 }
 
 /**@brief       IOCTL handler
@@ -338,7 +340,7 @@ static int xUartIOctl(
     unsigned int        req,
     void __user *       args) {
 
-    return (0);
+    return (RETVAL_SUCCESS);
 }
 
 /**@brief       Read device handler
@@ -349,7 +351,7 @@ static int xUartRd(
     void *              buff,
     size_t              bytes) {
 
-    return (0);
+    return (RETVAL_SUCCESS);
 }
 
 /**@brief       Write device handler
@@ -360,7 +362,13 @@ static int xUartWr(
     void *              buff,
     size_t              bytes) {
 
-    return (0);
+    return (RETVAL_SUCCESS);
+}
+
+static int xUartIrqHandle(
+    rtdm_irq_t *        irqHandle) {
+
+    return (RETVAL_SUCCESS);
 }
 
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
@@ -372,23 +380,26 @@ int __init moduleInit(
     int                 retval;
 
     LOG_INFO("Real-Time driver for UART: %d", CFG_UART);
-    gUartCtx.id = CFG_UART;
+    gUartCtx.id = CFG_UART;                                                     /* TODO: This must go, almost all functions are parameterized   */
     retval = platInit(
-        &gUartCtx);
+        &gUartCtx);                                                             /* Initialize Linux device driver                           */
+
+    if (RETVAL_SUCCESS != retval) {
+        LOG_WARN("could not initialize kernel platform device driver");
+
+        return (retval);
+    }
     LOG_INFO("Creating device context");
     retval = xUartCtxCreate(
         &gUartCtx);
 
-    if (0 != retval) {
+    if (RETVAL_SUCCESS != retval) {
         LOG_WARN("Device context creation failed");
         xUartCtxCleanup(
             &gUartCtx);
 
         return (retval);
     }
-    retval = rtdm_dev_register(
-        &gUartDev);
-    LOG_WARN_IF(0 != retval, "could not register XENO device");
 
     return (retval);
 }
@@ -404,7 +415,7 @@ void __exit moduleTerm(
     LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = xUartCtxDestroy(
         &gUartCtx);
-    LOG_WARN_IF(0 != retval, "context destroy failed");
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "context destroy failed");
     retval = platTerm();
 }
 
