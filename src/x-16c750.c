@@ -297,7 +297,7 @@ static int xUartCtxCreate(
         Q_PRIO | Q_SHARED);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_WARN("failed to create buffer");
+        LOG_ERR("failed to create buffer");
         xUartCtxCleanup(
             uartCtx,
             state);
@@ -316,7 +316,7 @@ static int xUartCtxCreate(
         Q_PRIO | Q_SHARED);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_WARN("failed to create buffer");
+        LOG_ERR("failed to create buffer");
         xUartCtxCleanup(
             uartCtx,
             state);
@@ -330,7 +330,7 @@ static int xUartCtxCreate(
             uartCtx->rtdev);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_WARN("could not register XENO device driver");
+        LOG_ERR("could not register XENO device driver");
         xUartCtxCleanup(
             uartCtx,
             state);
@@ -387,7 +387,7 @@ static int xUartOpen(
         uartCtx);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_WARN("could not register interrupt");
+        LOG_ERR("could not register interrupt");
 
         return (retval);
     }
@@ -461,7 +461,7 @@ int __init moduleInit(
         &gUartCtx);                                                             /* Initialize Linux device driver                           */
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_WARN("could not initialize kernel platform device driver");
+        LOG_ERR("could not initialize kernel platform device driver");
 
         return (retval);
     }
@@ -469,7 +469,7 @@ int __init moduleInit(
         &gUartCtx);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_WARN("device context creation failed");
+        LOG_ERR("device context creation failed");
 
         return (retval);
     }

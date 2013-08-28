@@ -148,7 +148,7 @@ int platInit(
         hwmodUartName);
 
     if (NULL == hwmod) {
-        LOG_WARN("OMAP UART: device not found");
+        LOG_ERR("OMAP UART: device not found");
         platCleanup(
             uartCtx,
             state);
@@ -169,7 +169,7 @@ int platInit(
         0);
 
     if (NULL == platDev) {
-        LOG_WARN("OMAP UART: device build failed");
+        LOG_ERR("OMAP UART: device build failed");
         platCleanup(
             uartCtx,
             state);
@@ -183,7 +183,7 @@ int platInit(
         to_omap_device(platDev));
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_WARN("OMAP UART: can't enable device clocks");
+        LOG_ERR("OMAP UART: can't enable device clocks");
         platCleanup(
             uartCtx,
             state);
@@ -197,7 +197,7 @@ int platInit(
         platDev);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_WARN("OMAP UART: can't enable device");
+        LOG_ERR("OMAP UART: can't enable device");
         platCleanup(
             uartCtx,
             state);
