@@ -253,7 +253,7 @@ static void xUartCtxCleanup(
             (void)rt_queue_flush(
                 &uartCtx->buffRxHandle);
             (void)rt_queue_delete(
-                &uartCtx->buffTxHandle);
+                &uartCtx->buffRxHandle);
             /* fall through */
         }
 
