@@ -48,6 +48,8 @@
 #define CFG_BUFF_RX_NAME                "uartBuffRx"
 #define CFG_BUFF_RX_SIZE                4096UL
 
+#define CFG_DBG_ENABLE                  1
+
 /** @} *//*---------------------------------------------------------------*//**
  * @name        Advanced driver settings
  * @{ *//*--------------------------------------------------------------------*/
