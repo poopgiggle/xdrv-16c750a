@@ -89,23 +89,26 @@ static void platCleanup(
     switch (state) {
 
         case PLAT_STATE_ENABLE : {
+            LOG_INFO("reversing action: enable device clocks");
             omap_device_disable_clocks(
                 to_omap_device(uartCtx->platDev));
             /* fall down */
         }
 
         case PLAT_STATE_ECLK : {
+            LOG_INFO("reversing action: build device");
             omap_device_delete(
                 to_omap_device(uartCtx->platDev));
             /* fall down */
         }
 
         case PLAT_STATE_BUILD : {
-            /* nothing */
+            LOG_INFO("reversing action: device lookup");
             /* fall down */
         }
+
         case PLAT_STATE_LOOKUP : {
-            /* nothing */
+            LOG_INFO("reversing action: init");
             break;
         }
 
@@ -148,7 +151,7 @@ int platInit(
         hwmodUartName);
 
     if (NULL == hwmod) {
-        LOG_ERR("OMAP UART: device not found");
+        LOG_ERR("OMAP UART: failed to find HWMOD %s device", uartName);
         platCleanup(
             uartCtx,
             state);
@@ -169,7 +172,7 @@ int platInit(
         0);
 
     if (NULL == platDev) {
-        LOG_ERR("OMAP UART: device build failed");
+        LOG_ERR("OMAP UART: failed to build device");
         platCleanup(
             uartCtx,
             state);
@@ -183,7 +186,7 @@ int platInit(
         to_omap_device(platDev));
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("OMAP UART: can't enable device clocks");
+        LOG_ERR("OMAP UART: failed to enable device clocks");
         platCleanup(
             uartCtx,
             state);
@@ -197,7 +200,7 @@ int platInit(
         platDev);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("OMAP UART: can't enable device");
+        LOG_ERR("OMAP UART: failed to enable device");
         platCleanup(
             uartCtx,
             state);
@@ -225,10 +228,10 @@ int platTerm(
     LOG_DBG("OMAP UART: destroying device");
     retval = omap_device_shutdown(
         uartCtx->platDev);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "OMAP UART: can't shutdown device");
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "OMAP UART: failed to shutdown device");
     retval = omap_device_disable_clocks(
         to_omap_device(uartCtx->platDev));
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "OMAP UART: can't disable device clocks");
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "OMAP UART: failed to disable device clocks");
     omap_device_delete(
         to_omap_device(uartCtx->platDev));
     platform_device_unregister(

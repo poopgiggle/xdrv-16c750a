@@ -286,7 +286,7 @@ static int xUartCtxCreate(
 
     /*-- STATE: init ---------------------------------------------------------*/
     state = CTX_STATE_INIT;
-    LOG_DBG("Creating device context");
+    LOG_DBG("creating device context");
 
     /*-- STATE: TX allocate --------------------------------------------------*/
     state = CTX_STATE_TX_ALLOC;
@@ -333,7 +333,7 @@ static int xUartCtxCreate(
             uartCtx->rtdev);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("could not register to Real-Time DM");
+        LOG_ERR("failed to register to Real-Time DM");
         xUartCtxCleanup(
             uartCtx,
             state);
@@ -349,7 +349,7 @@ static int xUartCtxDestroy(
 
     int                 retval;
 
-    LOG_DBG("Destroying device context");
+    LOG_DBG("destroying device context");
     retval = rtdm_dev_unregister(
         &gUartDev,
         CFG_WAIT_EXIT_DELAY);
@@ -390,7 +390,7 @@ static int xUartOpen(
         uartCtx);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("could not register interrupt");
+        LOG_ERR("failed to register interrupt");
 
         return (retval);
     }
@@ -458,13 +458,13 @@ int __init moduleInit(
     gUartDev.device_id = gUartCtx.id;
 
     LOG_INFO(DEF_DRV_DESCRIPTION);
-    LOG_INFO("Version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
+    LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
     LOG_INFO("UART: %d", gUartCtx.id);
     retval = platInit(
         &gUartCtx);                                                             /* Initialize Linux device driver                           */
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("could not initialize kernel platform device driver");
+        LOG_ERR("failed to initialize kernel platform device driver");
 
         return (retval);
     }
@@ -472,7 +472,7 @@ int __init moduleInit(
         &gUartCtx);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("device context creation failed");
+        LOG_ERR("failed to create device context");
 
         return (retval);
     }
@@ -487,10 +487,10 @@ void __exit moduleTerm(
     LOG_INFO("removing driver for UART: %d", gUartCtx.id);
     retval = xUartCtxDestroy(
         &gUartCtx);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "context destroy failed");
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to destroy device context");
     retval = platTerm(
         &gUartCtx);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "platform driver destroy failed");
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed terminate platform device driver");
 }
 
 module_init(moduleInit);
