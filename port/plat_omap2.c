@@ -23,7 +23,7 @@
  *//***********************************************************************//**
  * @file
  * @author      Nenad Radulovic
- * @brief       Platform level device initalization
+ * @brief       Port for OMAP2 platform
  *********************************************************************//** @{ */
 
 /*=========================================================  INCLUDE FILES  ==*/
@@ -32,9 +32,10 @@
 #include <asm-generic/errno.h>
 #include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
+#include "x-16c750.h"
 #include "x-16c750_cfg.h"
-#include "x-16c750_regs.h"
-#include "plat.h"
+#include "plat_omap2.h"
+#include "port.h"
 #include "log.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/
@@ -55,6 +56,11 @@ enum platState {
     PLAT_STATE_ENABLE                                                           /**<@brief PLAT_STATE_ENABLE                                */
 };
 
+enum hwUart {
+    UART_DATA_TABLE(UART_DATA_EXPAND_AS_UART)
+    LAST_UART_ENTRY
+};
+
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 
 static void platCleanup(
@@ -63,6 +69,17 @@ static void platCleanup(
 
 /*=======================================================  LOCAL VARIABLES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
+
+const u32 gIOmap[] = {
+    UART_DATA_TABLE(UART_DATA_EXPAND_AS_MEM)
+};
+
+const u32 gIRQ[] = {
+    UART_DATA_TABLE(UART_DATA_EXPAND_AS_IRQ)
+};
+
+const u32 gUartNum = LAST_UART_ENTRY;
+
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
 
 static void platCleanup(

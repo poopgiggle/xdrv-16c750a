@@ -22,39 +22,43 @@
  * e-mail  :    blueskyniss@gmail.com
  *//***********************************************************************//**
  * @file
- * @author      Nenad Radulovic
- * @brief       Hardware device registers
+ * @author  	Nenad Radulovic
+ * @brief       Port for OMAP2 platform
  *********************************************************************//** @{ */
 
+#if !defined(PLAT_OMAP2_H_)
+#define PLAT_OMAP2_H_
+
 /*=========================================================  INCLUDE FILES  ==*/
+/*===============================================================  MACRO's  ==*/
 
-#include "x-16c750_regs.h"
+#if defined(CONFIG_SOC_OMAPAM33XX)
 
-/*=========================================================  LOCAL MACRO's  ==*/
+/**@brief       Available UARTs on AM335x
+ */
+ /*
+  *     | UART #  | IOMEM         | IRQ
+  */
+#define UART_DATA_TABLE(entry)                                                  \
+    entry(UARTO,    0x44e09000UL,   72)                                         \
+    entry(UART1,    0x48022000UL,   73)                                         \
+    entry(UART2,    0x48024000UL,   74)                                         \
+    entry(UART3,    0x481a6000UL,   44)                                         \
+    entry(UART4,    0x481a8000UL,   45)                                         \
+    entry(UART5,    0x481aa000UL,   46)
 
-#define UART_DATA_EXPAND_AS_MEM(uart, mem, irq)                                 \
-    mem,
+#endif
 
-#define UART_DATA_EXPAND_AS_IRQ(uart, mem, irq)                                 \
-    irq,
+/*------------------------------------------------------  C++ extern begin  --*/
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/*======================================================  LOCAL DATA TYPES  ==*/
-/*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
-/*=======================================================  LOCAL VARIABLES  ==*/
+/*============================================================  DATA TYPES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
-
-const unsigned long gIOmap[] = {
-    UART_DATA_TABLE(UART_DATA_EXPAND_AS_MEM)
-};
-
-const unsigned long gIRQ[] = {
-    UART_DATA_TABLE(UART_DATA_EXPAND_AS_IRQ)
-};
-
-/*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
-/*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
-/*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
+/*===================================================  FUNCTION PROTOTYPES  ==*/
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
- * END of x-16c750_regs.c
+ * END of plat_omap2.h
  ******************************************************************************/
+#endif /* PLAT_OMAP2_H_ */

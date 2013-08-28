@@ -160,39 +160,6 @@ enum hwReg {
 #define SCR_DMAMODECTL                  (0x1U << 0)
 
 /** @} *//*---------------------------------------------------------------*//**
- * @name        Memory and IRQ description
- * @{ *//*--------------------------------------------------------------------*/
-
-/**@brief       Register address alignment in bytes
- */
-#define UART_IOMAP_REG_ALIGN            4U
-
-/**@brief       Size of IOMEM space
- */
-#define UART_IOMAP_SIZE                 ((u32)LAST_REG_ENTRY + UART_IOMAP_REG_ALIGN)
-
-/**@brief       Available UARTs on AM335x
- */
- /*
-  *     | UART #  | IOMEM         | IRQ
-  */
-#define UART_DATA_TABLE(entry)                                                  \
-    entry(UARTO,    0x44e09000UL,   72)                                         \
-    entry(UART1,    0x48022000UL,   73)                                         \
-    entry(UART2,    0x48024000UL,   74)                                         \
-    entry(UART3,    0x481a6000UL,   44)                                         \
-    entry(UART4,    0x481a8000UL,   45)                                         \
-    entry(UART5,    0x481aa000UL,   46)
-
-#define UART_DATA_EXPAND_AS_UART(uart, mem, iqr)                                \
-    uart,
-
-enum hwUart {
-    UART_DATA_TABLE(UART_DATA_EXPAND_AS_UART)
-    LAST_UART_ENTRY
-};
-
-/** @} *//*---------------------------------------------------------------*//**
  * @name        UART configuration modes
  * @{ *//*--------------------------------------------------------------------*/
 
@@ -208,15 +175,6 @@ enum hwUart {
 
 /*============================================================  DATA TYPES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
-
-/**@brief       Hardware IO memory maps
- */
-extern const unsigned long gIOmap[];
-
-/**@brief       Hardware IRQ numbers
- */
-extern const unsigned long gIRQ[];
-
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
 static inline void lldRegWr(

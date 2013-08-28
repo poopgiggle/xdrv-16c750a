@@ -23,35 +23,38 @@
  *//***********************************************************************//**
  * @file
  * @author  	Nenad Radulovic
- * @brief   	Configuration of x-16c750 driver.
+ * @brief   	Configuration for 16C750 UART hardware
  *********************************************************************//** @{ */
 
 #if !defined(X_16C750_CFG_H_)
 #define X_16C750_CFG_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
-
 /*===============================================================  DEFINES  ==*/
-/** @cond */
-
-/** @endcond */
 /*==============================================================  SETTINGS  ==*/
 
 /*------------------------------------------------------------------------*//**
  * @name        Generic driver configuration
  * @{ *//*--------------------------------------------------------------------*/
 
-#define CFG_UART                        UART3
-
-#define CFG_DRV_NAME                    "xeno16C750A"
-
-#define CFG_WAIT_EXIT_DELAY             1000
+/**@brief       UART number as assigned by silicon manufacturer
+ * @note        The chosen driver must not be managed by Linux kernel
+ */
+#define CFG_UART                        3
 
 #define CFG_BUFF_TX_NAME                "uartBuffTx"
 #define CFG_BUFF_TX_SIZE                4096UL
 
 #define CFG_BUFF_RX_NAME                "uartBuffRx"
 #define CFG_BUFF_RX_SIZE                4096UL
+
+/** @} *//*---------------------------------------------------------------*//**
+ * @name        Advanced driver settings
+ * @{ *//*--------------------------------------------------------------------*/
+
+#define CFG_DRV_NAME                    "xeno16C750A"
+
+#define CFG_WAIT_EXIT_DELAY             1000
 
 /** @} *//*---------------------------------------------------------------*//**
  * @name        Default driver settings

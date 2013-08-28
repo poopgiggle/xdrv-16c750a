@@ -22,58 +22,23 @@
  * e-mail  :    blueskyniss@gmail.com
  *//***********************************************************************//**
  * @file
- * @author  	Nenad Radulovic
- * @brief       Interface of plat.
- * @addtogroup  module_intf
+ * @author      Nenad Radulovic
+ * @brief       Low Level Driver (LLD) for 16C750 UART hardware
  *********************************************************************//** @{ */
-
-#if !defined(PLAT_H_)
-#define PLAT_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include "x-16c750.h"
+#include "x-16c750_lld.h"
 
-/*===============================================================  MACRO's  ==*/
-/*------------------------------------------------------  C++ extern begin  --*/
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/*============================================================  DATA TYPES  ==*/
+/*=========================================================  LOCAL MACRO's  ==*/
+/*======================================================  LOCAL DATA TYPES  ==*/
+/*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
+/*=======================================================  LOCAL VARIABLES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
-/*===================================================  FUNCTION PROTOTYPES  ==*/
-
-/*------------------------------------------------------------------------*//**
- * @name        Platform functions
- * @{ *//*--------------------------------------------------------------------*/
-
-/**@brief       Platform level device initialization
- * @param       uartCtx
- *              Current driver context
- * @return
- *  @retval     0 - SUCCESS
- */
-int platInit(
-    struct uartCtx *    uartCtx);
-
-int platTerm(
-    struct uartCtx *    uartCtx);
-
-int platDMAInit(
-    struct uartCtx *    uartCtx);
-
-int platDMATerm(
-    struct uartCtx *    uartCtx);
-
-/** @} *//*-------------------------------------------------------------------*/
-/*--------------------------------------------------------  C++ extern end  --*/
-#ifdef __cplusplus
-}
-#endif
-
+/*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
+/*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
+/*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
- * END of plat.h
+ * END of x-16c750_regs.c
  ******************************************************************************/
-#endif /* PLAT_H_ */

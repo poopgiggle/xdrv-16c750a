@@ -23,7 +23,7 @@
  *//***********************************************************************//**
  * @file
  * @author      Nenad Radulovic
- * @brief       Driver for 16C750 compatible UARTs
+ * @brief       Driver for 16C750 UART hardware
  *********************************************************************//** @{ */
 
 /*=========================================================  INCLUDE FILES  ==*/
@@ -37,9 +37,9 @@
 #include <linux/version.h>
 
 #include "x-16c750.h"
-#include "x-16c750_regs.h"
+#include "x-16c750_lld.h"
 #include "x-16c750_cfg.h"
-#include "plat.h"
+#include "port.h"
 #include "log.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/
@@ -50,6 +50,9 @@
 #define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
 #define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
+
+#define TO_UARTCTX(rtdm_dev_context)                                            \
+    (struct uartCtx *)rtdm_dev_context->dev_private
 
 /*======================================================  LOCAL DATA TYPES  ==*/
 
@@ -373,7 +376,7 @@ static int xUartOpen(
     struct uartCtx *    uartCtx;
     rtdm_lockctx_t      lockCtx;
 
-    uartCtx = (struct uartCtx *)ctx->dev_private;
+    uartCtx = TO_UARTCTX(ctx);
     rtdm_lock_init(&uartCtx->lock);
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,

@@ -31,7 +31,9 @@
 #define LOG_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
+
 #include <linux/printk.h>
+#include "x-16c750_cfg.h"
 
 /*===============================================================  MACRO's  ==*/
 
@@ -44,13 +46,20 @@
 #define LOG_WARN(msg, ...)                                                      \
     printk(KERN_WARNING CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
 
-#define LOG_ERR(msg, ...)                                                       \
-    printk(KERN_ERR CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
-
 #define LOG_WARN_IF(expr, msg, ...)                                             \
     do {                                                                        \
         if ((expr)) {                                                           \
             LOG_WARN(msg, ##__VA_ARGS__);                                       \
+        }                                                                       \
+    } while (0)
+
+#define LOG_ERR(msg, ...)                                                       \
+    printk(KERN_ERR CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
+
+#define LOG_ERR_IF(expr, msg, ...)                                              \
+    do {                                                                        \
+        if ((expr)) {                                                           \
+            LOG_ERR(msg, ##__VA_ARGS__);                                        \
         }                                                                       \
     } while (0)
 
