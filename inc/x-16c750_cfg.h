@@ -24,7 +24,6 @@
  * @file
  * @author  	Nenad Radulovic
  * @brief   	Configuration of x-16c750 driver.
- * @addtogroup  module_cfg
  *********************************************************************//** @{ */
 
 #if !defined(X_16C750_CFG_H_)
@@ -42,7 +41,7 @@
  * @name        Generic driver configuration
  * @{ *//*--------------------------------------------------------------------*/
 
-#define CFG_UART                        3U
+#define CFG_UART                        UART3
 
 #define CFG_DRV_NAME                    "xeno16C750A"
 

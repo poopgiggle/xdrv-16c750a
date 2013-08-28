@@ -118,7 +118,7 @@ int platInit(
         sizeof(uartName),
         DEF_UART_NAME "%d",
         uartCtx->id);                                                           /* NOTE: Since hwmod UART count is messed up we need the right name now */
-    LOG_INFO("OMAP UART: creating %s device", uartName);
+    LOG_DBG("OMAP UART: creating %s device", uartName);
 
     /*-- HWMOD lookup state --------------------------------------------------*/
     state = PLAT_STATE_LOOKUP;
@@ -189,7 +189,7 @@ int platInit(
     }
 
     /*-- Saving references to device data ------------------------------------*/
-    uartCtx->ioremap = omap_device_get_rt_va(
+    uartCtx->ioRemap = omap_device_get_rt_va(
         to_omap_device(platDev));
     uartCtx->platDev = platDev;
 
@@ -205,6 +205,7 @@ int platTerm(
 
     int                 retval;
 
+    LOG_DBG("OMAP UART: destroying device");
     retval = omap_device_shutdown(
         uartCtx->platDev);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "OMAP UART: can't shutdown device");
@@ -217,6 +218,18 @@ int platTerm(
         uartCtx->platDev);
 
     return (retval);
+}
+
+int platDMAInit(
+    struct uartCtx *    uartCtx) {
+
+    return (RETVAL_SUCCESS);
+}
+
+int platDMATerm(
+    struct uartCtx *    uartCtx) {
+
+    return (RETVAL_SUCCESS);
 }
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/

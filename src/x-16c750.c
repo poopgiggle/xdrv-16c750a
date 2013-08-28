@@ -47,6 +47,9 @@
 #define DEF_DRV_VERSION_MAJOR           1
 #define DEF_DRV_VERSION_MINOR           0
 #define DEF_DRV_VERSION_PATCH           0
+#define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
+#define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
+#define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
 
 /*======================================================  LOCAL DATA TYPES  ==*/
 
@@ -61,22 +64,24 @@ enum ctxState {
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 
-static void hwUartRegWr(
-    struct uartCtx *    uartCtx,
-    enum hwUartRegsWr   reg,
-    unsigned int        val);
+/**@brief       Setup UART module to use FIFO and DMA
+ */
+static int xUartDMAFIFOSetup(
+    struct uartCtx *    uartCtx);
 
-static int hwUartRegRd(
-    struct uartCtx *    uartCtx,
-    enum hwUartRegsRd   reg);
-
+/**@brief       Cleanup all work done by xUartCtxCreate() in case it failed
+ */
 static void xUartCtxCleanup(
     struct uartCtx *    uartCtx,
     enum ctxState       state);
 
+/**@brief       Create UART context
+ */
 static int xUartCtxCreate(
     struct uartCtx *    uartCtx);
 
+/**@brief       Destroy UART context
+ */
 static int xUartCtxDestroy(
     struct uartCtx *    uartCtx);
 
@@ -114,7 +119,7 @@ static int xUartRd(
 static int xUartWr(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo,
-    void *              buff,
+    const void *        buff,
     size_t              bytes);
 
 static int xUartIrqHandle(
@@ -141,7 +146,7 @@ static struct rtdm_device gUartDev = {
         .select_bind    = NULL,
         .read_rt        = xUartRd,
         .read_nrt       = NULL,
-        .write_rt       = NULL,
+        .write_rt       = xUartWr,
         .write_nrt      = NULL,
         .recvmsg_rt     = NULL,
         .recvmsg_nrt    = NULL,
@@ -153,8 +158,8 @@ static struct rtdm_device gUartDev = {
     .profile_version    = RTSER_PROFILE_VER,
     .driver_name        = CFG_DRV_NAME,
     .driver_version     = RTDM_DRIVER_VER(DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH),
-    .peripheral_name    = "UART 16C750",
-    .provider_name      = "Nenad Radulovic",
+    .peripheral_name    = DEF_DRV_SUPP_DEVICE,
+    .provider_name      = DEF_DRV_AUTHOR,
     .proc_name          = "xuart",
     .device_id          = 0,
     .device_data        = NULL
@@ -165,35 +170,76 @@ static struct uartCtx gUartCtx;
 /*======================================================  GLOBAL VARIABLES  ==*/
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Nenad Radulovic <nenad.radulovic@netico-group.com>");
-MODULE_DESCRIPTION("Real-time 16C750 device driver");
-MODULE_SUPPORTED_DEVICE("16C750");
+MODULE_AUTHOR(DEF_DRV_AUTHOR);
+MODULE_DESCRIPTION(DEF_DRV_DESCRIPTION);
+MODULE_SUPPORTED_DEVICE(DEF_DRV_SUPP_DEVICE);
 
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
 
-static void hwUartRegWr(
-    struct uartCtx *    uartCtx,
-    enum hwUartRegsWr   reg,
-    unsigned int        val) {
-
-    LOG_INFO("write base: %p, off: %d, addr: %p  val: %d", (void *)uartCtx->ioremap, reg, (unsigned char *)uartCtx->ioremap + (unsigned long)reg, val);
-    __raw_writew(val, (unsigned char *)uartCtx->ioremap + (unsigned long)reg);
-}
-
-static int hwUartRegRd(
-    struct uartCtx *    uartCtx,
-    enum hwUartRegsRd   reg) {
+static int xUartDMAFIFOSetup(
+    struct uartCtx *    uartCtx) {
 
     int                 retval;
+    u16                 tmp;
+    u16                 regLCR;
+    u16                 regEFR;
+    u16                 regMCR;
 
-    retval = __raw_readw((unsigned char *)uartCtx->ioremap + (unsigned long)reg);
-    LOG_INFO("read  base: %p, off: %d, addr: %p,  val: %d", (void *)uartCtx->ioremap, reg, (unsigned char *)uartCtx->ioremap + (unsigned long)reg, retval);
+    regLCR = lldRegRd(                                                          /* Switch to register configuration mode B to access the    */
+        uartCtx->ioRemap,                                                       /* EFR register                                             */
+        LCR);
+    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_B);
+    regEFR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
+        uartCtx->ioRemap,                                                       /* register (1/2)                                           */
+        bEFR,
+        EFR_ENHANCEDEN);
+    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_A);                       /* Switch to register configuration mode A to access the MCR*/
+                                                                                /* register                                                 */
+    regMCR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
+        uartCtx->ioRemap,                                                       /* register (2/2)                                           */
+        aMCR,
+        MCR_TCRTLR);
+    lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
+        uartCtx->ioRemap,                                                       /* (1/2)                                                    */
+        waFCR,
+        FCR_RX_FIFO_TRIG_56 | FCR_TX_FIFO_TRIG_56 | FCR_DMA_MODE |
+            FCR_TX_FIFO_CLEAR | FCR_RX_FIFO_CLEAR | FCR_FIFO_EN);
+    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_B);                       /* Switch to register configuration mode B to access the EFR*/
+                                                                                /* register   */
+    lldRegWr(                                                                   /* Load the new FIFO triggers (2/3)                         */
+        uartCtx->ioRemap,
+        wbTLR,
+        TLR_RX_FIFO_TRIG_DMA_0 | TLR_TX_FIFO_TRIG_DMA_0);
+    (void)lldRegResetBits(                                                      /* Load the new FIFO triggers (3/3) and the new DMA mode    */
+        uartCtx->ioRemap,                                                       /* (2/2)                                                    */
+        SCR,
+        SCR_RXTRIGGRANU1 | SCR_TXTRIGGRANU1 | SCR_DMAMODE2_Mask |
+            SCR_DMAMODECTL);
+    tmp = regEFR & EFR_ENHANCEDEN;                                              /* Restore EFR<4> ENHANCED_EN bit                           */
+    tmp |= lldRegRd(uartCtx->ioRemap, bEFR) & ~EFR_ENHANCEDEN;
+    lldRegWr(
+        uartCtx->ioRemap,
+        bEFR,
+        tmp);
+    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_A);                       /* Switch to register configuration mode A to access the MCR*/
+                                                                                /* register                                                 */
+    tmp = regMCR & MCR_TCRTLR;                                                  /* Restore MCR<6> TCRTLR bit                                */
+    tmp |= lldRegRd(uartCtx->ioRemap, aMCR) & ~MCR_TCRTLR;
+    lldRegWr(
+        uartCtx->ioRemap,
+        aMCR,
+        tmp);
+    lldRegWr(                                                                   /* Restore LCR                                              */
+        uartCtx->ioRemap,
+        LCR,
+        regLCR);
+
+    retval = platDMAInit(
+        uartCtx);
 
     return (retval);
 }
 
-/**@brief       In case CTX create was not successful we have to undo some stuff
- */
 static void xUartCtxCleanup(
     struct uartCtx *    uartCtx,
     enum ctxState       state) {
@@ -235,7 +281,7 @@ static int xUartCtxCreate(
 
     /*-- STATE: init ---------------------------------------------------------*/
     state = CTX_STATE_INIT;
-    LOG_INFO("Creating device context");
+    LOG_DBG("Creating device context");
 
     /*-- STATE: TX allocate --------------------------------------------------*/
     state = CTX_STATE_TX_ALLOC;
@@ -288,17 +334,6 @@ static int xUartCtxCreate(
 
         return (retval);
     }
-    hwUartRegWr(
-        uartCtx,
-        wLCR,
-        0U);
-    hwUartRegWr(
-        uartCtx,
-        wIER,
-        0U);
-    retval = hwUartRegRd(
-        uartCtx,
-        rIER);
 
     return (retval);
 }
@@ -308,6 +343,7 @@ static int xUartCtxDestroy(
 
     int                 retval;
 
+    LOG_DBG("Destroying device context");
     retval = rtdm_dev_unregister(
         &gUartDev,
         CFG_WAIT_EXIT_DELAY);
@@ -328,9 +364,6 @@ static int xUartCtxDestroy(
     return (retval);
 }
 
-/**@brief       Named device open handler
- * @details     This function will setup LATE real-time aspects of driver
- */
 static int xUartOpen(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo,
@@ -344,7 +377,7 @@ static int xUartOpen(
     rtdm_lock_init(&uartCtx->lock);
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
-        gHwIrqNum[uartCtx->id],
+        gIRQ[uartCtx->id],
         xUartIrqHandle,
         RTDM_IRQTYPE_EDGE,
         ctx->device->proc_name,
@@ -365,8 +398,6 @@ static int xUartOpen(
     return (retval);
 }
 
-/**@brief       Device close handler
- */
 static int xUartClose(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo) {
@@ -374,8 +405,6 @@ static int xUartClose(
     return (RETVAL_SUCCESS);
 }
 
-/**@brief       IOCTL handler
- */
 static int xUartIOctl(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo,
@@ -385,8 +414,6 @@ static int xUartIOctl(
     return (RETVAL_SUCCESS);
 }
 
-/**@brief       Read device handler
- */
 static int xUartRd(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo,
@@ -396,12 +423,10 @@ static int xUartRd(
     return (RETVAL_SUCCESS);
 }
 
-/**@brief       Write device handler
- */
 static int xUartWr(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo,
-    void *              buff,
+    const void *        buff,
     size_t              bytes) {
 
     return (RETVAL_SUCCESS);
@@ -421,9 +446,14 @@ int __init moduleInit(
 
     int                 retval;
 
-    gUartCtx.id = CFG_UART;                                                     /* TODO: This must go, almost all functions are parameterized   */
+    gUartCtx.id = CFG_UART;                                                     /* TODO: This must go, almost all functions are already     */
+                                                                                /* parameterized                                            */
     gUartCtx.rtdev = &gUartDev;                                                 /* TODO: This must be parameterized                         */
-    LOG_INFO("Real-Time driver for UART: %d", gUartCtx.id);
+    gUartDev.device_id = gUartCtx.id;
+
+    LOG_INFO(DEF_DRV_DESCRIPTION);
+    LOG_INFO("Version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
+    LOG_INFO("UART: %d", gUartCtx.id);
     retval = platInit(
         &gUartCtx);                                                             /* Initialize Linux device driver                           */
 
@@ -448,12 +478,13 @@ void __exit moduleTerm(
     void) {
     int             retval;
 
-    LOG_INFO("removing driver for UART: %d", CFG_UART);
+    LOG_INFO("removing driver for UART: %d", gUartCtx.id);
     retval = xUartCtxDestroy(
         &gUartCtx);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "context destroy failed");
     retval = platTerm(
         &gUartCtx);
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "platform driver destroy failed");
 }
 
 module_init(moduleInit);

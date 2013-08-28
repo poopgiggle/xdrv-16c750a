@@ -23,13 +23,18 @@
  *//***********************************************************************//**
  * @file
  * @author  	Nenad Radulovic
- * @brief       Register definitions of 16C750 UART hardware
+ * @brief       Low Level Driver (LLD) for 16C750 UART hardware
  *********************************************************************//** @{ */
 
-#if !defined(X_16C750_REGS_H_)
-#define X_16C750_REGS_H_
+#if !defined(X_16C750_LLD_H_)
+#define X_16C750_LLD_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
+
+#include "x-16c750.h"
+#include "x-16c750_cfg.h"
+#include "log.h"
+
 /*===============================================================  MACRO's  ==*/
 
 /*------------------------------------------------------------------------*//**
@@ -46,7 +51,7 @@
 #define REGS_TABLE(entry)                                                       \
     entry(  RHR,    THR,    DLL,    DLL,    DLL,    DLL,    0x00)               \
     entry(  IER,    IER,    DLH,    DLH,    DLH,    DLH,    0x04)               \
-    entry(  IIR,    FCR,    IIR,    FCR,    EFT,    EFT,    0x08)               \
+    entry(  IIR,    FCR,    IIR,    FCR,    EFR,    EFR,    0x08)               \
     entry(  LCR,    LCR,    LCR,    LCR,    LCR,    LCR,    0x0c)               \
     entry(  MCR,    MCR,    MCR,    MCR,    XON1,   XON1,   0x10)               \
     entry(  LSR,    na1,    LSR,    na1,    XON2,   XON2,   0x14)               \
@@ -76,52 +81,95 @@
     entry(  MDR3,   MDR3,   MDR3,   MDR3,   MDR3,   MDR3,   0x80)               \
     entry(  TXDMA,  TXDMA,  TXDMA,  TXDMA,  TXDMA,  TXDMA,  0x84)
 
-/* SYSC register bits */
-#define SYSC_AUTOIDLE                   (1U << 0)
-#define SYSC_SOFTRESET                  (1U << 1)
-#define SYSC_ENAWAKEUP                  (1U << 2)
-
-/* SYSS register bits */
-#define SYSS_RESETDONE                  (1U << 0)
-
-/**@brief       Create HW regs from table
+/**@brief       Create registers from table
  */
 #define REGS_EXPAND_AS_ENUM(rd0_reg, wr0_reg, rdN_reg, wrN_reg, rd_reg, wr_reg, addr)       \
-    _r##rd0_reg = addr,                                                          \
-    _w##wr0_reg = addr,                                                          \
-    _rn##rdN_reg = addr,                                                         \
-    _wn##wrN_reg = addr,                                                         \
-    _rs##rd_reg = addr,                                                          \
-    _ws##wr_reg = addr,
-
-#define REGS_EXPAND_AS_ENUM_UART_MODE_RD(rd0_reg, wr0_reg, rdN_reg, wrN_reg, rd_reg, wr_reg, addr) \
-    r##rd0_reg = addr,
-
-#define REGS_EXPAND_AS_ENUM_UART_MODE_WR(rd0_reg, wr0_reg, rdN_reg, wrN_reg, rd_reg, wr_reg, addr) \
-    w##wr0_reg = addr,
-
-enum hwUartRegsRd {
-    REGS_TABLE(REGS_EXPAND_AS_ENUM_UART_MODE_RD)
-};
-
-enum hwUartRegsWr {
-    REGS_TABLE(REGS_EXPAND_AS_ENUM_UART_MODE_WR)
-};
+    rd0_reg = addr,                                                             \
+    w##wr0_reg = addr,                                                          \
+    a##rdN_reg = addr,                                                          \
+    wa##wrN_reg = addr,                                                         \
+    b##rd_reg = addr,                                                           \
+    wb##wr_reg = addr,
 
 /**@brief       Hardware registers
  */
-enum hwRegs {
+enum hwReg {
     REGS_TABLE(REGS_EXPAND_AS_ENUM)
     LAST_REG_ENTRY
 };
 
+/** @} *//*---------------------------------------------------------------*//**
+ * @name        Register aliases
+ * @{ *//*--------------------------------------------------------------------*/
+
+#define TLR                             SPR
+#define wTLR                            wSPR
+#define raTLR                           raSPR
+#define waTLR                           waSPR
+#define rbTLR                           rbXOFF2
+#define wbTLR                           wbXOFF2
+
+/** @} *//*---------------------------------------------------------------*//**
+ * @name        Register bit definitions
+ * @{ *//*--------------------------------------------------------------------*/
+
+/* SYSC register bits                                                         */
+#define SYSC_AUTOIDLE                   (1U << 0)
+#define SYSC_SOFTRESET                  (1U << 1)
+#define SYSC_ENAWAKEUP                  (1U << 2)
+
+/* SYSS register bits                                                         */
+#define SYSS_RESETDONE                  (1U << 0)
+
+/* EFR register bits                                                          */
+#define EFR_ENHANCEDEN                  (1U << 4)
+
+/* MCR register bits                                                          */
+#define MCR_TCRTLR                      (1U << 6)
+
+/* FCR register bits                                                          */
+#define FCR_RX_FIFO_TRIG_Mask           (0x3U << 6)
+#define FCR_RX_FIFO_TRIG_8              (0x0U << 6)
+#define FCR_RX_FIFO_TRIG_16             (0x1U << 6)
+#define FCR_RX_FIFO_TRIG_56             (0x2U << 6)
+#define FCR_RX_FIFO_TRIG_60             (0x3U << 6)
+#define FCR_TX_FIFO_TRIG_Mask           (0x3U << 4)
+#define FCR_TX_FIFO_TRIG_8              (0x0U << 4)
+#define FCR_TX_FIFO_TRIG_16             (0x1U << 4)
+#define FCR_TX_FIFO_TRIG_32             (0x2U << 4)
+#define FCR_TX_FIFO_TRIG_56             (0x3U << 4)
+#define FCR_DMA_MODE                    (0x1U << 3)
+#define FCR_TX_FIFO_CLEAR               (0x1U << 2)
+#define FCR_RX_FIFO_CLEAR               (0x1U << 1)
+#define FCR_FIFO_EN                     (0x1U << 0)
+
+/* Trigger Level Register (TLR) : register bits                               */
+#define TLR_RX_FIFO_TRIG_DMA_Mask       (0xfU << 4)
+#define TLR_RX_FIFO_TRIG_DMA_0          (0x0U << 4)
+#define TLR_TX_FIFO_TRIG_DMA_Mask       (0xfU << 0)
+#define TLR_TX_FIFO_TRIG_DMA_0          (0x0U << 0)
+
+/* Supplementary Control Register (SCR) : register bits                       */
+#define SCR_RXTRIGGRANU1                (0x1U << 7)
+#define SCR_TXTRIGGRANU1                (0x1U << 6)
+#define SCR_DMAMODE2_Mask               (0x3U << 1)
+#define SCR_DMAMODE2_NO_DMA             (0x0U << 1)
+#define SCR_DMAMODE2_TX_AND_RX          (0x1U << 1)
+#define SCR_DMAMODE2_RX                 (0x2U << 1)
+#define SCR_DMAMODE2_TX                 (0x3U << 1)
+#define SCR_DMAMODECTL                  (0x1U << 0)
+
+/** @} *//*---------------------------------------------------------------*//**
+ * @name        Memory and IRQ description
+ * @{ *//*--------------------------------------------------------------------*/
+
 /**@brief       Register address alignment in bytes
  */
-#define HW_IOMAP_REG_ALIGN              4U
+#define UART_IOMAP_REG_ALIGN            4U
 
 /**@brief       Size of IOMEM space
  */
-#define HW_IOMAP_SIZE                   (LAST_REG_ENTRY + HW_IOMAP_REG_ALIGN)
+#define UART_IOMAP_SIZE                 ((u32)LAST_REG_ENTRY + UART_IOMAP_REG_ALIGN)
 
 /**@brief       Available UARTs on AM335x
  */
@@ -129,42 +177,97 @@ enum hwRegs {
   *     | UART #  | IOMEM         | IRQ
   */
 #define UART_DATA_TABLE(entry)                                                  \
-    entry(UARTO,    0x44e09000,     72)                                         \
-    entry(UART1,    0x48022000,     73)                                         \
-    entry(UART2,    0x48024000,     74)                                         \
-    entry(UART3,    0x481A6000,     44)                                         \
-    entry(UART4,    0x481A8000,     45)                                         \
-    entry(UART5,    0x481AA000,     46)
+    entry(UARTO,    0x44e09000UL,   72)                                         \
+    entry(UART1,    0x48022000UL,   73)                                         \
+    entry(UART2,    0x48024000UL,   74)                                         \
+    entry(UART3,    0x481a6000UL,   44)                                         \
+    entry(UART4,    0x481a8000UL,   45)                                         \
+    entry(UART5,    0x481aa000UL,   46)
 
 #define UART_DATA_EXPAND_AS_UART(uart, mem, iqr)                                \
     uart,
-
-#define UART_DATA_EXPAND_AS_MEM(uart, mem, irq)                                 \
-    (unsigned long)mem,
-
-#define UART_DATA_EXPAND_AS_IRQ(uart, mem, irq)                                 \
-    irq,
 
 enum hwUart {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_UART)
     LAST_UART_ENTRY
 };
 
+/** @} *//*---------------------------------------------------------------*//**
+ * @name        UART configuration modes
+ * @{ *//*--------------------------------------------------------------------*/
+
+#define UART_CFG_MODE_A                 0x0080U
+#define UART_CFG_MODE_B                 0x00bfU
+
 /** @} *//*-------------------------------------------------------------------*/
+
+#define UART_CFG_MODE_SET(ioRemap, mode)                                        \
+    do {                                                                        \
+        lldRegWr(ioRemap, LCR, mode);                                            \
+    } while (0)
+
 /*============================================================  DATA TYPES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
 
 /**@brief       Hardware IO memory maps
  */
-extern const unsigned long gHwIomap[];
+extern const unsigned long gIOmap[];
 
 /**@brief       Hardware IRQ numbers
  */
-extern const unsigned long gHwIrqNum[];
+extern const unsigned long gIRQ[];
 
 /*===================================================  FUNCTION PROTOTYPES  ==*/
+
+static inline void lldRegWr(
+    u8 *                ioRemap,
+    enum hwReg          reg,
+    u16                 val) {
+
+    LOG_DBG("write base: %p, off: %2d,  val: %d", ioRemap, reg, val);
+    iowrite16(val, ioRemap + (u32)reg);
+}
+
+static inline u16 lldRegRd(
+    u8 *                ioRemap,
+    enum hwReg          reg) {
+
+    int                 retval;
+
+    retval = ioread16(ioRemap + (u32)reg);
+    LOG_DBG("read  base: %p, off: %2d,  val: %d", ioRemap, reg, retval);
+
+    return (retval);
+}
+
+static inline u16 lldRegSetBits(
+    u8 *                ioRemap,
+    enum hwReg          reg,
+    u16                 bits) {
+
+    u16                 tmp;
+
+    tmp = lldRegRd(ioRemap, reg);
+    lldRegWr(ioRemap, reg, tmp | bits);
+
+    return (tmp);
+}
+
+static inline u16 lldRegResetBits(
+    u8 *                ioRemap,
+    enum hwReg          reg,
+    u16                 bits) {
+
+    u16                 tmp;
+
+    tmp = lldRegRd(ioRemap, reg);
+    lldRegWr(ioRemap, reg, tmp & bits);
+
+    return (tmp);
+}
+
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
- * END of x-16c750_regs.h
+ * END of x-16c750_lld.h
  ******************************************************************************/
-#endif /* X_16C750_REGS_H_ */
+#endif /* X_16C750_LLD_H_ */

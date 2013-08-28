@@ -31,16 +31,23 @@
 #include "x-16c750_regs.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/
+
+#define UART_DATA_EXPAND_AS_MEM(uart, mem, irq)                                 \
+    mem,
+
+#define UART_DATA_EXPAND_AS_IRQ(uart, mem, irq)                                 \
+    irq,
+
 /*======================================================  LOCAL DATA TYPES  ==*/
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 /*=======================================================  LOCAL VARIABLES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
 
-const unsigned long gHwIomap[] = {
+const unsigned long gIOmap[] = {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_MEM)
 };
 
-const unsigned long gHwIrqNum[] = {
+const unsigned long gIRQ[] = {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_IRQ)
 };
 

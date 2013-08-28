@@ -56,9 +56,9 @@ struct uartCtx {
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
     struct rtdm_device *        rtdev;                                          /**<@brief Real-time device driver                          */
     struct platform_device *    platDev;                                        /**<@brief Linux kernel device driver                       */
-    int                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
+    u32                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
     rtser_config_t      cfg;                                                    /**<@brief Current device configuration                     */
-    unsigned long *     ioremap;                                                /**<@brief Remaped IO memory area                           */
+    u8 * __iomem        ioRemap;                                                /**<@brief Remaped IO memory area                           */
     RT_QUEUE            buffTxHandle;                                           /**<@brief TX buffer handle                                 */
     RT_QUEUE            buffRxHandle;                                           /**<@brief RX buffer handle                                 */
     void *              buffTx;                                                 /**<@brief TX buffer storage                                */

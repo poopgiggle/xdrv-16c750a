@@ -35,6 +35,9 @@
 
 /*===============================================================  MACRO's  ==*/
 
+#define LOG_DBG(msg, ...)                                                       \
+    printk(KERN_INFO CFG_DRV_NAME "(DBG): " msg "\n", ##__VA_ARGS__);
+
 #define LOG_INFO(msg, ...)                                                      \
     printk(KERN_INFO CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
 

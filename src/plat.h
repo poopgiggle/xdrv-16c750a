@@ -60,6 +60,12 @@ int platInit(
 int platTerm(
     struct uartCtx *    uartCtx);
 
+int platDMAInit(
+    struct uartCtx *    uartCtx);
+
+int platDMATerm(
+    struct uartCtx *    uartCtx);
+
 /** @} *//*-------------------------------------------------------------------*/
 /*--------------------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
