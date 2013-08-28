@@ -237,7 +237,7 @@ static int xUartDMAFIFOSetup(
         LCR,
         regLCR);
 
-    retval = platDMAInit(
+    retval = portDMAInit(
         uartCtx);
 
     return (retval);
@@ -383,7 +383,7 @@ static int xUartOpen(
     rtdm_lock_init(&uartCtx->lock);
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
-        gIRQ[uartCtx->id],
+        gPortIRQ[uartCtx->id],
         xUartIrqHandle,
         RTDM_IRQTYPE_EDGE,
         ctx->device->proc_name,
@@ -460,7 +460,7 @@ int __init moduleInit(
     LOG_INFO(DEF_DRV_DESCRIPTION);
     LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
     LOG_INFO("UART: %d", gUartCtx.id);
-    retval = platInit(
+    retval = portInit(
         &gUartCtx);                                                             /* Initialize Linux device driver                           */
 
     if (RETVAL_SUCCESS != retval) {
@@ -488,7 +488,7 @@ void __exit moduleTerm(
     retval = xUartCtxDestroy(
         &gUartCtx);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to destroy device context");
-    retval = platTerm(
+    retval = portTerm(
         &gUartCtx);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed terminate platform device driver");
 }

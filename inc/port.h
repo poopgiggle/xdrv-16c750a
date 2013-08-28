@@ -60,15 +60,15 @@ extern "C" {
 
 /**@brief       Hardware IO memory maps
  */
-extern const u32 gIOmap[];
+extern const u32 gPortIOmap[];
 
 /**@brief       Hardware IRQ numbers
  */
-extern const u32 gIRQ[];
+extern const u32 gPortIRQ[];
 
 /**@brief       Number of supported UARTs
  */
-extern const u32 gUartNum;
+extern const u32 gPortUartNum;
 
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
@@ -83,7 +83,7 @@ extern const u32 gUartNum;
  *  @retval     0 - SUCCESS
  *  @retval     !0 - error code
  */
-int platInit(
+int portInit(
     struct uartCtx *    uartCtx);
 
 /**@brief       Deinit and destroy kernel device driver
@@ -93,13 +93,13 @@ int platInit(
  *  @retval     0 - SUCCESS
  *  @retval     !0 - error code
  */
-int platTerm(
+int portTerm(
     struct uartCtx *    uartCtx);
 
-int platDMAInit(
+int portDMAInit(
     struct uartCtx *    uartCtx);
 
-int platDMATerm(
+int portDMATerm(
     struct uartCtx *    uartCtx);
 
 /** @} *//*-------------------------------------------------------------------*/

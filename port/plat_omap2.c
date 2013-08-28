@@ -70,15 +70,15 @@ static void platCleanup(
 /*=======================================================  LOCAL VARIABLES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
 
-const u32 gIOmap[] = {
+const u32 gPortIOmap[] = {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_MEM)
 };
 
-const u32 gIRQ[] = {
+const u32 gPortIRQ[] = {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_IRQ)
 };
 
-const u32 gUartNum = LAST_UART_ENTRY;
+const u32 gPortUartNum = LAST_UART_ENTRY;
 
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
 
@@ -121,7 +121,7 @@ static void platCleanup(
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
-int platInit(
+int portInit(
     struct uartCtx *    uartCtx) {
 
     struct platform_device * platDev;
@@ -220,7 +220,7 @@ int platInit(
  *          has really dropped the ball here because they did NOT implemented
  *          release functions like they should have.
  */
-int platTerm(
+int portTerm(
     struct uartCtx *    uartCtx) {
 
     int                 retval;
@@ -240,13 +240,13 @@ int platTerm(
     return (retval);
 }
 
-int platDMAInit(
+int portDMAInit(
     struct uartCtx *    uartCtx) {
 
     return (RETVAL_SUCCESS);
 }
 
-int platDMATerm(
+int portDMATerm(
     struct uartCtx *    uartCtx) {
 
     return (RETVAL_SUCCESS);
