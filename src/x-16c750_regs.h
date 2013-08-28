@@ -76,10 +76,12 @@
     entry(  MDR3,   MDR3,   MDR3,   MDR3,   MDR3,   MDR3,   0x80)               \
     entry(  TXDMA,  TXDMA,  TXDMA,  TXDMA,  TXDMA,  TXDMA,  0x84)
 
+/* SYSC register bits */
 #define SYSC_AUTOIDLE                   (1U << 0)
 #define SYSC_SOFTRESET                  (1U << 1)
 #define SYSC_ENAWAKEUP                  (1U << 2)
 
+/* SYSS register bits */
 #define SYSS_RESETDONE                  (1U << 0)
 
 /**@brief       Create HW regs from table
@@ -118,11 +120,8 @@ enum hwRegs {
 #define HW_IOMAP_REG_ALIGN              4U
 
 /**@brief       Size of IOMEM space
- * @details     We add here +3U to acoount for the last register size
  */
 #define HW_IOMAP_SIZE                   (LAST_REG_ENTRY + HW_IOMAP_REG_ALIGN)
-
-/** @} *//*-------------------------------------------------------------------*/
 
 /**@brief       Available UARTs on AM335x
  */
@@ -148,14 +147,21 @@ enum hwRegs {
 
 enum hwUart {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_UART)
+    LAST_UART_ENTRY
 };
 
-extern const unsigned long gHwIomap[];
-
-extern const unsigned long gHwIrqNum[];
-
+/** @} *//*-------------------------------------------------------------------*/
 /*============================================================  DATA TYPES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
+
+/**@brief       Hardware IO memory maps
+ */
+extern const unsigned long gHwIomap[];
+
+/**@brief       Hardware IRQ numbers
+ */
+extern const unsigned long gHwIrqNum[];
+
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************

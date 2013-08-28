@@ -31,6 +31,7 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
+#include <linux/platform_device.h>
 #include <rtdm/rtserial.h>
 #include <rtdm/rtdm_driver.h>
 #include <native/queue.h>
@@ -48,35 +49,22 @@ extern "C" {
 
 /*============================================================  DATA TYPES  ==*/
 
-/*------------------------------------------------------------------------*//**
- * @name        Data types group
- * @brief       brief description
- * @{ *//*--------------------------------------------------------------------*/
-
-/**@brief       States of the context process
- */
-enum ctxState {
-    STATE_INIT,                                                                                                                               //!< STATE_INIT
-    STATE_RX_ALLOC,                                                             /**<@brief STATE_RX_ALLOC                                   *///!< STATE_RX_ALLOC
-    STATE_TX_ALLOC,                                                             /**<@brief STATE_TX_ALLOC                                   *///!< STATE_TX_ALLOC
-};
-
 /**@brief       UART device context structure
  */
 struct uartCtx {
     rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
+    struct rtdm_device *        rtdev;                                          /**<@brief Real-time device driver                          */
+    struct platform_device *    platDev;                                        /**<@brief Linux kernel device driver                       */
+    int                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
     rtser_config_t      cfg;                                                    /**<@brief Current device configuration                     */
-    unsigned long *     ioremap;
+    unsigned long *     ioremap;                                                /**<@brief Remaped IO memory area                           */
     RT_QUEUE            buffTxHandle;                                           /**<@brief TX buffer handle                                 */
     RT_QUEUE            buffRxHandle;                                           /**<@brief RX buffer handle                                 */
     void *              buffTx;                                                 /**<@brief TX buffer storage                                */
     void *              buffRx;                                                 /**<@brief RX buffer storage                                */
-    enum ctxState       state;
-    int                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
 };
 
-/** @} *//*-------------------------------------------------------------------*/
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 /*--------------------------------------------------------  C++ extern end  --*/

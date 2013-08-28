@@ -22,12 +22,12 @@
  * e-mail  :    blueskyniss@gmail.com
  *//***********************************************************************//**
  * @file
- * @author      nenad
- * @brief       Short desciption of file
- * @addtogroup  module_impl
+ * @author      Nenad Radulovic
+ * @brief       Hardware device registers
  *********************************************************************//** @{ */
 
 /*=========================================================  INCLUDE FILES  ==*/
+
 #include "x-16c750_regs.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/

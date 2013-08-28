@@ -24,7 +24,6 @@
  * @file
  * @author      Nenad Radulovic
  * @brief       Driver for 16C750 compatible UARTs
- * @addtogroup  module_impl
  *********************************************************************//** @{ */
 
 /*=========================================================  INCLUDE FILES  ==*/
@@ -50,6 +49,16 @@
 #define DEF_DRV_VERSION_PATCH           0
 
 /*======================================================  LOCAL DATA TYPES  ==*/
+
+/**@brief       States of the context process
+ */
+enum ctxState {
+    CTX_STATE_INIT,                                                             /**<@brief STATE_INIT                                       */
+    CTX_STATE_TX_ALLOC,                                                         /**<@brief STATE_TX_ALLOC                                   */
+    CTX_STATE_RX_ALLOC,                                                         /**<@brief STATE_RX_ALLOC                                   */
+    CTX_STATE_DEV_REG                                                           /**<@brief STATE_DEV_REG                                    */
+};
+
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 
 static void hwUartRegWr(
@@ -62,7 +71,8 @@ static int hwUartRegRd(
     enum hwUartRegsRd   reg);
 
 static void xUartCtxCleanup(
-    struct uartCtx *    uartCtx);
+    struct uartCtx *    uartCtx,
+    enum ctxState       state);
 
 static int xUartCtxCreate(
     struct uartCtx *    uartCtx);
@@ -166,7 +176,7 @@ static void hwUartRegWr(
     enum hwUartRegsWr   reg,
     unsigned int        val) {
 
-    LOG_INFO("write base: %p, off: %d, addr: %p", (void *)uartCtx->ioremap, reg, (unsigned char *)uartCtx->ioremap + (unsigned long)reg);
+    LOG_INFO("write base: %p, off: %d, addr: %p  val: %d", (void *)uartCtx->ioremap, reg, (unsigned char *)uartCtx->ioremap + (unsigned long)reg, val);
     __raw_writew(val, (unsigned char *)uartCtx->ioremap + (unsigned long)reg);
 }
 
@@ -176,8 +186,8 @@ static int hwUartRegRd(
 
     int                 retval;
 
-    LOG_INFO("read  base: %p, off: %d, addr: %p", (void *)uartCtx->ioremap, reg, (unsigned char *)uartCtx->ioremap + (unsigned long)reg);
     retval = __raw_readw((unsigned char *)uartCtx->ioremap + (unsigned long)reg);
+    LOG_INFO("read  base: %p, off: %d, addr: %p,  val: %d", (void *)uartCtx->ioremap, reg, (unsigned char *)uartCtx->ioremap + (unsigned long)reg, retval);
 
     return (retval);
 }
@@ -185,11 +195,12 @@ static int hwUartRegRd(
 /**@brief       In case CTX create was not successful we have to undo some stuff
  */
 static void xUartCtxCleanup(
-    struct uartCtx *    uartCtx) {
+    struct uartCtx *    uartCtx,
+    enum ctxState       state) {
 
-    switch (uartCtx->state) {
+    switch (state) {
 
-        case STATE_RX_ALLOC: {
+        case CTX_STATE_DEV_REG : {
             (void)rt_queue_flush(
                 &uartCtx->buffRxHandle);
             (void)rt_queue_delete(
@@ -197,26 +208,38 @@ static void xUartCtxCleanup(
             /* fall through */
         }
 
-        case STATE_TX_ALLOC: {
+        case CTX_STATE_RX_ALLOC: {
             (void)rt_queue_flush(
                 &uartCtx->buffTxHandle);
             (void)rt_queue_delete(
                 &uartCtx->buffTxHandle);
+            /* fall through */
+        }
+
+        case CTX_STATE_TX_ALLOC: {
+            /* nothing */
             break;
         }
 
         default : {
-            /* nothing here */
+            /* nothing */
         }
     }
 }
 
 static int xUartCtxCreate(
     struct uartCtx *    uartCtx) {
+
+    enum ctxState       state;
     int                 retval;
 
+    /*-- STATE: init ---------------------------------------------------------*/
+    state = CTX_STATE_INIT;
+    LOG_INFO("Creating device context");
+
+    /*-- STATE: TX allocate --------------------------------------------------*/
+    state = CTX_STATE_TX_ALLOC;
     LOG_INFO("TX buffer: %s, size: %ld", CFG_BUFF_TX_NAME, CFG_BUFF_TX_SIZE);
-    uartCtx->state = STATE_INIT;
     retval = rt_queue_create(
         &uartCtx->buffTxHandle,
         CFG_BUFF_TX_NAME,
@@ -226,11 +249,16 @@ static int xUartCtxCreate(
 
     if (RETVAL_SUCCESS != retval) {
         LOG_WARN("failed to create buffer");
+        xUartCtxCleanup(
+            uartCtx,
+            state);
 
         return (retval);
     }
+
+    /*-- STATE: RX allocate --------------------------------------------------*/
+    state = CTX_STATE_RX_ALLOC;
     LOG_INFO("RX buffer: %s, size: %ld", CFG_BUFF_RX_NAME, CFG_BUFF_RX_SIZE);
-    uartCtx->state = STATE_TX_ALLOC;
     retval = rt_queue_create(
         &uartCtx->buffRxHandle,
         CFG_BUFF_RX_NAME,
@@ -240,15 +268,25 @@ static int xUartCtxCreate(
 
     if (RETVAL_SUCCESS != retval) {
         LOG_WARN("failed to create buffer");
+        xUartCtxCleanup(
+            uartCtx,
+            state);
 
         return (retval);
     }
-    uartCtx->state  = STATE_RX_ALLOC;
+
+    /*-- STATE: Xenomai device registration ----------------------------------*/
+    state  = CTX_STATE_DEV_REG;
     retval = rtdm_dev_register(
-            &gUartDev);                                                         /* TODO: This must be parameterized                         */
+            uartCtx->rtdev);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_WARN("could not register XENO device driver");
+        xUartCtxCleanup(
+            uartCtx,
+            state);
+
+        return (retval);
     }
     hwUartRegWr(
         uartCtx,
@@ -270,6 +308,10 @@ static int xUartCtxDestroy(
 
     int                 retval;
 
+    retval = rtdm_dev_unregister(
+        &gUartDev,
+        CFG_WAIT_EXIT_DELAY);
+    LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = rt_queue_flush(
         &uartCtx->buffRxHandle);
     LOG_WARN_IF(0 != retval, "failed to flush RX buffer");
@@ -379,8 +421,9 @@ int __init moduleInit(
 
     int                 retval;
 
-    LOG_INFO("Real-Time driver for UART: %d", CFG_UART);
     gUartCtx.id = CFG_UART;                                                     /* TODO: This must go, almost all functions are parameterized   */
+    gUartCtx.rtdev = &gUartDev;                                                 /* TODO: This must be parameterized                         */
+    LOG_INFO("Real-Time driver for UART: %d", gUartCtx.id);
     retval = platInit(
         &gUartCtx);                                                             /* Initialize Linux device driver                           */
 
@@ -389,14 +432,11 @@ int __init moduleInit(
 
         return (retval);
     }
-    LOG_INFO("Creating device context");
     retval = xUartCtxCreate(
         &gUartCtx);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_WARN("Device context creation failed");
-        xUartCtxCleanup(
-            &gUartCtx);
+        LOG_WARN("device context creation failed");
 
         return (retval);
     }
@@ -409,14 +449,11 @@ void __exit moduleTerm(
     int             retval;
 
     LOG_INFO("removing driver for UART: %d", CFG_UART);
-    retval = rtdm_dev_unregister(
-        &gUartDev,
-        CFG_WAIT_EXIT_DELAY);
-    LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = xUartCtxDestroy(
         &gUartCtx);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "context destroy failed");
-    retval = platTerm();
+    retval = platTerm(
+        &gUartCtx);
 }
 
 module_init(moduleInit);

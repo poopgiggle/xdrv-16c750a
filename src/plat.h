@@ -58,7 +58,7 @@ int platInit(
     struct uartCtx *    uartCtx);
 
 int platTerm(
-    void);
+    struct uartCtx *    uartCtx);
 
 /** @} *//*-------------------------------------------------------------------*/
 /*--------------------------------------------------------  C++ extern end  --*/
