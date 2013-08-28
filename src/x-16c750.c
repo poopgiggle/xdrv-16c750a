@@ -250,6 +250,7 @@ static void xUartCtxCleanup(
     switch (state) {
 
         case CTX_STATE_DEV_REG : {
+            LOG_INFO("reversing action: RX allocate");
             (void)rt_queue_flush(
                 &uartCtx->buffRxHandle);
             (void)rt_queue_delete(
@@ -258,6 +259,7 @@ static void xUartCtxCleanup(
         }
 
         case CTX_STATE_RX_ALLOC: {
+            LOG_INFO("reversing action: TX allocate");
             (void)rt_queue_flush(
                 &uartCtx->buffTxHandle);
             (void)rt_queue_delete(
@@ -266,7 +268,7 @@ static void xUartCtxCleanup(
         }
 
         case CTX_STATE_TX_ALLOC: {
-            /* nothing */
+            LOG_INFO("reversing action: init");
             break;
         }
 
@@ -326,11 +328,12 @@ static int xUartCtxCreate(
 
     /*-- STATE: Xenomai device registration ----------------------------------*/
     state  = CTX_STATE_DEV_REG;
+    LOG_INFO("registering to Real-Time DM");
     retval = rtdm_dev_register(
             uartCtx->rtdev);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("could not register XENO device driver");
+        LOG_ERR("could not register to Real-Time DM");
         xUartCtxCleanup(
             uartCtx,
             state);
