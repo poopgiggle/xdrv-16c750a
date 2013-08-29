@@ -224,6 +224,14 @@ static inline u16 lldRegResetBits(
     return (tmp);
 }
 
+int lldUartSoftReset(
+    u8 *                ioRemap);
+
+/**@brief       Setup UART module to use FIFO and DMA
+ */
+int lldUartDMAFIFOSetup(
+    struct uartCtx *    uartCtx);
+
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
  * END of x-16c750_lld.h
