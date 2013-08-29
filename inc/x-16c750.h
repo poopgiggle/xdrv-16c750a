@@ -59,10 +59,10 @@ struct uartCtx {
     u32                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
     rtser_config_t      cfg;                                                    /**<@brief Current device configuration                     */
     u8 * __iomem        ioRemap;                                                /**<@brief Remaped IO memory area                           */
-    RT_QUEUE            buffTxHandle;                                           /**<@brief TX buffer handle                                 */
-    RT_QUEUE            buffRxHandle;                                           /**<@brief RX buffer handle                                 */
-    void *              buffTx;                                                 /**<@brief TX buffer storage                                */
-    void *              buffRx;                                                 /**<@brief RX buffer storage                                */
+    RT_QUEUE            qTxHandle;                                              /**<@brief TX buffer handle                                 */
+    RT_QUEUE            qRxHandle;                                              /**<@brief RX buffer handle                                 */
+    void *              qTx;                                                    /**<@brief TX buffer storage                                */
+    void *              qRx;                                                    /**<@brief RX buffer storage                                */
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/

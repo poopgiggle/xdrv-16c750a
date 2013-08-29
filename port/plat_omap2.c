@@ -43,6 +43,7 @@
 /**@brief       HWMOD UART name
  */
 #define DEF_UART_NAME                   "uart"
+#define DEF_UART_NAME_MAX_SIZE          10
 
 /*======================================================  LOCAL DATA TYPES  ==*/
 
@@ -128,14 +129,14 @@ int portInit(
     struct omap_hwmod * hwmod;
     enum platState      state;
     int                 retval;
-    char                uartName[10];
-    char                hwmodUartName[10];
+    char                uartName[DEF_UART_NAME_MAX_SIZE + 1U];
+    char                hwmodUartName[DEF_UART_NAME_MAX_SIZE + 1U];
 
     /*-- Initializaion state -------------------------------------------------*/
     state = PLAT_STATE_INIT;
     scnprintf(
         uartName,
-        sizeof(uartName),
+        DEF_UART_NAME_MAX_SIZE,
         DEF_UART_NAME "%d",
         uartCtx->id);                                                           /* NOTE: Since hwmod UART count is messed up we need the right name now */
     LOG_DBG("OMAP UART: creating %s device", uartName);
@@ -144,8 +145,8 @@ int portInit(
     state = PLAT_STATE_LOOKUP;
     scnprintf(
         hwmodUartName,
-        sizeof(hwmodUartName),
-        "uart%d",
+        DEF_UART_NAME_MAX_SIZE,
+        DEF_UART_NAME "%d",
         uartCtx->id + 1U);                                                      /* NOTE: hwmod UART count starts at 1, so we must add 1 here */
     hwmod = omap_hwmod_lookup(
         hwmodUartName);

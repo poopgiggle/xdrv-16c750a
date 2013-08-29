@@ -50,6 +50,7 @@
 #define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
 #define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
+#define DEF_Q_NAME_MAX_SIZE           10
 
 #define TO_UARTCTX(rtdm_dev_context)                                            \
     (struct uartCtx *)rtdm_dev_context->dev_private
@@ -252,18 +253,18 @@ static void xUartCtxCleanup(
         case CTX_STATE_DEV_REG : {
             LOG_INFO("reversing action: RX allocate");
             (void)rt_queue_flush(
-                &uartCtx->buffRxHandle);
+                &uartCtx->qRxHandle);
             (void)rt_queue_delete(
-                &uartCtx->buffRxHandle);
+                &uartCtx->qRxHandle);
             /* fall through */
         }
 
         case CTX_STATE_RX_ALLOC: {
             LOG_INFO("reversing action: TX allocate");
             (void)rt_queue_flush(
-                &uartCtx->buffTxHandle);
+                &uartCtx->qTxHandle);
             (void)rt_queue_delete(
-                &uartCtx->buffTxHandle);
+                &uartCtx->qTxHandle);
             /* fall through */
         }
 
@@ -283,17 +284,29 @@ static int xUartCtxCreate(
 
     enum ctxState       state;
     int                 retval;
+    char                qTxName[DEF_Q_NAME_MAX_SIZE + 1U];
+    char                qRxName[DEF_Q_NAME_MAX_SIZE + 1U];
 
     /*-- STATE: init ---------------------------------------------------------*/
     state = CTX_STATE_INIT;
     LOG_DBG("creating device context");
+    scnprintf(
+        qTxName,
+        DEF_Q_NAME_MAX_SIZE,
+        CFG_Q_TX_NAME ".%d",
+        uartCtx->id);
+    scnprintf(
+        qRxName,
+        DEF_Q_NAME_MAX_SIZE,
+        CFG_Q_RX_NAME ".%d",
+        uartCtx->id);
 
     /*-- STATE: TX allocate --------------------------------------------------*/
     state = CTX_STATE_TX_ALLOC;
-    LOG_INFO("TX queue: %s, size: %ld", CFG_Q_TX_NAME, CFG_Q_TX_SIZE);
+    LOG_INFO("TX queue: %s, size: %ld", qTxName, CFG_Q_TX_SIZE);
     retval = rt_queue_create(
-        &uartCtx->buffTxHandle,
-        CFG_Q_TX_NAME,
+        &uartCtx->qTxHandle,
+        qTxName,
         CFG_Q_TX_SIZE,
         Q_UNLIMITED,
         Q_PRIO | Q_SHARED);
@@ -309,10 +322,10 @@ static int xUartCtxCreate(
 
     /*-- STATE: RX allocate --------------------------------------------------*/
     state = CTX_STATE_RX_ALLOC;
-    LOG_INFO("RX queue: %s, size: %ld", CFG_Q_RX_NAME, CFG_Q_RX_SIZE);
+    LOG_INFO("RX queue: %s, size: %ld", qRxName, CFG_Q_RX_SIZE);
     retval = rt_queue_create(
-        &uartCtx->buffRxHandle,
-        CFG_Q_RX_NAME,
+        &uartCtx->qRxHandle,
+        qRxName,
         CFG_Q_RX_SIZE,
         Q_UNLIMITED,
         Q_PRIO | Q_SHARED);
@@ -328,7 +341,6 @@ static int xUartCtxCreate(
 
     /*-- STATE: Xenomai device registration ----------------------------------*/
     state  = CTX_STATE_DEV_REG;
-    LOG_INFO("registering to Real-Time DM");
     retval = rtdm_dev_register(
             uartCtx->rtdev);
 
@@ -355,16 +367,16 @@ static int xUartCtxDestroy(
         CFG_WAIT_EXIT_DELAY);
     LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = rt_queue_flush(
-        &uartCtx->buffRxHandle);
+        &uartCtx->qRxHandle);
     LOG_WARN_IF(0 != retval, "failed to flush RX queue");
     retval = rt_queue_delete(
-        &uartCtx->buffRxHandle);
+        &uartCtx->qRxHandle);
     LOG_WARN_IF(0 != retval, "failed to delete RX queue");
     retval = rt_queue_flush(
-        &uartCtx->buffTxHandle);
+        &uartCtx->qTxHandle);
     LOG_WARN_IF(0 != retval, "failed to flush TX queue");
     retval = rt_queue_delete(
-        &uartCtx->buffTxHandle);
+        &uartCtx->qTxHandle);
     LOG_WARN_IF(0 != retval, "failed to delete TX queue");
 
     return (retval);
