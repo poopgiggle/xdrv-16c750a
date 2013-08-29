@@ -68,11 +68,6 @@ enum ctxState {
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 
-/**@brief       Setup UART module to use FIFO and DMA
- */
-static int xUartDMAFIFOSetup(
-    struct uartCtx *    uartCtx);
-
 /**@brief       Cleanup all work done by xUartCtxCreate() in case it failed
  */
 static void xUartCtxCleanup(
@@ -179,70 +174,6 @@ MODULE_DESCRIPTION(DEF_DRV_DESCRIPTION);
 MODULE_SUPPORTED_DEVICE(DEF_DRV_SUPP_DEVICE);
 
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
-
-static int xUartDMAFIFOSetup(
-    struct uartCtx *    uartCtx) {
-
-    int                 retval;
-    u16                 tmp;
-    u16                 regLCR;
-    u16                 regEFR;
-    u16                 regMCR;
-
-    regLCR = lldRegRd(                                                          /* Switch to register configuration mode B to access the    */
-        uartCtx->ioRemap,                                                       /* EFR register                                             */
-        LCR);
-    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_B);
-    regEFR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        uartCtx->ioRemap,                                                       /* register (1/2)                                           */
-        bEFR,
-        EFR_ENHANCEDEN);
-    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_A);                       /* Switch to register configuration mode A to access the MCR*/
-                                                                                /* register                                                 */
-    regMCR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        uartCtx->ioRemap,                                                       /* register (2/2)                                           */
-        aMCR,
-        MCR_TCRTLR);
-    lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
-        uartCtx->ioRemap,                                                       /* (1/2)                                                    */
-        waFCR,
-        FCR_RX_FIFO_TRIG_56 | FCR_TX_FIFO_TRIG_56 | FCR_DMA_MODE |
-            FCR_TX_FIFO_CLEAR | FCR_RX_FIFO_CLEAR | FCR_FIFO_EN);
-    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_B);                       /* Switch to register configuration mode B to access the EFR*/
-                                                                                /* register   */
-    lldRegWr(                                                                   /* Load the new FIFO triggers (2/3)                         */
-        uartCtx->ioRemap,
-        wbTLR,
-        TLR_RX_FIFO_TRIG_DMA_0 | TLR_TX_FIFO_TRIG_DMA_0);
-    (void)lldRegResetBits(                                                      /* Load the new FIFO triggers (3/3) and the new DMA mode    */
-        uartCtx->ioRemap,                                                       /* (2/2)                                                    */
-        SCR,
-        SCR_RXTRIGGRANU1 | SCR_TXTRIGGRANU1 | SCR_DMAMODE2_Mask |
-            SCR_DMAMODECTL);
-    tmp = regEFR & EFR_ENHANCEDEN;                                              /* Restore EFR<4> ENHANCED_EN bit                           */
-    tmp |= lldRegRd(uartCtx->ioRemap, bEFR) & ~EFR_ENHANCEDEN;
-    lldRegWr(
-        uartCtx->ioRemap,
-        bEFR,
-        tmp);
-    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_A);                       /* Switch to register configuration mode A to access the MCR*/
-                                                                                /* register                                                 */
-    tmp = regMCR & MCR_TCRTLR;                                                  /* Restore MCR<6> TCRTLR bit                                */
-    tmp |= lldRegRd(uartCtx->ioRemap, aMCR) & ~MCR_TCRTLR;
-    lldRegWr(
-        uartCtx->ioRemap,
-        aMCR,
-        tmp);
-    lldRegWr(                                                                   /* Restore LCR                                              */
-        uartCtx->ioRemap,
-        LCR,
-        regLCR);
-
-    retval = portDMAInit(
-        uartCtx);
-
-    return (retval);
-}
 
 static void xUartCtxCleanup(
     struct uartCtx *    uartCtx,

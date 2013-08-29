@@ -34,6 +34,7 @@
 #include <plat/omap_device.h>
 #include "x-16c750.h"
 #include "x-16c750_cfg.h"
+#include "x-16c750_lld.h"
 #include "plat_omap2.h"
 #include "port.h"
 #include "log.h"
@@ -213,6 +214,8 @@ int portInit(
     uartCtx->ioRemap = omap_device_get_rt_va(
         to_omap_device(platDev));
     uartCtx->platDev = platDev;
+    retval = lldUartSoftReset(
+        uartCtx->ioRemap);
 
     return (retval);
 }
