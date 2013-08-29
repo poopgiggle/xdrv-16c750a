@@ -220,6 +220,10 @@ int portInit(
 /*NOTE:     This function should release all used resources, unfortunately TI
  *          has really dropped the ball here because they did NOT implemented
  *          release functions like they should have.
+ *          Currently some resource are released (mem, iomap, VFS files) but
+ *          some are never released (clock, clk_alias). Fortunately, reinserting
+ *          the module will only generate some warnings, so everything should be
+ *          just fine.
  */
 int portTerm(
     struct uartCtx *    uartCtx) {
