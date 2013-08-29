@@ -290,16 +290,16 @@ static int xUartCtxCreate(
 
     /*-- STATE: TX allocate --------------------------------------------------*/
     state = CTX_STATE_TX_ALLOC;
-    LOG_INFO("TX buffer: %s, size: %ld", CFG_BUFF_TX_NAME, CFG_BUFF_TX_SIZE);
+    LOG_INFO("TX queue: %s, size: %ld", CFG_Q_TX_NAME, CFG_Q_TX_SIZE);
     retval = rt_queue_create(
         &uartCtx->buffTxHandle,
-        CFG_BUFF_TX_NAME,
-        CFG_BUFF_TX_SIZE,
+        CFG_Q_TX_NAME,
+        CFG_Q_TX_SIZE,
         Q_UNLIMITED,
         Q_PRIO | Q_SHARED);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to create buffer");
+        LOG_ERR("failed to create queue");
         xUartCtxCleanup(
             uartCtx,
             state);
@@ -309,16 +309,16 @@ static int xUartCtxCreate(
 
     /*-- STATE: RX allocate --------------------------------------------------*/
     state = CTX_STATE_RX_ALLOC;
-    LOG_INFO("RX buffer: %s, size: %ld", CFG_BUFF_RX_NAME, CFG_BUFF_RX_SIZE);
+    LOG_INFO("RX queue: %s, size: %ld", CFG_Q_RX_NAME, CFG_Q_RX_SIZE);
     retval = rt_queue_create(
         &uartCtx->buffRxHandle,
-        CFG_BUFF_RX_NAME,
-        CFG_BUFF_RX_SIZE,
+        CFG_Q_RX_NAME,
+        CFG_Q_RX_SIZE,
         Q_UNLIMITED,
         Q_PRIO | Q_SHARED);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to create buffer");
+        LOG_ERR("failed to create queue");
         xUartCtxCleanup(
             uartCtx,
             state);
@@ -356,16 +356,16 @@ static int xUartCtxDestroy(
     LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = rt_queue_flush(
         &uartCtx->buffRxHandle);
-    LOG_WARN_IF(0 != retval, "failed to flush RX buffer");
+    LOG_WARN_IF(0 != retval, "failed to flush RX queue");
     retval = rt_queue_delete(
         &uartCtx->buffRxHandle);
-    LOG_WARN_IF(0 != retval, "failed to delete RX buffer");
+    LOG_WARN_IF(0 != retval, "failed to delete RX queue");
     retval = rt_queue_flush(
         &uartCtx->buffTxHandle);
-    LOG_WARN_IF(0 != retval, "failed to flush TX buffer");
+    LOG_WARN_IF(0 != retval, "failed to flush TX queue");
     retval = rt_queue_delete(
         &uartCtx->buffTxHandle);
-    LOG_WARN_IF(0 != retval, "failed to delete TX buffer");
+    LOG_WARN_IF(0 != retval, "failed to delete TX queue");
 
     return (retval);
 }

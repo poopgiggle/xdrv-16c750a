@@ -42,11 +42,11 @@
  */
 #define CFG_UART                        3
 
-#define CFG_BUFF_TX_NAME                "uartBuffTx"
-#define CFG_BUFF_TX_SIZE                4096UL
+#define CFG_Q_TX_NAME                   "uartQTx"
+#define CFG_Q_TX_SIZE                   4096UL
 
-#define CFG_BUFF_RX_NAME                "uartBuffRx"
-#define CFG_BUFF_RX_SIZE                4096UL
+#define CFG_Q_RX_NAME                   "uartQRx"
+#define CFG_Q_RX_SIZE                   4096UL
 
 #define CFG_DBG_ENABLE                  1
 
