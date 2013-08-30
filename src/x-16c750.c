@@ -50,9 +50,9 @@
 #define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
 #define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
-#define DEF_Q_NAME_MAX_SIZE           10
+#define DEF_Q_NAME_MAX_SIZE             10
 
-#define TO_UARTCTX(rtdm_dev_context)                                            \
+#define RTDMDEVCTX_TO_UARTCTX(rtdm_dev_context)                                 \
     (struct uartCtx *)rtdm_dev_context->dev_private
 
 /*======================================================  LOCAL DATA TYPES  ==*/
@@ -322,7 +322,7 @@ static int xUartOpen(
     struct uartCtx *    uartCtx;
     rtdm_lockctx_t      lockCtx;
 
-    uartCtx = TO_UARTCTX(ctx);
+    uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
     rtdm_lock_init(&uartCtx->lock);
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
