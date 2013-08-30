@@ -159,24 +159,74 @@ enum hwReg {
 #define SCR_DMAMODE2_TX                 (0x3U << 1)
 #define SCR_DMAMODECTL                  (0x1U << 0)
 
-/** @} *//*---------------------------------------------------------------*//**
- * @name        UART configuration modes
- * @{ *//*--------------------------------------------------------------------*/
+/* Mode Definition Register 1 (MDR1) : register bits                          */
+#define MDR1_MODESELECT_Mask            (0x7U << 0)
+#define MDR1_MODESELECT_UART16          (0x0U << 0)
+#define MDR1_MODESELECT_SIR             (0x1U << 0)
+#define MDR1_MODESELECT_UART16AUTO      (0x2U << 0)
+#define MDR1_MODESELECT_UART13          (0x3U << 0)
+#define MDR1_MODESELECT_MIR             (0x4U << 0)
+#define MDR1_MODESELECT_FIR             (0x5U << 0)
+#define MDR1_MODESELECT_CIR             (0x6U << 0)
+#define MDR1_MODESELECT_DISABLE         (0x7U << 0)
 
-#define UART_CFG_MODE_A                 0x0080U
-#define UART_CFG_MODE_B                 0x00bfU
+/* INterrupt Enable Register (IER) : register bits                            */
+#define IER_SLEEPMODE                   (0x1U << 4)
 
 /** @} *//*-------------------------------------------------------------------*/
-
-#define UART_CFG_MODE_SET(ioRemap, mode)                                        \
-    do {                                                                        \
-        lldRegWr(ioRemap, LCR, mode);                                            \
-    } while (0)
-
 /*============================================================  DATA TYPES  ==*/
+
+enum lldCfgMode {
+    LLD_CFG_MODE_NORM   = 0x0000U,
+    LLD_CFG_MODE_A      = 0x0080U,
+    LLD_CFG_MODE_B      = 0x00bfU
+};
+
+enum lldMode {
+    LLD_MODE_DISABLE    = MDR1_MODESELECT_DISABLE,
+    LLD_MODE_UART16     = MDR1_MODESELECT_UART16,
+    LLD_MODE_UART16AUTO = MDR1_MODESELECT_UART16AUTO,
+    LLD_MODE_UART13     = MDR1_MODESELECT_UART13,
+    LLD_MODE_MIR        = MDR1_MODESELECT_MIR,
+    LLD_MODE_FIR        = MDR1_MODESELECT_FIR,
+    LLD_MODE_CIR        = MDR1_MODESELECT_CIR,
+    LLD_MODE_SIR        = MDR1_MODESELECT_SIR
+};
+
+enum cfgDataBits {
+    UART_CFG_DATA_BITS_8
+};
+
+enum cfgStopBits {
+    UART_CFG_STOP_BITS_1,
+    UART_CFG_STOP_BITS_1n5,
+    UART_CFG_STOP_BITS_2,
+};
+
+enum cfgParity {
+    UART_CFG_PARITY_NONE,
+    UART_CFG_PARITY_EVEN,
+    UART_CFG_PARITY_ODD
+};
+
+struct uartCfg {
+    u32                 baudRate;
+    enum cfgDataBits    dataBits;
+    enum cfgStopBits    stopBits;
+    enum cfgParity      parity;
+};
+
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
+/**@brief       Write a value into register
+ * @param       ioRemap
+ *              Pointer to IO remaped memory
+ * @param       reg
+ *              Register from enum hwReg.
+ * @param       val
+ *              Value to write into @c reg.
+ */
 static inline void lldRegWr(
     u8 *                ioRemap,
     enum hwReg          reg,
@@ -186,6 +236,8 @@ static inline void lldRegWr(
     iowrite16(val, ioRemap + (u32)reg);
 }
 
+/**@brief       Read a value from register
+ */
 static inline u16 lldRegRd(
     u8 *                ioRemap,
     enum hwReg          reg) {
@@ -198,6 +250,9 @@ static inline u16 lldRegRd(
     return (retval);
 }
 
+/**@brief       Set register bits according to @c bits bit mask
+ * @return      Original value of register
+ */
 static inline u16 lldRegSetBits(
     u8 *                ioRemap,
     enum hwReg          reg,
@@ -205,12 +260,20 @@ static inline u16 lldRegSetBits(
 
     u16                 tmp;
 
-    tmp = lldRegRd(ioRemap, reg);
-    lldRegWr(ioRemap, reg, tmp | bits);
+    tmp = lldRegRd(
+        ioRemap,
+        reg);
+    lldRegWr(
+        ioRemap,
+        reg,
+        tmp | bits);
 
     return (tmp);
 }
 
+/**@brief       Reset register bits according to @c bits bit mask
+ * @return      Original value of register
+ */
 static inline u16 lldRegResetBits(
     u8 *                ioRemap,
     enum hwReg          reg,
@@ -218,19 +281,51 @@ static inline u16 lldRegResetBits(
 
     u16                 tmp;
 
-    tmp = lldRegRd(ioRemap, reg);
-    lldRegWr(ioRemap, reg, tmp & bits);
+    tmp = lldRegRd(
+        ioRemap,
+        reg);
+    lldRegWr(
+        ioRemap,
+        reg,
+        tmp & ~bits);
 
     return (tmp);
 }
 
-int lldUartSoftReset(
+/**@brief       Write register bits which are bitmasked with @c bitmask
+ */
+void lldRegWrBits(
+    u8 *                ioRemap,
+    enum hwReg          reg,
+    u16                 bitmask,
+    u16                 bits);
+
+/**@brief       Set configuration mode
+ * @param       ioRemap
+ *              Pointer to IO mapped memory
+ * @param       Configuration mode
+ *  @arg        LLD_CFG_MODE_A
+ *  @arg        LLD_CFG_MODE_B
+ */
+void lldCfgModeSet(
+    u8 *                ioRemap,
+    enum lldCfgMode     cfgMode);
+
+void lldModeSet(
+    u8 *                ioRemap,
+    enum lldMode        mode);
+
+int lldSoftReset(
     u8 *                ioRemap);
 
 /**@brief       Setup UART module to use FIFO and DMA
  */
-int lldUartDMAFIFOSetup(
-    struct uartCtx *    uartCtx);
+int lldDMAFIFOSetup(
+    u8 *                ioRemap);
+
+void lldUartCfgSetup(
+    u8 *                ioRemap,
+    struct uartCfg *    uartCfg);
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
