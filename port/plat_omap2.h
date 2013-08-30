@@ -30,6 +30,9 @@
 #define PLAT_OMAP2_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
+
+#include "x-16c750_lld.h"
+
 /*===============================================================  MACRO's  ==*/
 
 #if defined(CONFIG_SOC_OMAPAM33XX)
@@ -46,6 +49,13 @@
     entry(UART3,    0x481a6000UL,   44)                                         \
     entry(UART4,    0x481a8000UL,   45)                                         \
     entry(UART5,    0x481aa000UL,   46)
+
+#define BAUD_RATE_CFG_TABLE(entry)                                              \
+    entry(  9600,       MDR1_MODESELECT_UART16,     313)                        \
+    entry(  19200,      MDR1_MODESELECT_UART16,     156)                        \
+    entry(  38400,      MDR1_MODESELECT_UART16,     78)                         \
+    entry(  115200,     MDR1_MODESELECT_UART16,     26)                         \
+    entry(  921600,     MDR1_MODESELECT_UART13,     4)
 
 #endif
 

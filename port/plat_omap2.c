@@ -46,6 +46,15 @@
 #define DEF_UART_NAME                   "uart"
 #define DEF_UART_NAME_MAX_SIZE          10
 
+#define BAUD_RATE_CFG_EXPAND_AS_BAUD(a, b, c)                                   \
+    a,
+
+#define BAUD_RATE_CFG_EXPAND_AS_MDR_DATA(a, b, c)                               \
+    b,
+
+#define BAUD_RATE_CFG_EXPAND_AS_DIV_DATA(a, b, c)                               \
+    c,
+
 /*======================================================  LOCAL DATA TYPES  ==*/
 
 /**@brief       Platform setup states
@@ -69,7 +78,24 @@ static void platCleanup(
     struct uartCtx *    uartCtx,
     enum platState      state);
 
+static u32 baudRateCfgFindIndex(
+    u32                 baudrate);
+
 /*=======================================================  LOCAL VARIABLES  ==*/
+
+const u32 gBaudRateData[] = {
+    BAUD_RATE_CFG_TABLE(BAUD_RATE_CFG_EXPAND_AS_BAUD)
+    0
+};
+
+const u32 gMDRdata[] = {
+    BAUD_RATE_CFG_TABLE(BAUD_RATE_CFG_EXPAND_AS_MDR_DATA)
+};
+
+const u32 gDIVdata[] = {
+    BAUD_RATE_CFG_TABLE(BAUD_RATE_CFG_EXPAND_AS_DIV_DATA)
+};
+
 /*======================================================  GLOBAL VARIABLES  ==*/
 
 const u32 gPortIOmap[] = {
@@ -83,6 +109,26 @@ const u32 gPortIRQ[] = {
 const u32 gPortUartNum = LAST_UART_ENTRY;
 
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
+
+static u32 baudRateCfgFindIndex(
+    u32                 baudrate) {
+
+    u32                 cnt;
+
+    cnt = 0U;
+
+    while ((0U != gBaudRateData[cnt]) || (baudrate != gBaudRateData[cnt])) {
+        cnt++;
+    }
+
+    if (0U == gBaudRateData[cnt]) {
+
+        return (RETVAL_FAILURE);
+    } else {
+
+        return (cnt);
+    }
+}
 
 static void platCleanup(
     struct uartCtx *    uartCtx,
@@ -214,7 +260,7 @@ int portInit(
     uartCtx->ioRemap = omap_device_get_rt_va(
         to_omap_device(platDev));
     uartCtx->platDev = platDev;
-    retval = lldUartSoftReset(
+    retval = lldSoftReset(
         uartCtx->ioRemap);
 
     return (retval);
@@ -258,6 +304,38 @@ int portDMATerm(
     struct uartCtx *    uartCtx) {
 
     return (RETVAL_SUCCESS);
+}
+
+u32 portMDRdataGet(
+    u32                 baudrate) {
+
+    u32                 indx;
+
+    indx = baudRateCfgFindIndex(baudrate);
+
+    if (RETVAL_FAILURE == indx) {
+
+        return (indx);
+    } else {
+
+        return (gMDRdata[indx]);
+    }
+}
+
+u32 portDIVdataGet(
+    u32                 baudrate) {
+
+    u32                 indx;
+
+    indx = baudRateCfgFindIndex(baudrate);
+
+    if (RETVAL_FAILURE == indx) {
+
+        return (indx);
+    } else {
+
+        return (gDIVdata[indx]);
+    }
 }
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/

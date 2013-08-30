@@ -102,6 +102,12 @@ int portDMAInit(
 int portDMATerm(
     struct uartCtx *    uartCtx);
 
+u32 portMDRdataGet(
+    u32                 baudrate);
+
+u32 portDIVdataGet(
+    u32                 baudrate);
+
 /** @} *//*-------------------------------------------------------------------*/
 /*--------------------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
