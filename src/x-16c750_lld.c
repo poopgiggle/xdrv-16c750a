@@ -29,7 +29,6 @@
 /*=========================================================  INCLUDE FILES  ==*/
 
 #include "x-16c750_lld.h"
-#include "port.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/
 /*======================================================  LOCAL DATA TYPES  ==*/
@@ -40,7 +39,42 @@
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
-int lldUartSoftReset(
+void lldRegWrBits(
+    u8 *                ioRemap,
+    enum hwReg          reg,
+    u16                 bitmask,
+    u16                 bits) {
+
+    u16                 tmp;
+
+    tmp = lldRegRd(ioRemap, reg);
+    tmp &= ~bitmask;
+    tmp |= (bits & bitmask);
+    lldRegWr(ioRemap, reg, tmp);
+}
+
+void lldCfgModeSet(
+    u8 *                ioRemap,
+    enum lldCfgMode     cfgMode) {
+
+    lldRegWr(
+        ioRemap,
+        LCR,
+        cfgMode);
+}
+
+void lldModeSet(
+    u8 *                ioRemap,
+    enum lldMode        mode) {
+
+    lldRegWrBits(
+        ioRemap,
+        MDR1,
+        MDR1_MODESELECT_Mask,
+        mode);
+}
+
+int lldSoftReset(
     u8 *                ioRemap) {
 
     lldRegWr(
@@ -53,68 +87,106 @@ int lldUartSoftReset(
     return (RETVAL_SUCCESS);
 }
 
-int lldUartDMAFIFOSetup(
-    struct uartCtx *    uartCtx) {
+int lldDMAFIFOSetup(
+    u8 *                ioRemap) {
 
-    int                 retval;
     u16                 tmp;
     u16                 regLCR;
     u16                 regEFR;
     u16                 regMCR;
 
     regLCR = lldRegRd(                                                          /* Switch to register configuration mode B to access the    */
-        uartCtx->ioRemap,                                                       /* EFR register                                             */
+        ioRemap,                                                                /* EFR register                                             */
         LCR);
-    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_B);
+    lldCfgModeSet(
+        ioRemap,
+        LLD_CFG_MODE_B);
     regEFR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        uartCtx->ioRemap,                                                       /* register (1/2)                                           */
+        ioRemap,                                                                /* register (1/2)                                           */
         bEFR,
         EFR_ENHANCEDEN);
-    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_A);                       /* Switch to register configuration mode A to access the MCR*/
-                                                                                /* register                                                 */
+    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
+        ioRemap,                                                                /* register                                                 */
+        LLD_CFG_MODE_A);
     regMCR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        uartCtx->ioRemap,                                                       /* register (2/2)                                           */
+        ioRemap,                                                                /* register (2/2)                                           */
         aMCR,
         MCR_TCRTLR);
     lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
-        uartCtx->ioRemap,                                                       /* (1/2)                                                    */
+        ioRemap,                                                                /* (1/2)                                                    */
         waFCR,
         FCR_RX_FIFO_TRIG_56 | FCR_TX_FIFO_TRIG_56 | FCR_DMA_MODE |
             FCR_TX_FIFO_CLEAR | FCR_RX_FIFO_CLEAR | FCR_FIFO_EN);
-    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_B);                       /* Switch to register configuration mode B to access the EFR*/
-                                                                                /* register   */
+    lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
+        ioRemap,                                                                /* register                                                 */
+        LLD_CFG_MODE_B);
     lldRegWr(                                                                   /* Load the new FIFO triggers (2/3)                         */
-        uartCtx->ioRemap,
+        ioRemap,
         wbTLR,
         TLR_RX_FIFO_TRIG_DMA_0 | TLR_TX_FIFO_TRIG_DMA_0);
     (void)lldRegResetBits(                                                      /* Load the new FIFO triggers (3/3) and the new DMA mode    */
-        uartCtx->ioRemap,                                                       /* (2/2)                                                    */
+        ioRemap,                                                                /* (2/2)                                                    */
         SCR,
         SCR_RXTRIGGRANU1 | SCR_TXTRIGGRANU1 | SCR_DMAMODE2_Mask |
             SCR_DMAMODECTL);
     tmp = regEFR & EFR_ENHANCEDEN;                                              /* Restore EFR<4> ENHANCED_EN bit                           */
-    tmp |= lldRegRd(uartCtx->ioRemap, bEFR) & ~EFR_ENHANCEDEN;
+    tmp |= lldRegRd(ioRemap, bEFR) & ~EFR_ENHANCEDEN;
     lldRegWr(
-        uartCtx->ioRemap,
+        ioRemap,
         bEFR,
         tmp);
-    UART_CFG_MODE_SET(uartCtx->ioRemap, UART_CFG_MODE_A);                       /* Switch to register configuration mode A to access the MCR*/
-                                                                                /* register                                                 */
+    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
+        ioRemap,                                                                /* register                                                 */
+        LLD_CFG_MODE_A);
     tmp = regMCR & MCR_TCRTLR;                                                  /* Restore MCR<6> TCRTLR bit                                */
-    tmp |= lldRegRd(uartCtx->ioRemap, aMCR) & ~MCR_TCRTLR;
+    tmp |= lldRegRd(ioRemap, aMCR) & ~MCR_TCRTLR;
     lldRegWr(
-        uartCtx->ioRemap,
+        ioRemap,
         aMCR,
         tmp);
     lldRegWr(                                                                   /* Restore LCR                                              */
-        uartCtx->ioRemap,
+        ioRemap,
         LCR,
         regLCR);
 
-    retval = portDMAInit(
-        uartCtx);
+    return (RETVAL_SUCCESS);
+}
 
-    return (retval);
+void lldUartCfgSetup(
+    u8 *                ioRemap,
+    struct uartCfg *    uartCfg) {
+
+    u16                 tmp;
+    u16                 regEFR;
+
+    lldModeSet(
+        ioRemap,
+        LLD_MODE_DISABLE);
+    lldCfgModeSet(
+        ioRemap,
+        LLD_CFG_MODE_B);
+    regEFR = lldRegSetBits(
+        ioRemap,
+        bEFR,
+        EFR_ENHANCEDEN);
+    lldRegWr(
+        ioRemap,
+        LCR,
+        LLD_CFG_MODE_NORM);
+    lldRegWr(
+        ioRemap,
+        IER,
+        0x0000U);
+    lldCfgModeSet(
+        ioRemap,
+        LLD_CFG_MODE_B);
+    tmp = portDIVdataGet(uartCfg->baudRate);
+
+    if (RETVAL_FAILURE == tmp) {
+        LOG_ERR("baud rate not supported");
+
+
+    }
 }
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
