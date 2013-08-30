@@ -41,6 +41,7 @@
 /**@brief       Return value: operation was successful
  */
 #define RETVAL_SUCCESS                  0
+#define RETVAL_FAILURE                  -1
 
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
