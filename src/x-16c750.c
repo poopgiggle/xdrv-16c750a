@@ -39,6 +39,7 @@
 #include "x-16c750.h"
 #include "x-16c750_lld.h"
 #include "x-16c750_cfg.h"
+#include "x-16c750_ioctl.h"
 #include "port.h"
 #include "log.h"
 
@@ -284,6 +285,15 @@ static int xUartCtxCreate(
         return (retval);
     }
 
+    /*-- Prepare UART --------------------------------------------------------*/
+    (void)lldSoftReset(
+        uartCtx->io);
+    (void)lldFIFOSetup(
+        uartCtx->io);
+    (void)lldProtocolSet(
+        uartCtx->io,
+        &gDefProtocol);
+
     return (retval);
 }
 
@@ -340,6 +350,12 @@ static int xUartOpen(
     rtdm_lock_get_irqsave(
         &uartCtx->lock,
         lockCtx);
+    /*
+     * TODO: try to clear all pending interrupts
+     */
+    lldIntEnable(
+        uartCtx->io,
+        LLD_INT_RX);
     rtdm_lock_put_irqrestore(
         &uartCtx->lock,
         lockCtx);
@@ -351,6 +367,43 @@ static int xUartClose(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo) {
 
+    rtdm_lockctx_t      lockCtx;
+    struct uartCtx *    uartCtx;
+    int                 retval;
+
+    uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
+
+    rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+    lldIntDisable(
+        uartCtx->io,
+        LLD_INT_TX);
+    lldIntDisable(
+        uartCtx->io,
+        LLD_INT_RX);
+    lldIntDisable(
+        uartCtx->io,
+        LLD_INT_RX_TIMEOUT);
+    /*
+     * TODO: try to clear all pending interrupts
+     */
+    rtdm_lock_put_irqrestore(
+        &uartCtx->lock,
+        lockCtx);
+    retval = rtdm_irq_free(
+        &uartCtx->irqHandle);
+
+    if (RETVAL_SUCCESS != retval) {
+        LOG_ERR("failed to unregister interrupt");
+    }
+
+    return (retval);
+}
+
+static int xUartConfigSet(
+    struct uartCtx *    ctx,
+    const struct rtser_config * config,
+    uint64_t **         history) {
+
     return (RETVAL_SUCCESS);
 }
 
@@ -359,6 +412,61 @@ static int xUartIOctl(
     rtdm_user_info_t *  usrInfo,
     unsigned int        req,
     void __user *       args) {
+
+    struct uartCtx *    uartCtx;
+    int                 retval;
+
+    uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
+    retval = RETVAL_SUCCESS;
+
+    switch (req) {
+        case RTSER_RTIOC_GET_CONFIG : {
+
+            if (NULL != usrInfo) {
+                retval = rtdm_safe_copy_to_user(
+                    usrInfo,
+                    args,
+                    &uartCtx->cfg,
+                    sizeof(struct rtser_config));
+            } else {
+                memcpy(
+                    args,
+                    &uartCtx->cfg,
+                    sizeof(struct rtser_config));
+            }
+            break;
+        }
+
+        case RTSER_RTIOC_SET_CONFIG : {
+            struct rtser_config cfgBuff;
+            struct rtser_config * cfg;
+            rtdm_lockctx_t lockCtx;
+
+            if (NULL != usrInfo) {
+                retval = rtdm_safe_copy_from_user(usrInfo, &cfgBuff, args, sizeof( struct rtser));
+
+                if (RETVAL_SUCCESS != retval) {
+
+                    return (retval);
+                }
+                cfg = &cfgBuff;
+            } else {
+                cfg = (struct rtser_config *)args;
+            }
+            rtdm_lock_get_irqsave(
+                &uartCtx->lock,
+                lockCtx);
+            lldProtocolSet(
+                uartCtx->io,
+                cfg);
+            rtdm_lock_put_irqrestore(
+                &uartCtx->lock,
+                lockCtx);
+            break;
+        }
+
+        case RTSER_RTIOC_
+    }
 
     return (RETVAL_SUCCESS);
 }
@@ -369,6 +477,11 @@ static int xUartRd(
     void *              buff,
     size_t              bytes) {
 
+    struct uartCtx *    uartCtx;
+    uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
+
+    if (NULL != usrInfo) {
+    }
     return (RETVAL_SUCCESS);
 }
 
@@ -378,13 +491,45 @@ static int xUartWr(
     const void *        buff,
     size_t              bytes) {
 
+    struct uartCtx *    uartCtx;
+    uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
+
+
     return (RETVAL_SUCCESS);
 }
 
 static int xUartIrqHandle(
     rtdm_irq_t *        irqHandle) {
 
-    return (RETVAL_SUCCESS);
+    struct uartCtx *    uartCtx;
+    int                 retval;
+    enum lldINT         intNum;
+
+    retval = RTDM_IRQ_NONE;
+
+    uartCtx = rtdm_irq_get_arg(irqHandle, struct uartCtx);
+
+    rtdm_lock_get(&uartCtx->lock);
+
+    intNum = lldIntGet(
+        uartCtx->io);
+
+    while (LLD_INT_NONE != intNum) {
+
+        if (LLD_INT_RX_TIMEOUT == intNum) {
+
+        } else if (LLD_INT_RX == intNum) {
+
+
+        } else if (LLD_INT_TX == intNum) {
+
+        }
+        intNum = lldIntGet(
+            uartCtx->io);
+    }
+    rtdm_lock_put(&uartCtx->lock);
+
+    return (retval);
 }
 
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/

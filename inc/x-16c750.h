@@ -50,6 +50,12 @@ extern "C" {
 
 /*============================================================  DATA TYPES  ==*/
 
+struct uartCfg {
+    rtser_config_t      rtser;
+    size_t              qTxSize;
+    size_t              qRxSize;
+};
+
 /**@brief       UART device context structure
  */
 struct uartCtx {
@@ -59,7 +65,7 @@ struct uartCtx {
     struct platform_device *    platDev;                                        /**<@brief Linux kernel device driver                       */
     u32                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
     rtser_config_t      cfg;                                                    /**<@brief Current device configuration                     */
-    u8 * __iomem        ioRemap;                                                /**<@brief Remaped IO memory area                           */
+    u8 * __iomem        io;                                                     /**<@brief Remaped IO memory area                           */
     RT_QUEUE            qTxHandle;                                              /**<@brief TX buffer handle                                 */
     RT_QUEUE            qRxHandle;                                              /**<@brief RX buffer handle                                 */
     void *              qTx;                                                    /**<@brief TX buffer storage                                */

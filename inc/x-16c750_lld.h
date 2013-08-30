@@ -170,8 +170,28 @@ enum hwReg {
 #define MDR1_MODESELECT_CIR             (0x6U << 0)
 #define MDR1_MODESELECT_DISABLE         (0x7U << 0)
 
-/* INterrupt Enable Register (IER) : register bits                            */
+/* Interrupt Enable Register (IER) : register bits                            */
+#define IER_CTSIT                       (0x1U << 7)
+#define IER_RTSIT                       (0x1U << 6)
+#define IER_XOFFIT                      (0x1U << 5)
 #define IER_SLEEPMODE                   (0x1U << 4)
+#define IER_MODEMSTSIT                  (0x1U << 3)
+#define IER_LINESTSIT                   (0x1U << 2)
+#define IER_THRIT                       (0x1U << 1)
+#define IER_RHRIT                       (0x1U << 0)
+
+/* Line Control Register (LCR) : register bits                                */
+#define LCR_DIV_EN                      (0x1U << 7)
+#define LCR_BREAK_EN                    (0x1U << 6)
+#define LCR_PARITY_TYPE2                (0x1U << 5)
+#define LCR_PARITY_TYPE1                (0x1U << 4)
+#define LCR_PARITY_EN                   (0x1U << 3)
+#define LCR_NB_STOP                     (0x1U << 2)
+#define LCR_CHAR_LENGTH_Mask            (0x3U << 0)
+#define LCR_CHAR_LENGTH_8               (0x3U << 0)
+#define LCR_CHAR_LENGTH_7               (0x2U << 0)
+#define LCR_CHAR_LENGTH_6               (0x1U << 0)
+#define LCR_CHAR_LENGTH_5               (0x0U << 0)
 
 /** @} *//*-------------------------------------------------------------------*/
 /*============================================================  DATA TYPES  ==*/
@@ -209,14 +229,17 @@ enum cfgParity {
     UART_CFG_PARITY_ODD
 };
 
-struct uartCfg {
-    u32                 baudRate;
-    enum cfgDataBits    dataBits;
-    enum cfgStopBits    stopBits;
-    enum cfgParity      parity;
+enum lldINT {
+    LLD_INT_NONE,
+    LLD_INT_RX,
+    LLD_INT_RX_TIMEOUT,
+    LLD_INT_TX
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/
+
+extern const struct rtser_config gDefProtocol;
+
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
 /**@brief       Write a value into register
@@ -232,7 +255,7 @@ static inline void lldRegWr(
     enum hwReg          reg,
     u16                 val) {
 
-    LOG_DBG("write base: %p, off: %2d,  val: %d", ioRemap, reg, val);
+    LOG_DBG("write base: %p, off: 0x%x,  val: 0x%x", ioRemap, reg, val);
     iowrite16(val, ioRemap + (u32)reg);
 }
 
@@ -245,7 +268,7 @@ static inline u16 lldRegRd(
     int                 retval;
 
     retval = ioread16(ioRemap + (u32)reg);
-    LOG_DBG("read  base: %p, off: %2d,  val: %d", ioRemap, reg, retval);
+    LOG_DBG("read  base: %p, off: 0x%x,  val: 0x%x", ioRemap, reg, retval);
 
     return (retval);
 }
@@ -300,6 +323,11 @@ void lldRegWrBits(
     u16                 bitmask,
     u16                 bits);
 
+u16 lldRegRdBits(
+    u8 *                ioRemap,
+    enum hwReg          reg,
+    u16                 bitmask);
+
 /**@brief       Set configuration mode
  * @param       ioRemap
  *              Pointer to IO mapped memory
@@ -315,7 +343,24 @@ void lldModeSet(
     u8 *                ioRemap,
     enum lldMode        mode);
 
+u16 lldModeGet(
+    u8 *                ioRemap);
+
+void lldIntEnable(
+    u8 *                ioRemap,
+    enum lldINT         intNum);
+
+void lldIntDisable(
+    u8 *                ioRemap,
+    enum lldINT         intNum);
+
+enum lldINT lldIntGet(
+    u8 *                ioRemap);
+
 int lldSoftReset(
+    u8 *                ioRemap);
+
+int lldFIFOSetup(
     u8 *                ioRemap);
 
 /**@brief       Setup UART module to use FIFO and DMA
@@ -323,9 +368,23 @@ int lldSoftReset(
 int lldDMAFIFOSetup(
     u8 *                ioRemap);
 
-void lldUartCfgSetup(
+/**@brief       Setup UART protocol configuration
+ * @param       ioRemap
+ *              Pointer to IO mapped memory
+ * @param       uartCfg
+ *              Protocol configuration structure, see @ref uartCfg. When NULL
+ *              default protocol configuration is used.
+ * @return
+ *  @retval     RETVAL_SUCCESS : the operation was successful
+ *  @retval     ENOTSUPP : the configuration is not supported
+ *  @retval     EINVAL : argument value is invalied, using default value
+ */
+int lldProtocolSet(
     u8 *                ioRemap,
-    struct uartCfg *    uartCfg);
+    const struct rtser_config *   config);
+
+void lldProtocolPrint(
+    const struct rtser_config * config);
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************

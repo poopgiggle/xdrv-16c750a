@@ -102,7 +102,7 @@ int portDMAInit(
 int portDMATerm(
     struct uartCtx *    uartCtx);
 
-u32 portMDRdataGet(
+u32 portModeGet(
     u32                 baudrate);
 
 u32 portDIVdataGet(

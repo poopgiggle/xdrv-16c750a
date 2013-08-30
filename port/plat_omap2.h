@@ -51,11 +51,11 @@
     entry(UART5,    0x481aa000UL,   46)
 
 #define BAUD_RATE_CFG_TABLE(entry)                                              \
-    entry(  9600,       MDR1_MODESELECT_UART16,     313)                        \
-    entry(  19200,      MDR1_MODESELECT_UART16,     156)                        \
-    entry(  38400,      MDR1_MODESELECT_UART16,     78)                         \
-    entry(  115200,     MDR1_MODESELECT_UART16,     26)                         \
-    entry(  921600,     MDR1_MODESELECT_UART13,     4)
+    entry(  9600,       LLD_MODE_UART16,            313)                        \
+    entry(  19200,      LLD_MODE_UART16,            156)                        \
+    entry(  38400,      LLD_MODE_UART16,            78)                         \
+    entry(  115200,     LLD_MODE_UART16,            26)                         \
+    entry(  921600,     LLD_MODE_UART13,            4)
 
 #endif
 

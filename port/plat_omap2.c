@@ -83,16 +83,16 @@ static u32 baudRateCfgFindIndex(
 
 /*=======================================================  LOCAL VARIABLES  ==*/
 
-const u32 gBaudRateData[] = {
+static const u32 gBaudRateData[] = {
     BAUD_RATE_CFG_TABLE(BAUD_RATE_CFG_EXPAND_AS_BAUD)
     0
 };
 
-const u32 gMDRdata[] = {
+static const enum lldMode gModeData[] = {
     BAUD_RATE_CFG_TABLE(BAUD_RATE_CFG_EXPAND_AS_MDR_DATA)
 };
 
-const u32 gDIVdata[] = {
+static const u32 gDIVdata[] = {
     BAUD_RATE_CFG_TABLE(BAUD_RATE_CFG_EXPAND_AS_DIV_DATA)
 };
 
@@ -115,16 +115,19 @@ static u32 baudRateCfgFindIndex(
 
     u32                 cnt;
 
+    LOG_DBG("finding index");
     cnt = 0U;
 
-    while ((0U != gBaudRateData[cnt]) || (baudrate != gBaudRateData[cnt])) {
+    while ((0U != gBaudRateData[cnt]) && (baudrate != gBaudRateData[cnt])) {
         cnt++;
     }
 
     if (0U == gBaudRateData[cnt]) {
+        LOG_DBG("index not found");
 
         return (RETVAL_FAILURE);
     } else {
+        LOG_DBG("found index %d", cnt);
 
         return (cnt);
     }
@@ -257,11 +260,9 @@ int portInit(
     }
 
     /*-- Saving references to device data ------------------------------------*/
-    uartCtx->ioRemap = omap_device_get_rt_va(
+    uartCtx->io = omap_device_get_rt_va(
         to_omap_device(platDev));
     uartCtx->platDev = platDev;
-    retval = lldSoftReset(
-        uartCtx->ioRemap);
 
     return (retval);
 }
@@ -306,7 +307,7 @@ int portDMATerm(
     return (RETVAL_SUCCESS);
 }
 
-u32 portMDRdataGet(
+enum lldMode portModeGet(
     u32                 baudrate) {
 
     u32                 indx;
@@ -318,7 +319,7 @@ u32 portMDRdataGet(
         return (indx);
     } else {
 
-        return (gMDRdata[indx]);
+        return (gModeData[indx]);
     }
 }
 
