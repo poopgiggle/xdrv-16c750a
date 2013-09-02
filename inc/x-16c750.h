@@ -46,7 +46,7 @@
 /**@brief       Return value: operation was successful
  */
 #define RETVAL_SUCCESS                  0
-#define RETVAL_FAILURE                  -1
+#define RETVAL_FAILURE                  !RETVAL_SUCCESS
 
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
@@ -61,11 +61,11 @@ enum uartStatus {
 };
 
 struct uartUnit {
-    RT_HEAP             heapHandle;
-    RT_QUEUE            queueHandle;
+    RT_HEAP             heapHandle;                                             /**<@brief Heap for internal buffers                        */
+    RT_QUEUE            queueHandle;                                            /**<@brief Queue for RT comms                               */
     CIRC_BUFF           buffHandle;                                             /**<@brief Buffer handle                                    */
     nanosecs_rel_t      timeout;
-    rtdm_mutex_t        mtx;
+    rtdm_mutex_t        mtx;                                                    /**<@brief Write to buffer mutex                            */
     void *              queue;                                                  /**<@brief Buffer storage                                   */
     int                 status;
 };
@@ -79,8 +79,8 @@ struct uartCtx {
     struct platform_device *    platDev;                                        /**<@brief Linux kernel device driver                       */
     u32                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
     volatile u8 *       io;                                                     /**<@brief Remaped IO memory area                           */
-    struct uartUnit     tx;
-    struct uartUnit     rx;
+    struct uartUnit     tx;                                                     /**<@brief TX channel                                       */
+    struct uartUnit     rx;                                                     /**<@brief RX channel                                       */
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/

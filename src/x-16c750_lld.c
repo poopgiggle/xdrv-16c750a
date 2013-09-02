@@ -46,7 +46,7 @@
 const struct rtser_config gDefProtocol = {
     .config_mask        = RTSER_SET_BAUD | RTSER_SET_PARITY | RTSER_SET_DATA_BITS |
                           RTSER_SET_STOP_BITS,
-    .baud_rate          = 115200,
+    .baud_rate          = CFG_DEFAULT_BAUD_RATE,
     .parity             = RTSER_NO_PARITY,
     .data_bits          = RTSER_8_BITS,
     .stop_bits          = RTSER_1_STOPB,

@@ -1,8 +1,6 @@
 /*
  * This file is part of x-16c750
  *
- * Template version: 1.1.17 (03.07.2013)
- *
  * Copyright (C) 2011, 2012 - Nenad Radulovic
  *
  * x-16c750 is free software; you can redistribute it and/or modify
@@ -24,9 +22,8 @@
  * e-mail  :    blueskyniss@gmail.com
  *//***********************************************************************//**
  * @file
- * @author  	nenad
- * @brief       Interface of circ_buff.
- * @addtogroup  module_intf
+ * @author  	Nenad Radulovic
+ * @brief       Circular buffer interface
  *********************************************************************//** @{ */
 
 #if !defined(CIRC_BUFF_H_)
@@ -37,14 +34,6 @@
 #include <linux/circ_buf.h>
 
 /*===============================================================  MACRO's  ==*/
-
-
-/*------------------------------------------------------------------------*//**
- * @name        Macro group
- * @brief       brief description
- * @{ *//*--------------------------------------------------------------------*/
-
-/** @} *//*-------------------------------------------------------------------*/
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {
@@ -75,13 +64,6 @@ typedef enum boolean BOOLEAN;
 
 /** @} *//*-------------------------------------------------------------------*/
 /*======================================================  GLOBAL VARIABLES  ==*/
-
-/*------------------------------------------------------------------------*//**
- * @name        Variables group
- * @brief       brief description
- * @{ *//*--------------------------------------------------------------------*/
-
-/** @} *//*-------------------------------------------------------------------*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
 /*------------------------------------------------------------------------*//**
@@ -104,20 +86,27 @@ u8 circItemGet(
 size_t circFreeGet(
     const CIRC_BUFF *   buff);
 
+size_t circRemainingGet(
+    const CIRC_BUFF *   buff);
+
 size_t circSizeGet(
     const CIRC_BUFF *   buff);
 
 u8 * circMemBaseGet(
     const CIRC_BUFF *   buff);
 
+u8 * circMemHeadGet(
+    const CIRC_BUFF *   buff);
+
+void circHeadPosSet(
+    CIRC_BUFF *         buff,
+    s32                 position);
+
 BOOLEAN circIsEmpty(
     CIRC_BUFF *         buff);
 
 BOOLEAN circIsFull(
     CIRC_BUFF *         buff);
-
-u8 * circMemHeadGet(
-    const CIRC_BUFF *   buff);
 
 /** @} *//*-------------------------------------------------------------------*/
 /*--------------------------------------------------------  C++ extern end  --*/

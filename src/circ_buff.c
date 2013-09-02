@@ -1,8 +1,6 @@
 /*
  * This file is part of x-16c750
  *
- * Template version: 1.1.15 (03.07.2013)
- *
  * Copyright (C) 2011, 2012 - Nenad Radulovic
  *
  * x-16c750 is free software; you can redistribute it and/or modify
@@ -24,9 +22,8 @@
  * e-mail  :    blueskyniss@gmail.com
  *//***********************************************************************//**
  * @file
- * @author      nenad
- * @brief       Short desciption of file
- * @addtogroup  module_impl
+ * @author      Nenad Radulovic
+ * @brief       Circular buffer implementation
  *********************************************************************//** @{ */
 
 /*=========================================================  INCLUDE FILES  ==*/
@@ -129,7 +126,7 @@ size_t circSizeGet(
 u8 * circMemBaseGet(
     const CIRC_BUFF *   buff) {
 
-    return ((void *)buff->mem);
+    return ((u8 *)buff->mem);
 }
 
 u8 * circMemHeadGet(
@@ -144,7 +141,7 @@ u8 * circMemHeadGet(
         indx = 0U;
     }
 
-    return (&buff->mem[indx]);
+    return ((u8 *)&buff->mem[indx]);
 }
 
 void circHeadPosSet(

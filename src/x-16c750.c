@@ -50,6 +50,16 @@
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
 #define DEF_Q_NAME_MAX_SIZE             10
 
+#define NS_PER_US                       1000
+#define US_PER_MS                       1000
+#define MS_PER_S                        1000
+
+#define NS_PER_MS                       (US_PER_MS * NS_PER_US)
+#define NS_PER_S                        (MS_PER_S * NS_PER_MS)
+#define US_TO_NS(us)                    (NS_PER_US * (us))
+#define MS_TO_NS(ms)                    (NS_PER_MS * (ms))
+#define SEC_TO_NS(sec)                  (NS_PER_S * (sec))
+
 #define RTDMDEVCTX_TO_UARTCTX(rtdm_dev_context)                                 \
     (struct uartCtx *)rtdm_dev_context->dev_private
 
@@ -390,8 +400,10 @@ static int xUartCtxCreate(
 
         return (retval);
     }
-    uartCtx->tx.status = UART_STATUS_NORMAL;
-    uartCtx->rx.status = UART_STATUS_NORMAL;
+    uartCtx->tx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
+    uartCtx->tx.status  = UART_STATUS_NORMAL;
+    uartCtx->rx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
+    uartCtx->rx.status  = UART_STATUS_NORMAL;
 
     /*-- Prepare UART --------------------------------------------------------*/
     (void)lldSoftReset(
@@ -413,7 +425,7 @@ static int xUartCtxDestroy(
     LOG_DBG("destroying device context");
     retval = rtdm_dev_unregister(
         uartCtx->rtdev,
-        CFG_WAIT_EXIT_DELAY);
+        CFG_WAIT_EXIT_MS);
     LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = rt_heap_free(
         &uartCtx->rx.heapHandle,
@@ -571,11 +583,12 @@ static int xUartWr(
     const void *        buff,
     size_t              bytes) {
 
-    int                 retval;
     struct uartCtx *    uartCtx;
     rtdm_toseq_t        timeoutSeq;
     rtdm_lockctx_t      lockCtx;
+    int                 retval;
     u8 *                src;
+    u8 *                dst;
     size_t              written;
 
     uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
@@ -591,8 +604,6 @@ static int xUartWr(
             return (-EFAULT);
         }
     }
-    src = (u8 *)buff;
-    written = 0U;
     rtdm_toseq_init(
         &timeoutSeq,
         uartCtx->rx.timeout);
@@ -606,74 +617,62 @@ static int xUartWr(
 
         return (retval);
     }
+    written = 0U;
+    src = (u8 *)buff;
+    dst = circMemHeadGet(
+        &uartCtx->tx.buffHandle);
 
     while (0 < bytes) {
         size_t          remaining;
+        size_t          transfer;
 
         rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-
         remaining = circRemainingGet(
             &uartCtx->tx.buffHandle);
 
-        if (0U <= remaining) {
-            u8 *        dst;
-
-            dst = circMemHeadGet(
-                &uartCtx->tx.buffHandle);
+        if (0U == remaining) {
 
             if (remaining < bytes) {
+                transfer = remaining;
+            } else {
+                transfer = bytes;
+            }
 
-                if (NULL != usrInfo) {
-                    retval = rtdm_copy_from_user(
-                        usrInfo,
-                        dst,
-                        src,
-                        remaining);
+            if (NULL != usrInfo) {
+                retval = rtdm_copy_from_user(
+                    usrInfo,
+                    dst,
+                    src,
+                    transfer);
 
-                    if (RETVAL_SUCCESS != retval) {
-                        retval = -EFAULT;
+                if (RETVAL_SUCCESS != retval) {
 
-                        break;
-                    }
-                } else {                                                        /* NULL != usrInfo                                          */
-                    memcpy(
-                        dst,
-                        src,
-                        remaining);
-                }                                                               /* NULL == usrInfo                                          */
-                circHeadPosSet(
-                    &uartCtx->tx.buffHandle,
-                    remaining);
-                written += remaining;
-                bytes   -= remaining;
-                src     += remaining;
-            } else {                                                            /* remaining < bytes                                        */
-
-                if (NULL != usrInfo) {
-                    retval = rtdm_copy_from_user(
-                        usrInfo,
-                        dst,
-                        src,
-                        bytes);
-                } else {
-                    memcpy(
-                        dst,
-                        src,
-                        bytes);
+                    return (-EFAULT);
                 }
-                written += bytes;
-                bytes    = 0;
-            }                                                                   /* remaining >= bytes                                       */
+            } else {
+                memcpy(
+                    dst,
+                    src,
+                    transfer);
+            }
+            written += transfer;
+            bytes   -= transfer;
+            src     += transfer;
+            circHeadPosSet(
+                &uartCtx->tx.buffHandle,
+                transfer);
+            dst = circMemHeadGet(
+                &uartCtx->tx.buffHandle);
         } else {
-            retval = -ENOBUFS;
-        }
 
+            return (-ENOBUFS);
+        }
         rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
     }
     rtdm_mutex_unlock(
         &uartCtx->rx.mtx);
 
-    return (retval);
+    return (written);
 }
 
 static int xUartIrqHandle(
