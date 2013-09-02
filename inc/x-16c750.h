@@ -39,6 +39,8 @@
 #include <native/heap.h>
 #include <native/queue.h>
 
+#include "circ_buff.h"
+
 /*===============================================================  MACRO's  ==*/
 
 /**@brief       Return value: operation was successful
@@ -59,11 +61,6 @@ struct uartCfg {
     size_t              qRxSize;
 };
 
-struct uartBuff {
-    struct circ_buf     buff;
-    size_t              size;
-};
-
 /**@brief       UART device context structure
  */
 struct uartCtx {
@@ -76,8 +73,8 @@ struct uartCtx {
     u8 * __iomem        io;                                                     /**<@brief Remaped IO memory area                           */
     RT_HEAP             txHeapHandle;
     RT_HEAP             rxHeapHandle;
-    struct uartBuff     buffTxHandle;
-    struct uartBuff     buffRxHandle;
+    CIRC_BUFF           buffTxHandle;
+    CIRC_BUFF           buffRxHandle;
     void *              buffTx;
     void *              buffRx;
     RT_QUEUE            qTxHandle;                                              /**<@brief TX buffer handle                                 */

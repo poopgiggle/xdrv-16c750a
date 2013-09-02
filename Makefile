@@ -1,5 +1,6 @@
+BASE_OBJECTS := src/x-16c750.o src/x-16c750_lld.o src/circ_buff.o
 obj-m += am335x-xuart.o
-am335x-xuart-y := src/x-16c750.o src/x-16c750_lld.o port/plat_omap2.o
+am335x-xuart-y := $(BASE_OBJECTS) port/plat_omap2.o 
 
 EXTRA_CFLAGS += -I$(PWD)/src -I$(PWD)/inc -Iinclude/xenomai 
 

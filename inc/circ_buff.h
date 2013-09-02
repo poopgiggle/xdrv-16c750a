@@ -1,0 +1,128 @@
+/*
+ * This file is part of x-16c750
+ *
+ * Template version: 1.1.17 (03.07.2013)
+ *
+ * Copyright (C) 2011, 2012 - Nenad Radulovic
+ *
+ * x-16c750 is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * x-16c750 is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with x-16c750; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor,
+ * Boston, MA  02110-1301  USA
+ *
+ * web site:    http://blueskynet.dyndns-server.com
+ * e-mail  :    blueskyniss@gmail.com
+ *//***********************************************************************//**
+ * @file
+ * @author  	nenad
+ * @brief       Interface of circ_buff.
+ * @addtogroup  module_intf
+ *********************************************************************//** @{ */
+
+#if !defined(CIRC_BUFF_H_)
+#define CIRC_BUFF_H_
+
+/*=========================================================  INCLUDE FILES  ==*/
+#include <linux/circ_buf.h>
+
+/*===============================================================  MACRO's  ==*/
+
+
+/*------------------------------------------------------------------------*//**
+ * @name        Macro group
+ * @brief       brief description
+ * @{ *//*--------------------------------------------------------------------*/
+
+/** @} *//*-------------------------------------------------------------------*/
+/*------------------------------------------------------  C++ extern begin  --*/
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*============================================================  DATA TYPES  ==*/
+
+/*------------------------------------------------------------------------*//**
+ * @name        Data types group
+ * @brief       brief description
+ * @{ *//*--------------------------------------------------------------------*/
+
+struct circBuff {
+    u32 *               mem;
+    u32                 head;
+    u32                 tail;
+    u32                 size;
+};
+
+typedef struct circBuff CIRC_BUFF;
+
+enum boolean {
+    TRUE,
+    FALSE
+};
+
+typedef enum boolean BOOLEAN;
+
+/** @} *//*-------------------------------------------------------------------*/
+/*======================================================  GLOBAL VARIABLES  ==*/
+
+/*------------------------------------------------------------------------*//**
+ * @name        Variables group
+ * @brief       brief description
+ * @{ *//*--------------------------------------------------------------------*/
+
+/** @} *//*-------------------------------------------------------------------*/
+/*===================================================  FUNCTION PROTOTYPES  ==*/
+
+/*------------------------------------------------------------------------*//**
+ * @name        Function group
+ * @brief       brief description
+ * @{ *//*--------------------------------------------------------------------*/
+
+void circInit(
+    CIRC_BUFF *         buff,
+    void *              mem,
+    size_t              size);
+
+void circItemPut(
+    CIRC_BUFF *         buff,
+    u32                 item);
+
+u32 circItemGet(
+    CIRC_BUFF *         buff);
+
+size_t circFreeSizeGet(
+    const CIRC_BUFF *   buff);
+
+size_t circSizeGet(
+    const CIRC_BUFF *   buff);
+
+void * circBuffGet(
+    const CIRC_BUFF *   buff);
+
+BOOLEAN circIsEmpty(
+    CIRC_BUFF *         buff);
+
+BOOLEAN circIsFull(
+    CIRC_BUFF *         buff);
+
+/** @} *//*-------------------------------------------------------------------*/
+/*--------------------------------------------------------  C++ extern end  --*/
+#ifdef __cplusplus
+}
+#endif
+
+/*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
+/** @endcond *//** @} *//******************************************************
+ * END of circ_buff.h
+ ******************************************************************************/
+#endif /* CIRC_BUFF_H_ */

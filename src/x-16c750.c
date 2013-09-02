@@ -187,7 +187,7 @@ static void xUartCtxCleanup(
             LOG_INFO("reversing action: allocate internal RX buffer");
             (void)rt_heap_free(
                 &uartCtx->rxHeapHandle,
-                uartCtx->buffRx);
+                circBuffGet(&uartCtx->buffRxHandle));
         }
 
         case CTX_STATE_RX_BUFF_ALLOC: {
@@ -200,7 +200,7 @@ static void xUartCtxCleanup(
             LOG_INFO("reversing action: allocate internal TX buffer");
             (void)rt_heap_free(
                 &uartCtx->txHeapHandle,
-                uartCtx->buffTx);
+                circBuffGet(&uartCtx->buffTxHandle));
         }
 
         case CTX_STATE_TX_BUFF_ALLOC: {
@@ -245,6 +245,7 @@ static int xUartCtxCreate(
     int                 retval;
     char                qTxName[DEF_Q_NAME_MAX_SIZE + 1U];
     char                qRxName[DEF_Q_NAME_MAX_SIZE + 1U];
+    void *              tmpPtr;
 
     /*-- STATE: init ---------------------------------------------------------*/
     state = CTX_STATE_INIT;
@@ -321,7 +322,7 @@ static int xUartCtxCreate(
         &uartCtx->txHeapHandle,
         0U,
         TM_INFINITE,
-        &uartCtx->buffTx);
+        &tmpPtr);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to allocate internal TX buffer");
@@ -331,6 +332,10 @@ static int xUartCtxCreate(
 
         return (retval);
     }
+    circInit(
+        &uartCtx->buffTxHandle,
+        tmpPtr,
+        CFG_DRV_BUFF_SIZE);
 
     /*-- STATE: Create RX buffer ---------------------------------------------*/
     state  = CTX_STATE_RX_BUFF;
@@ -355,7 +360,7 @@ static int xUartCtxCreate(
         &uartCtx->rxHeapHandle,
         0U,
         TM_INFINITE,
-        &uartCtx->buffRx);
+        &tmpPtr);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to allocate internal RX buffer");
@@ -365,6 +370,10 @@ static int xUartCtxCreate(
 
         return (retval);
     }
+    circInit(
+        &uartCtx->buffRxHandle,
+        tmpPtr,
+        CFG_DRV_BUFF_SIZE);
 
     /*-- STATE: Xenomai device registration ----------------------------------*/
     state  = CTX_STATE_DEV_REG;
@@ -404,14 +413,14 @@ static int xUartCtxDestroy(
     LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = rt_heap_free(
         &uartCtx->rxHeapHandle,
-        uartCtx->buffRx);
+        circBuffGet(&uartCtx->buffRxHandle));
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to free internal RX buffer");
     retval = rt_heap_delete(
         &uartCtx->rxHeapHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal RX buffer");
     retval = rt_heap_free(
         &uartCtx->txHeapHandle,
-        uartCtx->buffTx);
+        circBuffGet(&uartCtx->buffTxHandle));
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to free internal TX buffer");
     retval = rt_heap_delete(
         &uartCtx->txHeapHandle);
