@@ -75,8 +75,6 @@ struct uartCtx {
     RT_HEAP             rxHeapHandle;
     CIRC_BUFF           buffTxHandle;
     CIRC_BUFF           buffRxHandle;
-    void *              buffTx;
-    void *              buffRx;
     RT_QUEUE            qTxHandle;                                              /**<@brief TX buffer handle                                 */
     RT_QUEUE            qRxHandle;                                              /**<@brief RX buffer handle                                 */
     void *              qTx;                                                    /**<@brief TX buffer storage                                */
