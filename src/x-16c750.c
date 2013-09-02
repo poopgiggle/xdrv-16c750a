@@ -33,9 +33,6 @@
 #include <linux/init.h>
 #include <linux/ioport.h>
 
-/*TODO: Pogledati verzioniranje*/
-#include <linux/version.h>
-
 #include "x-16c750.h"
 #include "x-16c750_lld.h"
 #include "x-16c750_cfg.h"
@@ -64,6 +61,10 @@ enum ctxState {
     CTX_STATE_INIT,                                                             /**<@brief STATE_INIT                                       */
     CTX_STATE_TX_ALLOC,                                                         /**<@brief STATE_TX_ALLOC                                   */
     CTX_STATE_RX_ALLOC,                                                         /**<@brief STATE_RX_ALLOC                                   */
+    CTX_STATE_TX_BUFF,
+    CTX_STATE_TX_BUFF_ALLOC,
+    CTX_STATE_RX_BUFF,
+    CTX_STATE_RX_BUFF_ALLOC,
     CTX_STATE_DEV_REG                                                           /**<@brief STATE_DEV_REG                                    */
 };
 
@@ -183,6 +184,32 @@ static void xUartCtxCleanup(
     switch (state) {
 
         case CTX_STATE_DEV_REG : {
+            LOG_INFO("reversing action: allocate internal RX buffer");
+            (void)rt_heap_free(
+                &uartCtx->rxHeapHandle,
+                uartCtx->buffRx);
+        }
+
+        case CTX_STATE_RX_BUFF_ALLOC: {
+            LOG_INFO("reversing action: create internal RX buffer");
+            (void)rt_heap_delete(
+                &uartCtx->rxHeapHandle);
+        }
+
+        case CTX_STATE_RX_BUFF: {
+            LOG_INFO("reversing action: allocate internal TX buffer");
+            (void)rt_heap_free(
+                &uartCtx->txHeapHandle,
+                uartCtx->buffTx);
+        }
+
+        case CTX_STATE_TX_BUFF_ALLOC: {
+            LOG_INFO("reversing action: create internal TX buffer");
+            (void)rt_heap_delete(
+                &uartCtx->txHeapHandle);
+        }
+
+        case CTX_STATE_TX_BUFF : {
             LOG_INFO("reversing action: RX allocate");
             (void)rt_queue_flush(
                 &uartCtx->qRxHandle);
@@ -271,6 +298,74 @@ static int xUartCtxCreate(
         return (retval);
     }
 
+    /*-- STATE: Create TX buffer ---------------------------------------------*/
+    state  = CTX_STATE_TX_BUFF;
+    retval = rt_heap_create(
+        &uartCtx->txHeapHandle,
+        NULL,
+        CFG_DRV_BUFF_SIZE,
+        H_SINGLE);
+
+    if (RETVAL_SUCCESS != retval) {
+        LOG_ERR("failed to create internal TX buffer");
+        xUartCtxCleanup(
+            uartCtx,
+            state);
+
+        return (retval);
+    }
+
+    /*-- STATE: Alloc TX buffer ----------------------------------------------*/
+    state  = CTX_STATE_TX_BUFF_ALLOC;
+    retval = rt_heap_alloc(
+        &uartCtx->txHeapHandle,
+        0U,
+        TM_INFINITE,
+        &uartCtx->buffTx);
+
+    if (RETVAL_SUCCESS != retval) {
+        LOG_ERR("failed to allocate internal TX buffer");
+        xUartCtxCleanup(
+            uartCtx,
+            state);
+
+        return (retval);
+    }
+
+    /*-- STATE: Create RX buffer ---------------------------------------------*/
+    state  = CTX_STATE_RX_BUFF;
+    retval = rt_heap_create(
+        &uartCtx->rxHeapHandle,
+        NULL,
+        CFG_DRV_BUFF_SIZE,
+        H_SINGLE);
+
+    if (RETVAL_SUCCESS != retval) {
+        LOG_ERR("failed to create internal RX buffer");
+        xUartCtxCleanup(
+            uartCtx,
+            state);
+
+        return (retval);
+    }
+
+    /*-- STATE: Alloc RX buffer ----------------------------------------------*/
+    state  = CTX_STATE_RX_BUFF_ALLOC;
+    retval = rt_heap_alloc(
+        &uartCtx->rxHeapHandle,
+        0U,
+        TM_INFINITE,
+        &uartCtx->buffRx);
+
+    if (RETVAL_SUCCESS != retval) {
+        LOG_ERR("failed to allocate internal RX buffer");
+        xUartCtxCleanup(
+            uartCtx,
+            state);
+
+        return (retval);
+    }
+
     /*-- STATE: Xenomai device registration ----------------------------------*/
     state  = CTX_STATE_DEV_REG;
     retval = rtdm_dev_register(
@@ -307,18 +402,32 @@ static int xUartCtxDestroy(
         &gUartDev,
         CFG_WAIT_EXIT_DELAY);
     LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
+    retval = rt_heap_free(
+        &uartCtx->rxHeapHandle,
+        uartCtx->buffRx);
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to free internal RX buffer");
+    retval = rt_heap_delete(
+        &uartCtx->rxHeapHandle);
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal RX buffer");
+    retval = rt_heap_free(
+        &uartCtx->txHeapHandle,
+        uartCtx->buffTx);
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to free internal TX buffer");
+    retval = rt_heap_delete(
+        &uartCtx->txHeapHandle);
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal TX buffer");
     retval = rt_queue_flush(
         &uartCtx->qRxHandle);
-    LOG_WARN_IF(0 != retval, "failed to flush RX queue");
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to flush RX queue");
     retval = rt_queue_delete(
         &uartCtx->qRxHandle);
-    LOG_WARN_IF(0 != retval, "failed to delete RX queue");
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete RX queue");
     retval = rt_queue_flush(
         &uartCtx->qTxHandle);
-    LOG_WARN_IF(0 != retval, "failed to flush TX queue");
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to flush TX queue");
     retval = rt_queue_delete(
         &uartCtx->qTxHandle);
-    LOG_WARN_IF(0 != retval, "failed to delete TX queue");
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete TX queue");
 
     return (retval);
 }
@@ -420,55 +529,13 @@ static int xUartIOctl(
     retval = RETVAL_SUCCESS;
 
     switch (req) {
-        case RTSER_RTIOC_GET_CONFIG : {
 
-            if (NULL != usrInfo) {
-                retval = rtdm_safe_copy_to_user(
-                    usrInfo,
-                    args,
-                    &uartCtx->cfg,
-                    sizeof(struct rtser_config));
-            } else {
-                memcpy(
-                    args,
-                    &uartCtx->cfg,
-                    sizeof(struct rtser_config));
-            }
-            break;
+        default : {
+            retval = -ENOTSUPP;
         }
-
-        case RTSER_RTIOC_SET_CONFIG : {
-            struct rtser_config cfgBuff;
-            struct rtser_config * cfg;
-            rtdm_lockctx_t lockCtx;
-
-            if (NULL != usrInfo) {
-                retval = rtdm_safe_copy_from_user(usrInfo, &cfgBuff, args, sizeof( struct rtser));
-
-                if (RETVAL_SUCCESS != retval) {
-
-                    return (retval);
-                }
-                cfg = &cfgBuff;
-            } else {
-                cfg = (struct rtser_config *)args;
-            }
-            rtdm_lock_get_irqsave(
-                &uartCtx->lock,
-                lockCtx);
-            lldProtocolSet(
-                uartCtx->io,
-                cfg);
-            rtdm_lock_put_irqrestore(
-                &uartCtx->lock,
-                lockCtx);
-            break;
-        }
-
-        case RTSER_RTIOC_
     }
 
-    return (RETVAL_SUCCESS);
+    return (retval);
 }
 
 static int xUartRd(

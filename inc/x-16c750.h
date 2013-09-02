@@ -32,8 +32,11 @@
 /*=========================================================  INCLUDE FILES  ==*/
 
 #include <linux/platform_device.h>
+#include <linux/circ_buf.h>
+
 #include <rtdm/rtserial.h>
 #include <rtdm/rtdm_driver.h>
+#include <native/heap.h>
 #include <native/queue.h>
 
 /*===============================================================  MACRO's  ==*/
@@ -56,6 +59,11 @@ struct uartCfg {
     size_t              qRxSize;
 };
 
+struct uartBuff {
+    struct circ_buf     buff;
+    size_t              size;
+};
+
 /**@brief       UART device context structure
  */
 struct uartCtx {
@@ -66,6 +74,12 @@ struct uartCtx {
     u32                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
     rtser_config_t      cfg;                                                    /**<@brief Current device configuration                     */
     u8 * __iomem        io;                                                     /**<@brief Remaped IO memory area                           */
+    RT_HEAP             txHeapHandle;
+    RT_HEAP             rxHeapHandle;
+    struct uartBuff     buffTxHandle;
+    struct uartBuff     buffRxHandle;
+    void *              buffTx;
+    void *              buffRx;
     RT_QUEUE            qTxHandle;                                              /**<@brief TX buffer handle                                 */
     RT_QUEUE            qRxHandle;                                              /**<@brief RX buffer handle                                 */
     void *              qTx;                                                    /**<@brief TX buffer storage                                */
