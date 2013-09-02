@@ -40,16 +40,19 @@
 /**@brief       Available UARTs on AM335x
  */
  /*
-  *     | UART #  | IOMEM         | IRQ
+  *       | UART #    | IOMEM                     | IRQ
   */
 #define UART_DATA_TABLE(entry)                                                  \
-    entry(UARTO,    0x44e09000UL,   72)                                         \
-    entry(UART1,    0x48022000UL,   73)                                         \
-    entry(UART2,    0x48024000UL,   74)                                         \
-    entry(UART3,    0x481a6000UL,   44)                                         \
-    entry(UART4,    0x481a8000UL,   45)                                         \
-    entry(UART5,    0x481aa000UL,   46)
+    entry(  UARTO,      0x44e09000UL,               72)                         \
+    entry(  UART1,      0x48022000UL,               73)                         \
+    entry(  UART2,      0x48024000UL,               74)                         \
+    entry(  UART3,      0x481a6000UL,               44)                         \
+    entry(  UART4,      0x481a8000UL,               45)                         \
+    entry(  UART5,      0x481aa000UL,               46)
 
+/*
+ *        | Baud-rate | UART mode                 | Divisor
+ */
 #define BAUD_RATE_CFG_TABLE(entry)                                              \
     entry(  9600,       LLD_MODE_UART16,            313)                        \
     entry(  19200,      LLD_MODE_UART16,            156)                        \
