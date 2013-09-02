@@ -33,6 +33,7 @@
 #define CIRC_BUFF_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
+
 #include <linux/circ_buf.h>
 
 /*===============================================================  MACRO's  ==*/
@@ -57,9 +58,9 @@ extern "C" {
  * @{ *//*--------------------------------------------------------------------*/
 
 struct circBuff {
-    u32 *               mem;
-    u32                 head;
-    u32                 tail;
+    volatile u8 *       mem;
+    volatile u32        head;
+    volatile u32        tail;
     u32                 size;
 };
 
@@ -95,18 +96,18 @@ void circInit(
 
 void circItemPut(
     CIRC_BUFF *         buff,
-    u32                 item);
+    u8                  item);
 
-u32 circItemGet(
+u8 circItemGet(
     CIRC_BUFF *         buff);
 
-size_t circFreeSizeGet(
+size_t circFreeGet(
     const CIRC_BUFF *   buff);
 
 size_t circSizeGet(
     const CIRC_BUFF *   buff);
 
-void * circBuffGet(
+u8 * circMemBaseGet(
     const CIRC_BUFF *   buff);
 
 BOOLEAN circIsEmpty(
@@ -114,6 +115,9 @@ BOOLEAN circIsEmpty(
 
 BOOLEAN circIsFull(
     CIRC_BUFF *         buff);
+
+u8 * circMemHeadGet(
+    const CIRC_BUFF *   buff);
 
 /** @} *//*-------------------------------------------------------------------*/
 /*--------------------------------------------------------  C++ extern end  --*/

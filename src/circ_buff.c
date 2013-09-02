@@ -30,6 +30,7 @@
  *********************************************************************//** @{ */
 
 /*=========================================================  INCLUDE FILES  ==*/
+
 #include <asm/system.h>
 
 #include "circ_buff.h"
@@ -48,7 +49,7 @@ void circInit(
     void *              mem,
     size_t              size) {
 
-    buff->mem = (u32 *)mem;
+    buff->mem  = (u8 *)mem;
     buff->head = 0U;
     buff->tail = 0U;
     buff->size = (u32)size;
@@ -56,7 +57,7 @@ void circInit(
 
 void circItemPut(
     CIRC_BUFF *         buff,
-    u32                 item) {
+    u8                  item) {
 
     buff->mem[buff->head] = item;
     smp_wmb();
@@ -67,10 +68,10 @@ void circItemPut(
     }
 }
 
-u32 circItemGet(
+u8 circItemGet(
     CIRC_BUFF *         buff) {
 
-    u32                 tmp;
+    u8                  tmp;
 
     smp_mb();
     buff->tail++;
@@ -84,7 +85,7 @@ u32 circItemGet(
     return (tmp);
 }
 
-size_t circFreeSizeGet(
+size_t circFreeGet(
     const CIRC_BUFF *   buff) {
 
     u32                 ans;
@@ -97,16 +98,60 @@ size_t circFreeSizeGet(
     return ((size_t)ans);
 }
 
+size_t circRemainingGet(
+    const CIRC_BUFF *   buff) {
+
+    u32                 tmp;
+    u32                 indx;
+
+    indx = buff->head;
+    indx++;
+
+    if (indx == buff->size) {
+        indx = 0U;
+    }
+
+    if (buff->tail > indx) {
+        tmp = buff->tail - indx;
+    } else {
+        tmp = buff->size - indx;
+    }
+
+    return ((size_t)tmp);
+}
+
 size_t circSizeGet(
     const CIRC_BUFF *   buff) {
 
     return ((size_t)buff->size);
 }
 
-void * circBuffGet(
+u8 * circMemBaseGet(
     const CIRC_BUFF *   buff) {
 
     return ((void *)buff->mem);
+}
+
+u8 * circMemHeadGet(
+    const CIRC_BUFF *   buff) {
+
+    u32                 indx;
+
+    indx = buff->head;
+    indx++;
+
+    if (indx == buff->size) {
+        indx = 0U;
+    }
+
+    return (&buff->mem[indx]);
+}
+
+void circHeadPosSet(
+    CIRC_BUFF *         buff,
+    s32                 position) {
+
+    buff->head += position;
 }
 
 BOOLEAN circIsEmpty(
@@ -122,7 +167,6 @@ BOOLEAN circIsEmpty(
 
     return (ans);
 }
-
 
 BOOLEAN circIsFull(
     CIRC_BUFF *         buff) {

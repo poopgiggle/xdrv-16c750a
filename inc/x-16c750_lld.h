@@ -251,7 +251,7 @@ extern const struct rtser_config gDefProtocol;
  *              Value to write into @c reg.
  */
 static inline void lldRegWr(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum hwReg          reg,
     u16                 val) {
 
@@ -262,7 +262,7 @@ static inline void lldRegWr(
 /**@brief       Read a value from register
  */
 static inline u16 lldRegRd(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum hwReg          reg) {
 
     int                 retval;
@@ -277,7 +277,7 @@ static inline u16 lldRegRd(
  * @return      Original value of register
  */
 static inline u16 lldRegSetBits(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum hwReg          reg,
     u16                 bits) {
 
@@ -298,7 +298,7 @@ static inline u16 lldRegSetBits(
  * @return      Original value of register
  */
 static inline u16 lldRegResetBits(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum hwReg          reg,
     u16                 bits) {
 
@@ -318,13 +318,13 @@ static inline u16 lldRegResetBits(
 /**@brief       Write register bits which are bitmasked with @c bitmask
  */
 void lldRegWrBits(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum hwReg          reg,
     u16                 bitmask,
     u16                 bits);
 
 u16 lldRegRdBits(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum hwReg          reg,
     u16                 bitmask);
 
@@ -336,37 +336,37 @@ u16 lldRegRdBits(
  *  @arg        LLD_CFG_MODE_B
  */
 void lldCfgModeSet(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum lldCfgMode     cfgMode);
 
 void lldModeSet(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum lldMode        mode);
 
 u16 lldModeGet(
-    u8 *                ioRemap);
+    volatile u8 *       ioRemap);
 
 void lldIntEnable(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum lldINT         intNum);
 
 void lldIntDisable(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum lldINT         intNum);
 
 enum lldINT lldIntGet(
-    u8 *                ioRemap);
+    volatile u8 *       ioRemap);
 
 int lldSoftReset(
-    u8 *                ioRemap);
+    volatile u8 *       ioRemap);
 
 int lldFIFOSetup(
-    u8 *                ioRemap);
+    volatile u8 *       ioRemap);
 
 /**@brief       Setup UART module to use FIFO and DMA
  */
 int lldDMAFIFOSetup(
-    u8 *                ioRemap);
+    volatile u8 *       ioRemap);
 
 /**@brief       Setup UART protocol configuration
  * @param       ioRemap
@@ -380,7 +380,7 @@ int lldDMAFIFOSetup(
  *  @retval     EINVAL : argument value is invalied, using default value
  */
 int lldProtocolSet(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     const struct rtser_config *   config);
 
 void lldProtocolPrint(

@@ -55,10 +55,19 @@ extern "C" {
 
 /*============================================================  DATA TYPES  ==*/
 
-struct uartCfg {
-    rtser_config_t      rtser;
-    size_t              qTxSize;
-    size_t              qRxSize;
+enum uartStatus {
+    UART_STATUS_NORMAL,
+    UART_STATUS_SOFT_OVERFLOW
+};
+
+struct uartUnit {
+    RT_HEAP             heapHandle;
+    RT_QUEUE            queueHandle;
+    CIRC_BUFF           buffHandle;                                             /**<@brief Buffer handle                                    */
+    nanosecs_rel_t      timeout;
+    rtdm_mutex_t        mtx;
+    void *              queue;                                                  /**<@brief Buffer storage                                   */
+    int                 status;
 };
 
 /**@brief       UART device context structure
@@ -69,16 +78,9 @@ struct uartCtx {
     struct rtdm_device *        rtdev;                                          /**<@brief Real-time device driver                          */
     struct platform_device *    platDev;                                        /**<@brief Linux kernel device driver                       */
     u32                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
-    rtser_config_t      cfg;                                                    /**<@brief Current device configuration                     */
-    u8 * __iomem        io;                                                     /**<@brief Remaped IO memory area                           */
-    RT_HEAP             txHeapHandle;
-    RT_HEAP             rxHeapHandle;
-    CIRC_BUFF           buffTxHandle;
-    CIRC_BUFF           buffRxHandle;
-    RT_QUEUE            qTxHandle;                                              /**<@brief TX buffer handle                                 */
-    RT_QUEUE            qRxHandle;                                              /**<@brief RX buffer handle                                 */
-    void *              qTx;                                                    /**<@brief TX buffer storage                                */
-    void *              qRx;                                                    /**<@brief RX buffer storage                                */
+    volatile u8 *       io;                                                     /**<@brief Remaped IO memory area                           */
+    struct uartUnit     tx;
+    struct uartUnit     rx;
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/

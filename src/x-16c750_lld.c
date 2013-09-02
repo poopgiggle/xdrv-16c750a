@@ -58,7 +58,7 @@ const struct rtser_config gDefProtocol = {
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
 void lldRegWrBits(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum hwReg          reg,
     u16                 bitmask,
     u16                 bits) {
@@ -72,7 +72,7 @@ void lldRegWrBits(
 }
 
 u16 lldRegRdBits(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum hwReg          reg,
     u16                 bitmask) {
 
@@ -85,7 +85,7 @@ u16 lldRegRdBits(
 }
 
 void lldCfgModeSet(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum lldCfgMode     cfgMode) {
 
     lldRegWr(
@@ -95,7 +95,7 @@ void lldCfgModeSet(
 }
 
 void lldModeSet(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum lldMode        mode) {
 
     lldRegWrBits(
@@ -106,7 +106,7 @@ void lldModeSet(
 }
 
 u16 lldModeGet(
-    u8 *                ioRemap) {
+    volatile u8 *       ioRemap) {
 
     u16                 tmp;
 
@@ -119,7 +119,7 @@ u16 lldModeGet(
 }
 
 void lldIntEnable(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum lldINT         intNum) {
 
     u16                 tmp;
@@ -146,7 +146,7 @@ void lldIntEnable(
 }
 
 void lldIntDisable(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     enum lldINT         intNum) {
 
     u16                 tmp;
@@ -173,7 +173,7 @@ void lldIntDisable(
 }
 
 enum lldINT lldIntGet(
-    u8 *                ioRemap) {
+    volatile u8 *       ioRemap) {
 
     u16                 tmp;
 
@@ -205,7 +205,7 @@ enum lldINT lldIntGet(
 }
 
 int lldSoftReset(
-    u8 *                ioRemap) {
+    volatile u8 *       ioRemap) {
 
     lldRegWr(
         ioRemap,
@@ -218,7 +218,7 @@ int lldSoftReset(
 }
 
 int lldFIFOSetup(
-    u8 *                ioRemap) {
+    volatile u8 *       ioRemap) {
 
     u16                 tmp;
     u16                 regLCR;
@@ -283,7 +283,7 @@ int lldFIFOSetup(
 }
 
 int lldDMAFIFOSetup(
-    u8 *                ioRemap) {
+    volatile u8 *       ioRemap) {
 
     u16                 tmp;
     u16                 regLCR;
@@ -417,7 +417,7 @@ void lldProtocolPrint(
  * TODO: Break this functin into a set of smaller functions
  */
 int lldProtocolSet(
-    u8 *                ioRemap,
+    volatile u8 *       ioRemap,
     const struct rtser_config * config) {
 
     u16                 tmp;

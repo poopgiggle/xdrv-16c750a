@@ -186,44 +186,46 @@ static void xUartCtxCleanup(
         case CTX_STATE_DEV_REG : {
             LOG_INFO("reversing action: allocate internal RX buffer");
             (void)rt_heap_free(
-                &uartCtx->rxHeapHandle,
-                circBuffGet(&uartCtx->buffRxHandle));
+                &uartCtx->rx.heapHandle,
+                circMemBaseGet(&uartCtx->rx.buffHandle));
         }
 
         case CTX_STATE_RX_BUFF_ALLOC: {
             LOG_INFO("reversing action: create internal RX buffer");
             (void)rt_heap_delete(
-                &uartCtx->rxHeapHandle);
+                &uartCtx->rx.heapHandle);
         }
 
         case CTX_STATE_RX_BUFF: {
             LOG_INFO("reversing action: allocate internal TX buffer");
             (void)rt_heap_free(
-                &uartCtx->txHeapHandle,
-                circBuffGet(&uartCtx->buffTxHandle));
+                &uartCtx->tx.heapHandle,
+                circMemBaseGet(&uartCtx->tx.buffHandle));
+            /* fall through */
         }
 
         case CTX_STATE_TX_BUFF_ALLOC: {
             LOG_INFO("reversing action: create internal TX buffer");
             (void)rt_heap_delete(
-                &uartCtx->txHeapHandle);
+                &uartCtx->tx.heapHandle);
+            /* fall through */
         }
 
         case CTX_STATE_TX_BUFF : {
             LOG_INFO("reversing action: RX allocate");
             (void)rt_queue_flush(
-                &uartCtx->qRxHandle);
+                &uartCtx->rx.queueHandle);
             (void)rt_queue_delete(
-                &uartCtx->qRxHandle);
+                &uartCtx->rx.queueHandle);
             /* fall through */
         }
 
         case CTX_STATE_RX_ALLOC: {
             LOG_INFO("reversing action: TX allocate");
             (void)rt_queue_flush(
-                &uartCtx->qTxHandle);
+                &uartCtx->tx.queueHandle);
             (void)rt_queue_delete(
-                &uartCtx->qTxHandle);
+                &uartCtx->tx.queueHandle);
             /* fall through */
         }
 
@@ -265,7 +267,7 @@ static int xUartCtxCreate(
     state = CTX_STATE_TX_ALLOC;
     LOG_INFO("TX queue: %s, size: %ld", qTxName, CFG_Q_TX_SIZE);
     retval = rt_queue_create(
-        &uartCtx->qTxHandle,
+        &uartCtx->tx.queueHandle,
         qTxName,
         CFG_Q_TX_SIZE,
         Q_UNLIMITED,
@@ -284,7 +286,7 @@ static int xUartCtxCreate(
     state = CTX_STATE_RX_ALLOC;
     LOG_INFO("RX queue: %s, size: %ld", qRxName, CFG_Q_RX_SIZE);
     retval = rt_queue_create(
-        &uartCtx->qRxHandle,
+        &uartCtx->rx.queueHandle,
         qRxName,
         CFG_Q_RX_SIZE,
         Q_UNLIMITED,
@@ -302,7 +304,7 @@ static int xUartCtxCreate(
     /*-- STATE: Create TX buffer ---------------------------------------------*/
     state  = CTX_STATE_TX_BUFF;
     retval = rt_heap_create(
-        &uartCtx->txHeapHandle,
+        &uartCtx->tx.heapHandle,
         NULL,
         CFG_DRV_BUFF_SIZE,
         H_SINGLE);
@@ -319,7 +321,7 @@ static int xUartCtxCreate(
     /*-- STATE: Alloc TX buffer ----------------------------------------------*/
     state  = CTX_STATE_TX_BUFF_ALLOC;
     retval = rt_heap_alloc(
-        &uartCtx->txHeapHandle,
+        &uartCtx->tx.heapHandle,
         0U,
         TM_INFINITE,
         &tmpPtr);
@@ -333,14 +335,14 @@ static int xUartCtxCreate(
         return (retval);
     }
     circInit(
-        &uartCtx->buffTxHandle,
+        &uartCtx->tx.buffHandle,
         tmpPtr,
         CFG_DRV_BUFF_SIZE);
 
     /*-- STATE: Create RX buffer ---------------------------------------------*/
     state  = CTX_STATE_RX_BUFF;
     retval = rt_heap_create(
-        &uartCtx->rxHeapHandle,
+        &uartCtx->rx.heapHandle,
         NULL,
         CFG_DRV_BUFF_SIZE,
         H_SINGLE);
@@ -357,7 +359,7 @@ static int xUartCtxCreate(
     /*-- STATE: Alloc RX buffer ----------------------------------------------*/
     state  = CTX_STATE_RX_BUFF_ALLOC;
     retval = rt_heap_alloc(
-        &uartCtx->rxHeapHandle,
+        &uartCtx->rx.heapHandle,
         0U,
         TM_INFINITE,
         &tmpPtr);
@@ -371,7 +373,7 @@ static int xUartCtxCreate(
         return (retval);
     }
     circInit(
-        &uartCtx->buffRxHandle,
+        &uartCtx->rx.buffHandle,
         tmpPtr,
         CFG_DRV_BUFF_SIZE);
 
@@ -388,6 +390,8 @@ static int xUartCtxCreate(
 
         return (retval);
     }
+    uartCtx->tx.status = UART_STATUS_NORMAL;
+    uartCtx->rx.status = UART_STATUS_NORMAL;
 
     /*-- Prepare UART --------------------------------------------------------*/
     (void)lldSoftReset(
@@ -408,34 +412,34 @@ static int xUartCtxDestroy(
 
     LOG_DBG("destroying device context");
     retval = rtdm_dev_unregister(
-        &gUartDev,
+        uartCtx->rtdev,
         CFG_WAIT_EXIT_DELAY);
     LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = rt_heap_free(
-        &uartCtx->rxHeapHandle,
-        circBuffGet(&uartCtx->buffRxHandle));
+        &uartCtx->rx.heapHandle,
+        circMemBaseGet(&uartCtx->rx.buffHandle));
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to free internal RX buffer");
     retval = rt_heap_delete(
-        &uartCtx->rxHeapHandle);
+        &uartCtx->rx.heapHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal RX buffer");
     retval = rt_heap_free(
-        &uartCtx->txHeapHandle,
-        circBuffGet(&uartCtx->buffTxHandle));
+        &uartCtx->tx.heapHandle,
+        circMemBaseGet(&uartCtx->tx.buffHandle));
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to free internal TX buffer");
     retval = rt_heap_delete(
-        &uartCtx->txHeapHandle);
+        &uartCtx->tx.heapHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal TX buffer");
     retval = rt_queue_flush(
-        &uartCtx->qRxHandle);
+        &uartCtx->rx.queueHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to flush RX queue");
     retval = rt_queue_delete(
-        &uartCtx->qRxHandle);
+        &uartCtx->rx.queueHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete RX queue");
     retval = rt_queue_flush(
-        &uartCtx->qTxHandle);
+        &uartCtx->tx.queueHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to flush TX queue");
     retval = rt_queue_delete(
-        &uartCtx->qTxHandle);
+        &uartCtx->tx.queueHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete TX queue");
 
     return (retval);
@@ -567,11 +571,109 @@ static int xUartWr(
     const void *        buff,
     size_t              bytes) {
 
+    int                 retval;
     struct uartCtx *    uartCtx;
+    rtdm_toseq_t        timeoutSeq;
+    rtdm_lockctx_t      lockCtx;
+    u8 *                src;
+    size_t              written;
+
     uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
 
+    if (0U == bytes) {
+        return (0);
+    }
 
-    return (RETVAL_SUCCESS);
+    if (NULL != usrInfo) {
+
+        if (0 == rtdm_read_user_ok(usrInfo, buff, bytes)) {
+
+            return (-EFAULT);
+        }
+    }
+    src = (u8 *)buff;
+    written = 0U;
+    rtdm_toseq_init(
+        &timeoutSeq,
+        uartCtx->rx.timeout);
+
+    retval = rtdm_mutex_timedlock(
+        &uartCtx->rx.mtx,
+        uartCtx->rx.timeout,
+        &timeoutSeq);
+
+    if (RETVAL_SUCCESS != retval) {
+
+        return (retval);
+    }
+
+    while (0 < bytes) {
+        size_t          remaining;
+
+        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+
+        remaining = circRemainingGet(
+            &uartCtx->tx.buffHandle);
+
+        if (0U <= remaining) {
+            u8 *        dst;
+
+            dst = circMemHeadGet(
+                &uartCtx->tx.buffHandle);
+
+            if (remaining < bytes) {
+
+                if (NULL != usrInfo) {
+                    retval = rtdm_copy_from_user(
+                        usrInfo,
+                        dst,
+                        src,
+                        remaining);
+
+                    if (RETVAL_SUCCESS != retval) {
+                        retval = -EFAULT;
+
+                        break;
+                    }
+                } else {                                                        /* NULL != usrInfo                                          */
+                    memcpy(
+                        dst,
+                        src,
+                        remaining);
+                }                                                               /* NULL == usrInfo                                          */
+                circHeadPosSet(
+                    &uartCtx->tx.buffHandle,
+                    remaining);
+                written += remaining;
+                bytes   -= remaining;
+                src     += remaining;
+            } else {                                                            /* remaining < bytes                                        */
+
+                if (NULL != usrInfo) {
+                    retval = rtdm_copy_from_user(
+                        usrInfo,
+                        dst,
+                        src,
+                        bytes);
+                } else {
+                    memcpy(
+                        dst,
+                        src,
+                        bytes);
+                }
+                written += bytes;
+                bytes    = 0;
+            }                                                                   /* remaining >= bytes                                       */
+        } else {
+            retval = -ENOBUFS;
+        }
+
+        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+    }
+    rtdm_mutex_unlock(
+        &uartCtx->rx.mtx);
+
+    return (retval);
 }
 
 static int xUartIrqHandle(
@@ -587,22 +689,54 @@ static int xUartIrqHandle(
 
     rtdm_lock_get(&uartCtx->lock);
 
+    uartCtx->rx.status = UART_STATUS_NORMAL;
     intNum = lldIntGet(
         uartCtx->io);
 
-    while (LLD_INT_NONE != intNum) {
+    while (LLD_INT_NONE != intNum) {                                            /* Loop until there are interrupts to process               */
+        retval = RTDM_IRQ_HANDLED;
 
-        if (LLD_INT_RX_TIMEOUT == intNum) {
+        /*-- Receive interrupt -----------------------------------------------*/
+        if ((LLD_INT_RX_TIMEOUT == intNum) || (LLD_INT_RX == intNum)) {
 
-        } else if (LLD_INT_RX == intNum) {
+            if (FALSE == circIsFull(&uartCtx->rx.buffHandle)) {
+                u32 item;
 
+                item = lldRegRd(
+                    uartCtx->io,
+                    RHR);
+                circItemPut(
+                    &uartCtx->rx.buffHandle,
+                    item);
+            } else {
+                uartCtx->rx.status = UART_STATUS_SOFT_OVERFLOW;
+                lldRegRd(
+                    uartCtx->io,
+                    RHR);
+            }
 
+        /*-- Transmit interrupt ----------------------------------------------*/
         } else if (LLD_INT_TX == intNum) {
 
+            if (FALSE == circIsEmpty(&uartCtx->tx.buffHandle)) {
+                u32 item;
+
+                item = circItemGet(
+                    &uartCtx->tx.buffHandle);
+                lldRegWr(
+                    uartCtx->io,
+                    wTHR,
+                    (u16)item);
+            } else {
+                lldIntDisable(
+                    uartCtx->io,
+                    LLD_INT_TX);
+            }
         }
-        intNum = lldIntGet(
+        intNum = lldIntGet(                                                     /* Get new interrupt                                        */
             uartCtx->io);
     }
+    LOG_WARN_IF(UART_STATUS_SOFT_OVERFLOW == uartCtx->rx.status, "RX buffer overflow");
     rtdm_lock_put(&uartCtx->lock);
 
     return (retval);
