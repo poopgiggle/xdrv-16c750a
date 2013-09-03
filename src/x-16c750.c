@@ -629,7 +629,7 @@ static int xUartWr(
         remaining = circRemainingGet(
             &uartCtx->tx.buffHandle);
 
-        if (0U == remaining) {
+        if (0U != remaining) {
 
             if (remaining < bytes) {
                 transfer = remaining;
