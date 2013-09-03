@@ -83,13 +83,7 @@ void circItemPut(
 u8 circItemGet(
     CIRC_BUFF *         buff);
 
-size_t circFreeGet(
-    const CIRC_BUFF *   buff);
-
 size_t circRemainingGet(
-    const CIRC_BUFF *   buff);
-
-size_t circSizeGet(
     const CIRC_BUFF *   buff);
 
 u8 * circMemBaseGet(

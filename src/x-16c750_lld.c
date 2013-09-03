@@ -28,6 +28,7 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
+#include "x-16c750_ioctl.h"
 #include "x-16c750_lld.h"
 #include "port.h"
 
@@ -40,18 +41,16 @@
     ((val) >> 8)
 
 /*======================================================  LOCAL DATA TYPES  ==*/
-/*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
-/*=======================================================  LOCAL VARIABLES  ==*/
 
-const struct rtser_config gDefProtocol = {
-    .config_mask        = RTSER_SET_BAUD | RTSER_SET_PARITY | RTSER_SET_DATA_BITS |
-                          RTSER_SET_STOP_BITS,
-    .baud_rate          = CFG_DEFAULT_BAUD_RATE,
-    .parity             = RTSER_NO_PARITY,
-    .data_bits          = RTSER_8_BITS,
-    .stop_bits          = RTSER_1_STOPB,
+const struct xUartProtocol gDefProtocol = {
+    .baud               = CFG_DEFAULT_BAUD_RATE,
+    .parity             = XUART_PARITY_NONE,
+    .dataBits           = XUART_DATA_8,
+    .stopBits           = XUART_STOP_1
 };
 
+/*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
+/*=======================================================  LOCAL VARIABLES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
@@ -348,27 +347,25 @@ int lldDMAFIFOSetup(
 }
 
 void lldProtocolPrint(
-    const struct rtser_config * config) {
-
-#define DEF_STRING_SIZE                 10U
+    const struct xUartProtocol * protocol) {
 
     char *              parity;
     char *              stopBits;
     char *              dataBits;
 
-    switch (config->parity) {
-        case RTSER_NO_PARITY : {
+    switch (protocol->parity) {
+        case XUART_PARITY_NONE : {
             parity = "none";
             break;
         }
 
-        case RTSER_ODD_PARITY : {
-            parity = "odd";
+        case XUART_PARITY_EVEN : {
+            parity = "even";
             break;
         }
 
-        case RTSER_EVEN_PARITY : {
-            parity = "even";
+        case XUART_PARITY_ODD : {
+            parity = "odd";
             break;
         }
 
@@ -378,13 +375,18 @@ void lldProtocolPrint(
         }
     }
 
-    switch (config->stop_bits) {
-        case RTSER_1_STOPB : {
+    switch (protocol->stopBits) {
+        case XUART_STOP_1 : {
             stopBits = "1";
             break;
         }
 
-        case RTSER_2_STOPB : {
+        case XUART_STOP_1n5 : {
+            stopBits = "1n5";
+            break;
+        }
+
+        case XUART_STOP_2 : {
             stopBits = "2";
             break;
         }
@@ -395,9 +397,14 @@ void lldProtocolPrint(
         }
     }
 
-    switch (config->data_bits) {
-        case RTSER_8_BITS : {
+    switch (protocol->dataBits) {
+        case XUART_DATA_8 : {
             dataBits = "8";
+            break;
+        }
+
+        case XUART_DATA_5 : {
+            dataBits = "5";
             break;
         }
 
@@ -406,29 +413,26 @@ void lldProtocolPrint(
             break;
         }
     }
-    LOG_INFO("configuration: %d, %s %s %s",
-        config->baud_rate,
+    LOG_INFO("protocol: %d, %s %s %s",
+        protocol->baud,
         dataBits,
         parity,
         stopBits);
 }
 
 /*
- * TODO: Break this functin into a set of smaller functions
+ * TODO: Break this function into a set of smaller functions
  */
 int lldProtocolSet(
     volatile u8 *       ioRemap,
-    const struct rtser_config * config) {
+    const struct xUartProtocol * protocol) {
 
     u16                 tmp;
     u16                 arg;
     u16                 retval;
     u16                 regEFR;
-    u16                 oldMode;
 
     retval = RETVAL_SUCCESS;
-    oldMode = lldModeGet(
-        ioRemap);
     lldModeSet(                                                                 /* Disable UART to access DLL and DLH registers             */
         ioRemap,
         LLD_MODE_DISABLE);
@@ -447,35 +451,32 @@ int lldProtocolSet(
         ioRemap,
         IER,
         0x0000U);
+    tmp = portDIVdataGet(                                                       /* Get the new divisor value                                */
+        protocol->baud);
 
-    if (0 != (RTSER_SET_BAUD & config->config_mask)) {
-        tmp = portDIVdataGet(                                                       /* Get the new divisor value                                */
-            config->baud_rate);
-
-        if (RETVAL_FAILURE == tmp) {
-            LOG_DBG("protocol: invalid baud rate");
-            retval = -EINVAL;
-        } else {
-            lldCfgModeSet(                                                              /* Switch to config mode B to access DLH and DLL registers  */
-                ioRemap,
-                LLD_CFG_MODE_B);
-            lldRegWr(
-                ioRemap,
-                wbDLL,
-                U16_LOW_BYTE(tmp));
-            lldRegWr(
-                ioRemap,
-                wbDLH,
-                U16_HIGH_BYTE(tmp));
-            lldCfgModeSet(
-                ioRemap,
-                LLD_CFG_MODE_NORM);
-        }
+    if (RETVAL_FAILURE == tmp) {
+        LOG_DBG("protocol: invalid baud rate");
+        retval = -EINVAL;
+    } else {
+        lldCfgModeSet(                                                              /* Switch to config mode B to access DLH and DLL registers  */
+            ioRemap,
+            LLD_CFG_MODE_B);
+        lldRegWr(
+            ioRemap,
+            wbDLL,
+            U16_LOW_BYTE(tmp));
+        lldRegWr(
+            ioRemap,
+            wbDLH,
+            U16_HIGH_BYTE(tmp));
+        lldCfgModeSet(
+            ioRemap,
+            LLD_CFG_MODE_NORM);
     }
 
-    /*
-     * TODO: set interrupts
-     */
+    lldIntEnable(
+        ioRemap,
+        LLD_INT_RX);
     lldCfgModeSet(
         ioRemap,
         LLD_CFG_MODE_B);
@@ -490,99 +491,96 @@ int lldProtocolSet(
         LCR,
         LCR_BREAK_EN | LCR_DIV_EN);
 
-    if (0 != (RTSER_SET_PARITY & config->config_mask)) {
-
-        switch (config->parity) {
-            case RTSER_EVEN_PARITY : {
-                arg = LCR_PARITY_EN | LCR_PARITY_TYPE1;
-                break;
-            }
-
-            case RTSER_ODD_PARITY : {
-                arg = LCR_PARITY_EN;
-                break;
-            }
-
-            case RTSER_NO_PARITY : {
-                arg = 0U;
-                break;
-            }
-
-            default : {                                                             /* Use default value and report warning                     */
-                arg = 0;
-                LOG_DBG("protocol: invalid parity");
-                retval = -EINVAL;
-                break;
-            }
+    switch (protocol->parity) {
+        case XUART_PARITY_NONE : {
+            arg = 0U;
+            break;
         }
-        lldRegWrBits(
-            ioRemap,
-            LCR,
-            LCR_PARITY_EN | LCR_PARITY_TYPE1 | LCR_PARITY_TYPE2,
-            arg);
-    }
 
-    if (0 != (RTSER_SET_DATA_BITS & config->config_mask)) {
-
-        switch (config->data_bits) {
-            case RTSER_8_BITS : {
-                arg = LCR_CHAR_LENGTH_8;
-                break;
-            }
-
-            default : {                                                             /* Use default value and report warning                     */
-                arg = LCR_CHAR_LENGTH_8;
-                LOG_DBG("protocol: invalid data bits");
-                retval   = -EINVAL;
-                break;
-            }
+        case XUART_PARITY_EVEN : {
+            arg = LCR_PARITY_EN | LCR_PARITY_TYPE1;
+            break;
         }
-        lldRegWrBits(
-            ioRemap,
-            LCR,
-            LCR_CHAR_LENGTH_Mask,
-            arg);
-    }
 
-    if (0 != (RTSER_SET_STOP_BITS & config->config_mask)) {
-        switch (config->stop_bits) {
-            case RTSER_2_STOPB : {
+        case XUART_PARITY_ODD : {
+            arg = LCR_PARITY_EN;
+            break;
+        }
+
+        default : {                                                             /* Use default value and report warning                     */
+            arg = 0;
+            LOG_DBG("protocol: invalid parity");
+            retval = -EINVAL;
+            break;
+        }
+    }
+    lldRegWrBits(
+        ioRemap,
+        LCR,
+        LCR_PARITY_EN | LCR_PARITY_TYPE1 | LCR_PARITY_TYPE2,
+        arg);
+
+    switch (protocol->dataBits) {
+        case XUART_DATA_8 : {
+            arg = LCR_CHAR_LENGTH_8;
+            break;
+        }
+
+        default : {                                                             /* Use default value and report warning                     */
+            arg = LCR_CHAR_LENGTH_8;
+            LOG_DBG("protocol: invalid data bits");
+            retval   = -EINVAL;
+            break;
+        }
+    }
+    lldRegWrBits(
+        ioRemap,
+        LCR,
+        LCR_CHAR_LENGTH_Mask,
+        arg);
+
+    switch (protocol->stopBits) {
+
+        case XUART_STOP_1 : {
+            arg = 0U;
+            break;
+        }
+
+        case XUART_STOP_1n5 : {
+
+            if (XUART_DATA_5 == protocol->dataBits) {
                 arg = LCR_NB_STOP;
-                break;
-            }
-
-            case RTSER_1_STOPB : {
+            } else {
                 arg = 0U;
-                break;
             }
-
-            default : {                                                             /* Use default value and report warning                     */
-                arg = 0U;
-                LOG_DBG("protocol: invalid stop bits");
-                retval   = -EINVAL;
-                break;
-            }
+            break;
         }
-        lldRegWrBits(
-            ioRemap,
-            LCR,
-            LCR_NB_STOP,
-            arg);
-    }
 
-    if (0 != (RTSER_SET_BAUD & config->config_mask)) {
-        tmp = portModeGet(                                                          /* NOTE: return should not be checked here because DIV func */
-            config->baud_rate);                                                     /* already did it before                                    */
-        lldModeSet(
-            ioRemap,
-            tmp);
-    } else {
-        lldModeSet(
-            ioRemap,
-            oldMode);
+        case XUART_STOP_2 : {
+            arg = LCR_NB_STOP;
+            break;
+        }
+
+        default : {                                                             /* Use default value and report warning                     */
+            arg = 0U;
+            LOG_DBG("protocol: invalid stop bits");
+            retval   = -EINVAL;
+            break;
+        }
     }
+    lldRegWrBits(
+        ioRemap,
+        LCR,
+        LCR_NB_STOP,
+        arg);
+
+    tmp = portModeGet(                                                          /* NOTE: return should not be checked here because DIV func */
+        protocol->baud);                                                        /* already did it before                                    */
+    lldModeSet(
+        ioRemap,
+        tmp);
     lldProtocolPrint(
-        config);
+        protocol);
 
     return (retval);
 }

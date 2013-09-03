@@ -34,7 +34,6 @@
 #include <linux/platform_device.h>
 #include <linux/circ_buf.h>
 
-#include <rtdm/rtserial.h>
 #include <rtdm/rtdm_driver.h>
 #include <native/heap.h>
 #include <native/queue.h>

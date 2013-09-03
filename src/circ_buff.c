@@ -82,19 +82,6 @@ u8 circItemGet(
     return (tmp);
 }
 
-size_t circFreeGet(
-    const CIRC_BUFF *   buff) {
-
-    u32                 ans;
-
-    if (buff->head >= buff->tail) {
-        ans = buff->size - buff->head + buff->tail;
-    } else {
-        ans = buff->tail - buff->head;
-    }
-    return ((size_t)ans);
-}
-
 size_t circRemainingGet(
     const CIRC_BUFF *   buff) {
 
@@ -115,12 +102,6 @@ size_t circRemainingGet(
     }
 
     return ((size_t)tmp);
-}
-
-size_t circSizeGet(
-    const CIRC_BUFF *   buff) {
-
-    return ((size_t)buff->size);
 }
 
 u8 * circMemBaseGet(

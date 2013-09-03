@@ -166,8 +166,8 @@ static struct rtdm_device gUartDev = {
         .sendmsg_nrt    = NULL
     },
     .device_class       = RTDM_CLASS_SERIAL,
-    .device_sub_class   = RTDM_SUBCLASS_16550A,
-    .profile_version    = RTSER_PROFILE_VER,
+    .device_sub_class   = 0,
+    .profile_version    = 0,
     .driver_name        = CFG_DRV_NAME,
     .driver_version     = RTDM_DRIVER_VER(DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH),
     .peripheral_name    = DEF_DRV_SUPP_DEVICE,
@@ -534,7 +534,7 @@ static int xUartClose(
 
 static int xUartConfigSet(
     struct uartCtx *    ctx,
-    const struct rtser_config * config,
+    const struct xUartProtocol * config,
     uint64_t **         history) {
 
     return (RETVAL_SUCCESS);

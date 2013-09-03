@@ -46,10 +46,10 @@
 #define XUART_IOCTL_TYPE                RTDM_CLASS_SERIAL
 
 #define XUART_CONFIG_GET                                                        \
-    _IOR(XUART_IOCTL_TYPE, 0x00,struct xUartCfg)
+    _IOR(XUART_IOCTL_TYPE, 0x00,struct xUartProtocol)
 
 #define XUART_CONFIG_SET                                                        \
-    _IOW(XUART_IOCTL_TYPE, 0x01,struct xUartCfg)
+    _IOW(XUART_IOCTL_TYPE, 0x01,struct xUartProtocol)
 
 /** @} *//*-------------------------------------------------------------------*/
 /*------------------------------------------------------  C++ extern begin  --*/
@@ -64,8 +64,28 @@ extern "C" {
  * @brief       brief description
  * @{ *//*--------------------------------------------------------------------*/
 
-struct xUartCfg {
-    u32                 baudRate;
+enum xUartParity {
+    XUART_PARITY_NONE,
+    XUART_PARITY_EVEN,
+    XUART_PARITY_ODD
+};
+
+enum xUartDataBits {
+    XUART_DATA_8,
+    XUART_DATA_5
+};
+
+enum xUartStopBits {
+    XUART_STOP_1,
+    XUART_STOP_1n5,
+    XUART_STOP_2
+};
+
+struct xUartProtocol {
+    u32                 baud;
+    enum xUartParity    parity;
+    enum xUartDataBits  dataBits;
+    enum xUartStopBits  stopBits;
 };
 
 /** @} *//*-------------------------------------------------------------------*/
