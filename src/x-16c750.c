@@ -470,6 +470,8 @@ static int xUartOpen(
     rtdm_lockctx_t      lockCtx;
 
     uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
+    memcpy(uartCtx, &gUartCtx,sizeof(gUartCtx));
+    LOG_DBG("open device");
     rtdm_lock_init(&uartCtx->lock);
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
@@ -510,6 +512,7 @@ static int xUartClose(
 
     uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
 
+    LOG_DBG("close device");
     rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
     lldIntDisable(
         uartCtx->io,
@@ -792,6 +795,7 @@ int __init moduleInit(
     LOG_INFO(DEF_DRV_DESCRIPTION);
     LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
     LOG_INFO("UART: %d", gUartCtx.id);
+    LOG_INFO("Device driver name: %s", CFG_DRV_NAME);
     retval = portInit(
         &gUartCtx);                                                             /* Initialize Linux device driver                           */
 
