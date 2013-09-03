@@ -646,8 +646,8 @@ static int xUartWr(
                     transfer);
 
                 if (RETVAL_SUCCESS != retval) {
-
-                    return (-EFAULT);
+                    retval = -EFAULT;
+                    bytes  = 0;                                                 /* Exit from loop                                           */
                 }
             } else {
                 memcpy(
@@ -664,15 +664,19 @@ static int xUartWr(
             dst = circMemHeadGet(
                 &uartCtx->tx.buffHandle);
         } else {
-
-            return (-ENOBUFS);
+            retval = -ENOBUFS;
+            bytes  = 0;                                                         /* Exit from loop                                           */
         }
         rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
     }
     rtdm_mutex_unlock(
         &uartCtx->rx.mtx);
 
-    return (written);
+    if (RETVAL_SUCCESS == retval) {
+
+        retval = written;
+    }
+    return (retval);
 }
 
 static int xUartIrqHandle(
