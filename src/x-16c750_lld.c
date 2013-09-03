@@ -576,9 +576,12 @@ int lldProtocolSet(
 
     tmp = portModeGet(                                                          /* NOTE: return should not be checked here because DIV func */
         protocol->baud);                                                        /* already did it before                                    */
-    lldModeSet(
-        ioRemap,
-        tmp);
+
+    if (RETVAL_FAILURE != tmp) {
+        lldModeSet(
+            ioRemap,
+            tmp);
+    }
     lldProtocolPrint(
         protocol);
 
