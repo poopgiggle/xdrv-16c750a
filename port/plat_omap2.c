@@ -72,10 +72,15 @@ enum hwUart {
     LAST_UART_ENTRY
 };
 
+struct devRes {
+    struct platform_device * platDev;
+    volatile u8 *       io;
+};
+
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 
 static void platCleanup(
-    struct uartCtx *    uartCtx,
+    struct devRes *     devRes,
     enum platState      state);
 
 static u32 baudRateCfgFindIndex(
@@ -134,7 +139,7 @@ static u32 baudRateCfgFindIndex(
 }
 
 static void platCleanup(
-    struct uartCtx *    uartCtx,
+    struct devRes *     devRes,
     enum platState      state) {
 
     switch (state) {
@@ -142,14 +147,14 @@ static void platCleanup(
         case PLAT_STATE_ENABLE : {
             LOG_INFO("reversing action: enable device clocks");
             omap_device_disable_clocks(
-                to_omap_device(uartCtx->platDev));
+                to_omap_device(devRes->platDev));
             /* fall down */
         }
 
         case PLAT_STATE_ECLK : {
             LOG_INFO("reversing action: build device");
             omap_device_delete(
-                to_omap_device(uartCtx->platDev));
+                to_omap_device(devRes->platDev));
             /* fall down */
         }
 
@@ -172,10 +177,10 @@ static void platCleanup(
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
-int portInit(
-    struct uartCtx *    uartCtx) {
+void * portInit(
+    u32                 id) {
 
-    struct platform_device * platDev;
+    struct devRes *     devRes;
     struct omap_hwmod * hwmod;
     enum platState      state;
     int                 retval;
@@ -184,11 +189,20 @@ int portInit(
 
     /*-- Initializaion state -------------------------------------------------*/
     state = PLAT_STATE_INIT;
+    devRes = kmalloc(
+        sizeof(struct devRes),
+        GFP_KERNEL);
+
+    if (NULL == devRes) {
+        LOG_ERR("OMAP UART: failed to allocate device resources struct");
+
+        return (NULL);
+    }
     scnprintf(
         uartName,
         DEF_UART_NAME_MAX_SIZE,
         DEF_UART_NAME "%d",
-        uartCtx->id);                                                           /* NOTE: Since hwmod UART count is messed up we need the right name now */
+        id);                                                                    /* NOTE: Since hwmod UART count is messed up we need the right name now */
     LOG_DBG("OMAP UART: creating %s device", uartName);
 
     /*-- HWMOD lookup state --------------------------------------------------*/
@@ -197,24 +211,24 @@ int portInit(
         hwmodUartName,
         DEF_UART_NAME_MAX_SIZE,
         DEF_UART_NAME "%d",
-        uartCtx->id + 1U);                                                      /* NOTE: hwmod UART count starts at 1, so we must add 1 here */
+        id + 1U);                                                               /* NOTE: hwmod UART count starts at 1, so we must add 1 here */
     hwmod = omap_hwmod_lookup(
         hwmodUartName);
 
     if (NULL == hwmod) {
         LOG_ERR("OMAP UART: failed to find HWMOD %s device", uartName);
         platCleanup(
-            uartCtx,
+            devRes,
             state);
 
-        return (-ENODEV);
+        return (NULL);
     }
 
     /*-- Device build state --------------------------------------------------*/
     state = PLAT_STATE_BUILD;
-    platDev = omap_device_build(
+    devRes->platDev = omap_device_build(
         uartName,
-        uartCtx->id,
+        id,
         hwmod,
         NULL,
         0,
@@ -222,49 +236,61 @@ int portInit(
         0,
         0);
 
-    if (NULL == platDev) {
+    if (NULL == devRes->platDev) {
         LOG_ERR("OMAP UART: failed to build device");
         platCleanup(
-            uartCtx,
+            devRes,
             state);
 
-        return (-ENOTSUPP);
+        return (NULL);
     }
 
     /*-- Device enable clocks state ------------------------------------------*/
     state = PLAT_STATE_ECLK;
     retval = omap_device_enable_clocks(
-        to_omap_device(platDev));
+        to_omap_device(devRes->platDev));
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("OMAP UART: failed to enable device clocks");
         platCleanup(
-            uartCtx,
+            devRes,
             state);
 
-        return (retval);
+        return (NULL);
     }
 
     /*-- Device enable state -------------------------------------------------*/
     state = PLAT_STATE_ENABLE;
     retval = omap_device_enable(
-        platDev);
+        devRes->platDev);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("OMAP UART: failed to enable device");
         platCleanup(
-            uartCtx,
+            devRes,
             state);
 
-        return (retval);
+        return (NULL);
     }
 
     /*-- Saving references to device data ------------------------------------*/
-    uartCtx->io = omap_device_get_rt_va(
-        to_omap_device(platDev));
-    uartCtx->platDev = platDev;
+    devRes->io = omap_device_get_rt_va(
+        to_omap_device(devRes->platDev));
 
-    return (retval);
+    return (devRes);
+}
+
+volatile u8 * portIORemapGet(
+    void *              devResource) {
+
+    struct devRes *     devRes;
+    volatile u8 *       ioremap;
+
+    devRes = (struct devRes *)devResource;
+    ioremap = omap_device_get_rt_va(
+        to_omap_device(devRes->platDev));
+
+    return (ioremap);
 }
 
 /*NOTE:     This function should release all used resources, unfortunately TI
@@ -276,21 +302,25 @@ int portInit(
  *          just fine.
  */
 int portTerm(
-    struct uartCtx *    uartCtx) {
+    void *              devResource) {
 
+    struct devRes *     devRes;
     int                 retval;
 
+    devRes = (struct devRes *)devResource;
     LOG_DBG("OMAP UART: destroying device");
     retval = omap_device_shutdown(
-        uartCtx->platDev);
+        devRes->platDev);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "OMAP UART: failed to shutdown device");
     retval = omap_device_disable_clocks(
-        to_omap_device(uartCtx->platDev));
+        to_omap_device(devRes->platDev));
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "OMAP UART: failed to disable device clocks");
     omap_device_delete(
-        to_omap_device(uartCtx->platDev));
+        to_omap_device(devRes->platDev));
     platform_device_unregister(
-        uartCtx->platDev);
+        devRes->platDev);
+    kfree(
+        devResource);
 
     return (retval);
 }

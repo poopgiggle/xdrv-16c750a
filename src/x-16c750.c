@@ -50,6 +50,8 @@
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
 #define DEF_Q_NAME_MAX_SIZE             10
 
+#define CTX_SIGNATURE                   0xDEADBEEF
+
 #define NS_PER_US                       1000
 #define US_PER_MS                       1000
 #define MS_PER_S                        1000
@@ -75,7 +77,6 @@ enum ctxState {
     CTX_STATE_TX_BUFF_ALLOC,
     CTX_STATE_RX_BUFF,
     CTX_STATE_RX_BUFF_ALLOC,
-    CTX_STATE_DEV_REG                                                           /**<@brief STATE_DEV_REG                                    */
 };
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
@@ -176,8 +177,6 @@ static struct rtdm_device gUartDev = {
     .device_data        = NULL
 };
 
-static struct uartCtx gUartCtx;
-
 /*======================================================  GLOBAL VARIABLES  ==*/
 
 MODULE_LICENSE("GPL");
@@ -192,13 +191,6 @@ static void xUartCtxCleanup(
     enum ctxState       state) {
 
     switch (state) {
-
-        case CTX_STATE_DEV_REG : {
-            LOG_INFO("reversing action: allocate internal RX buffer");
-            (void)rt_heap_free(
-                &uartCtx->rx.heapHandle,
-                circMemBaseGet(&uartCtx->rx.buffHandle));
-        }
 
         case CTX_STATE_RX_BUFF_ALLOC: {
             LOG_INFO("reversing action: create internal RX buffer");
@@ -393,7 +385,6 @@ static int xUartCtxCreate(
     uartCtx->rx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
     uartCtx->rx.status  = UART_STATUS_NORMAL;
 
-    /*-- Prepare UART hardware -----------------------------------------------*/
     (void)lldSoftReset(
         uartCtx->io);
     (void)lldFIFOSetup(
@@ -401,21 +392,6 @@ static int xUartCtxCreate(
     (void)lldProtocolSet(
         uartCtx->io,
         &gDefProtocol);
-
-    /*-- STATE: Xenomai device registration ----------------------------------*/
-    state  = CTX_STATE_DEV_REG;
-    LOG_DBG("registering device: %s, id: %d with proc name: %s", uartCtx->rtdev->device_name, uartCtx->rtdev->device_id, uartCtx->rtdev->proc_name);
-    retval = rtdm_dev_register(
-            uartCtx->rtdev);
-
-    if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to register to Real-Time DM");
-        xUartCtxCleanup(
-            uartCtx,
-            state);
-
-        return (retval);
-    }
 
     return (retval);
 }
@@ -426,10 +402,6 @@ static int xUartCtxDestroy(
     int                 retval;
 
     LOG_DBG("destroying device context");
-    retval = rtdm_dev_unregister(
-        uartCtx->rtdev,
-        CFG_WAIT_EXIT_MS);
-    LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = rt_heap_free(
         &uartCtx->rx.heapHandle,
         circMemBaseGet(&uartCtx->rx.buffHandle));
@@ -456,6 +428,10 @@ static int xUartCtxDestroy(
     retval = rt_queue_delete(
         &uartCtx->tx.queueHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete TX queue");
+    memset(
+        uartCtx,
+        0,
+        sizeof(struct uartCtx));
 
     return (retval);
 }
@@ -470,28 +446,42 @@ static int xUartOpen(
     rtdm_lockctx_t      lockCtx;
 
     uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
-    memcpy(uartCtx, &gUartCtx,sizeof(gUartCtx));
-    LOG_DBG("open device");
+    LOG_INFO("open UART: %d", ctx->device->device_id);
     rtdm_lock_init(&uartCtx->lock);
+    rtdm_lock_get_irqsave(
+        &uartCtx->lock,
+        lockCtx);
+    uartCtx->signature = CTX_SIGNATURE;
+    uartCtx->id = ctx->device->device_id;
+    uartCtx->io = portIORemapGet(
+        ctx->device->device_data);
+    retval = xUartCtxCreate(
+        uartCtx);
+
+    if (RETVAL_SUCCESS != retval) {
+        rtdm_lock_put_irqrestore(
+            &uartCtx->lock,
+            lockCtx);
+        LOG_ERR("failed to create device context");
+
+        return (retval);
+    }
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
-        gPortIRQ[uartCtx->id],
+        gPortIRQ[ctx->device->device_id],
         xUartIrqHandle,
         RTDM_IRQTYPE_EDGE,
         ctx->device->proc_name,
         uartCtx);
 
     if (RETVAL_SUCCESS != retval) {
+        rtdm_lock_put_irqrestore(
+            &uartCtx->lock,
+            lockCtx);
         LOG_ERR("failed to register interrupt");
 
         return (retval);
     }
-    rtdm_lock_get_irqsave(
-        &uartCtx->lock,
-        lockCtx);
-    /*
-     * TODO: try to clear all pending interrupts
-     */
     lldIntEnable(
         uartCtx->io,
         LLD_INT_RX);
@@ -506,34 +496,37 @@ static int xUartClose(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo) {
 
-    rtdm_lockctx_t      lockCtx;
     struct uartCtx *    uartCtx;
     int                 retval;
 
+    retval = RETVAL_SUCCESS;
     uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
 
-    LOG_DBG("close device");
-    rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-    lldIntDisable(
-        uartCtx->io,
-        LLD_INT_TX);
-    lldIntDisable(
-        uartCtx->io,
-        LLD_INT_RX);
-    lldIntDisable(
-        uartCtx->io,
-        LLD_INT_RX_TIMEOUT);
-    /*
-     * TODO: try to clear all pending interrupts
-     */
-    rtdm_lock_put_irqrestore(
-        &uartCtx->lock,
-        lockCtx);
-    retval = rtdm_irq_free(
-        &uartCtx->irqHandle);
+    if (CTX_SIGNATURE == uartCtx->signature) {
+        int             retval2;
+        rtdm_lockctx_t  lockCtx;
 
-    if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to unregister interrupt");
+        LOG_INFO("close UART: %d", ctx->device->device_id);
+        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        lldIntDisable(                                                              /* Turn off all interrupts                                  */
+            uartCtx->io,
+            LLD_INT_TX);
+        lldIntDisable(
+            uartCtx->io,
+            LLD_INT_RX);
+        lldIntDisable(
+            uartCtx->io,
+            LLD_INT_RX_TIMEOUT);
+        retval = rtdm_irq_free(
+            &uartCtx->irqHandle);
+        retval2 = xUartCtxDestroy(
+                uartCtx);
+        uartCtx->signature = ~CTX_SIGNATURE;
+        rtdm_lock_put_irqrestore(
+            &uartCtx->lock,
+            lockCtx);
+        LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to unregister interrupt");
+        LOG_ERR_IF(RETVAL_SUCCESS != retval2, "failed to destroy device context");
     }
 
     return (retval);
@@ -753,17 +746,17 @@ static int xUartIrqHandle(
 
 enum moduleState {
     MOD_STATE_PORT,
-    MOD_STATE_CTX
+    MOD_STATE_DEV_REG
 };
 
 static void moduleCleanup(
     enum moduleState    state) {
 
     switch (state) {
-        case MOD_STATE_CTX : {
+        case MOD_STATE_DEV_REG : {
             portTerm(
-                &gUartCtx);
-            /* fall */
+                gUartDev.device_data);
+            /* fall down */
         }
 
         case MOD_STATE_PORT : {
@@ -786,33 +779,31 @@ int __init moduleInit(
     int                 retval;
     enum moduleState    state;
 
-    gUartCtx.id = CFG_UART;                                                     /* TODO: This must go, almost all functions are already     */
-                                                                                /* parameterized                                            */
-    gUartCtx.rtdev = &gUartDev;                                                 /* TODO: This must be parameterized                         */
-    gUartDev.device_id = gUartCtx.id;
+    gUartDev.device_id = CFG_UART;
+    memcpy(&gUartDev.device_name, CFG_DRV_NAME, sizeof(CFG_DRV_NAME));
 
     state = MOD_STATE_PORT;
     LOG_INFO(DEF_DRV_DESCRIPTION);
     LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
-    LOG_INFO("UART: %d", gUartCtx.id);
-    LOG_INFO("Device driver name: %s", CFG_DRV_NAME);
-    retval = portInit(
-        &gUartCtx);                                                             /* Initialize Linux device driver                           */
+    gUartDev.device_data = portInit(
+        gUartDev.device_id);                                                    /* Initialize Linux device driver                           */
 
-    if (RETVAL_SUCCESS != retval) {
+    if (NULL == gUartDev.device_data) {
         LOG_ERR("failed to initialize kernel platform device driver");
         moduleCleanup(
             state);
 
-        return (retval);
+        return (-ENOTSUPP);
     }
 
-    state = MOD_STATE_CTX;
-    retval = xUartCtxCreate(
-        &gUartCtx);
+    /*-- STATE: Xenomai device registration ----------------------------------*/
+    state  = MOD_STATE_DEV_REG;
+    LOG_INFO("registering device: %s, id: %d", (char *)&gUartDev.device_name, gUartDev.device_id);
+    retval = rtdm_dev_register(
+            &gUartDev);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to create device context");
+        LOG_ERR("failed to register to Real-Time DM");
         moduleCleanup(
             state);
 
@@ -826,12 +817,13 @@ void __exit moduleTerm(
     void) {
     int             retval;
 
-    LOG_INFO("removing driver for UART: %d", gUartCtx.id);
-    retval = xUartCtxDestroy(
-        &gUartCtx);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to destroy device context");
+    LOG_INFO("removing driver for UART: %d", gUartDev.device_id);
+    retval = rtdm_dev_unregister(
+        &gUartDev,
+        CFG_WAIT_EXIT_MS);
+    LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = portTerm(
-        &gUartCtx);
+        gUartDev.device_data);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed terminate platform device driver");
 }
 

@@ -77,24 +77,20 @@ extern const u32 gPortUartNum;
  * @{ *//*--------------------------------------------------------------------*/
 
 /**@brief       Create and init kernel device driver
- * @param       uartCtx
- *              Current driver context
- * @return      Operation status
- *  @retval     0 - SUCCESS
- *  @retval     !0 - error code
+ * @param       id
+ *              Device driver ID as supplied by silicon manufacturer
+ * @return      Private device data, needed to be saved somewhere for later
+ *              reference
  */
-int portInit(
-    struct uartCtx *    uartCtx);
+void * portInit(
+    u32                 id);
 
 /**@brief       Deinit and destroy kernel device driver
- * @param       uartCtx
- *              Current driver context
- * @return      Operation status
- *  @retval     0 - SUCCESS
- *  @retval     !0 - error code
+ * @param       devResource
+ *              Pointer returned by portInit()
  */
 int portTerm(
-    struct uartCtx *    uartCtx);
+    void *              devResource);
 
 int portDMAInit(
     struct uartCtx *    uartCtx);
@@ -107,6 +103,9 @@ u32 portModeGet(
 
 u32 portDIVdataGet(
     u32                 baudrate);
+
+volatile u8 * portIORemapGet(
+    void *              devResource);
 
 /** @} *//*-------------------------------------------------------------------*/
 /*--------------------------------------------------------  C++ extern end  --*/

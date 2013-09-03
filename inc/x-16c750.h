@@ -77,10 +77,11 @@ struct uartCtx {
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
     struct rtdm_device *        rtdev;                                          /**<@brief Real-time device driver                          */
     struct platform_device *    platDev;                                        /**<@brief Linux kernel device driver                       */
-    u32                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
-    volatile u8 *       io;                                                     /**<@brief Remaped IO memory area                           */
     struct uartUnit     tx;                                                     /**<@brief TX channel                                       */
     struct uartUnit     rx;                                                     /**<@brief RX channel                                       */
+    volatile u8 *       io;                                                     /**<@brief Remaped IO memory area                           */
+    u32                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
+    u32                 signature;
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/
