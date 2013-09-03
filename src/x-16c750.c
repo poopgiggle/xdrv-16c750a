@@ -165,13 +165,13 @@ static struct rtdm_device gUartDev = {
         .sendmsg_nrt    = NULL
     },
     .device_class       = RTDM_CLASS_SERIAL,
-    .device_sub_class   = RTDM_SUBCLASS_GENERIC,
+    .device_sub_class   = RTDM_SUBCLASS_16550A,
     .profile_version    = RTSER_PROFILE_VER,
     .driver_name        = CFG_DRV_NAME,
     .driver_version     = RTDM_DRIVER_VER(DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH),
     .peripheral_name    = DEF_DRV_SUPP_DEVICE,
     .provider_name      = DEF_DRV_AUTHOR,
-    .proc_name          = "xuart",
+    .proc_name          = CFG_DRV_NAME,
     .device_id          = 0,
     .device_data        = NULL
 };
@@ -387,8 +387,24 @@ static int xUartCtxCreate(
         tmpPtr,
         CFG_DRV_BUFF_SIZE);
 
+    /*-- Prepare UART data ---------------------------------------------------*/
+    uartCtx->tx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
+    uartCtx->tx.status  = UART_STATUS_NORMAL;
+    uartCtx->rx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
+    uartCtx->rx.status  = UART_STATUS_NORMAL;
+
+    /*-- Prepare UART hardware -----------------------------------------------*/
+    (void)lldSoftReset(
+        uartCtx->io);
+    (void)lldFIFOSetup(
+        uartCtx->io);
+    (void)lldProtocolSet(
+        uartCtx->io,
+        &gDefProtocol);
+
     /*-- STATE: Xenomai device registration ----------------------------------*/
     state  = CTX_STATE_DEV_REG;
+    LOG_DBG("registering device: %s, id: %d with proc name: %s", uartCtx->rtdev->device_name, uartCtx->rtdev->device_id, uartCtx->rtdev->proc_name);
     retval = rtdm_dev_register(
             uartCtx->rtdev);
 
@@ -400,19 +416,6 @@ static int xUartCtxCreate(
 
         return (retval);
     }
-    uartCtx->tx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
-    uartCtx->tx.status  = UART_STATUS_NORMAL;
-    uartCtx->rx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
-    uartCtx->rx.status  = UART_STATUS_NORMAL;
-
-    /*-- Prepare UART --------------------------------------------------------*/
-    (void)lldSoftReset(
-        uartCtx->io);
-    (void)lldFIFOSetup(
-        uartCtx->io);
-    (void)lldProtocolSet(
-        uartCtx->io,
-        &gDefProtocol);
 
     return (retval);
 }
@@ -745,6 +748,32 @@ static int xUartIrqHandle(
     return (retval);
 }
 
+enum moduleState {
+    MOD_STATE_PORT,
+    MOD_STATE_CTX
+};
+
+static void moduleCleanup(
+    enum moduleState    state) {
+
+    switch (state) {
+        case MOD_STATE_CTX : {
+            portTerm(
+                &gUartCtx);
+            /* fall */
+        }
+
+        case MOD_STATE_PORT : {
+            /* nothing */
+            break;
+        }
+
+        default : {
+            /* nothing */
+        }
+    }
+}
+
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
@@ -752,12 +781,14 @@ int __init moduleInit(
     void) {
 
     int                 retval;
+    enum moduleState    state;
 
     gUartCtx.id = CFG_UART;                                                     /* TODO: This must go, almost all functions are already     */
                                                                                 /* parameterized                                            */
     gUartCtx.rtdev = &gUartDev;                                                 /* TODO: This must be parameterized                         */
     gUartDev.device_id = gUartCtx.id;
 
+    state = MOD_STATE_PORT;
     LOG_INFO(DEF_DRV_DESCRIPTION);
     LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
     LOG_INFO("UART: %d", gUartCtx.id);
@@ -766,14 +797,20 @@ int __init moduleInit(
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to initialize kernel platform device driver");
+        moduleCleanup(
+            state);
 
         return (retval);
     }
+
+    state = MOD_STATE_CTX;
     retval = xUartCtxCreate(
         &gUartCtx);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to create device context");
+        moduleCleanup(
+            state);
 
         return (retval);
     }

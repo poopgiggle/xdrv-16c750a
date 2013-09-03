@@ -54,7 +54,7 @@
  * @name        Advanced driver settings
  * @{ *//*--------------------------------------------------------------------*/
 
-#define CFG_DRV_NAME                    "xeno16C750A"
+#define CFG_DRV_NAME                    "xuart"
 #define CFG_DRV_BUFF_SIZE               1024U
 #define CFG_WAIT_EXIT_MS                1000
 #define CFG_WAIT_WR_MS                  200
