@@ -32,13 +32,13 @@
 /*=========================================================  INCLUDE FILES  ==*/
 
 #include <linux/platform_device.h>
-#include <linux/circ_buf.h>
 
 #include <rtdm/rtdm_driver.h>
 #include <native/heap.h>
 #include <native/queue.h>
 
 #include "circ_buff.h"
+#include "x-16c750_ioctl.h"
 
 /*===============================================================  MACRO's  ==*/
 
@@ -59,27 +59,23 @@ enum uartStatus {
     UART_STATUS_SOFT_OVERFLOW
 };
 
-struct uartUnit {
-    RT_HEAP             heapHandle;                                             /**<@brief Heap for internal buffers                        */
-    RT_QUEUE            queueHandle;                                            /**<@brief Queue for RT comms                               */
-    CIRC_BUFF           buffHandle;                                             /**<@brief Buffer handle                                    */
-    nanosecs_rel_t      timeout;
-    rtdm_mutex_t        mtx;                                                    /**<@brief Write to buffer mutex                            */
-    void *              queue;                                                  /**<@brief Buffer storage                                   */
-    int                 status;
-};
-
 /**@brief       UART device context structure
  */
 struct uartCtx {
     rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
-    struct rtdm_device *        rtdev;                                          /**<@brief Real-time device driver                          */
-    struct platform_device *    platDev;                                        /**<@brief Linux kernel device driver                       */
-    struct uartUnit     tx;                                                     /**<@brief TX channel                                       */
-    struct uartUnit     rx;                                                     /**<@brief RX channel                                       */
-    volatile u8 *       io;                                                     /**<@brief Remaped IO memory area                           */
-    u32                 id;                                                     /**<@brief UART ID number (maybe unused)                    */
+    volatile u8 *       io;
+    u32                 id;
+    struct {
+        RT_HEAP             heapHandle;                                             /**<@brief Heap for internal buffers                        */
+        RT_QUEUE            queueHandle;                                            /**<@brief Queue for RT comms                               */
+        CIRC_BUFF           buffHandle;                                             /**<@brief Buffer handle                                    */
+        nanosecs_rel_t      timeout;
+        rtdm_mutex_t        mtx;                                                    /**<@brief Write to buffer mutex                            */
+        void *              queue;                                                  /**<@brief Buffer storage                                   */
+        enum uartStatus     status;
+    }                   tx, rx;                                                     /**<@brief TX channel                                       */
+    struct xUartProto   proto;
     u32                 signature;
 };
 

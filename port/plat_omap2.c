@@ -73,8 +73,8 @@ enum hwUart {
 };
 
 struct devRes {
-    struct platform_device * platDev;
     volatile u8 *       io;
+    struct platform_device * platDev;
 };
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/

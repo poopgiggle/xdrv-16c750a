@@ -45,11 +45,11 @@
 
 #define XUART_IOCTL_TYPE                RTDM_CLASS_SERIAL
 
-#define XUART_CONFIG_GET                                                        \
-    _IOR(XUART_IOCTL_TYPE, 0x00,struct xUartProtocol)
+#define XUART_PROTOCOL_GET                                                      \
+    _IOR(XUART_IOCTL_TYPE, 0x00,struct xUartProto)
 
-#define XUART_CONFIG_SET                                                        \
-    _IOW(XUART_IOCTL_TYPE, 0x01,struct xUartProtocol)
+#define XUART_PROTOCOL_SET                                                      \
+    _IOW(XUART_IOCTL_TYPE, 0x01,struct xUartProto)
 
 /** @} *//*-------------------------------------------------------------------*/
 /*------------------------------------------------------  C++ extern begin  --*/
@@ -81,7 +81,7 @@ enum xUartStopBits {
     XUART_STOP_2
 };
 
-struct xUartProtocol {
+struct xUartProto {
     u32                 baud;
     enum xUartParity    parity;
     enum xUartDataBits  dataBits;

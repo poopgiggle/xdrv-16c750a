@@ -79,6 +79,11 @@ enum ctxState {
     CTX_STATE_RX_BUFF_ALLOC,
 };
 
+enum moduleState {
+    MOD_STATE_PORT,
+    MOD_STATE_DEV_REG
+};
+
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 
 /**@brief       Cleanup all work done by xUartCtxCreate() in case it failed
@@ -89,38 +94,44 @@ static void xUartCtxCleanup(
 
 /**@brief       Create UART context
  */
-static int xUartCtxCreate(
-    struct uartCtx *    uartCtx);
+static int xUartCtxInit(
+    struct uartCtx *    uartCtx,
+    volatile u8 *       io,
+    u32                 id);
 
 /**@brief       Destroy UART context
  */
-static int xUartCtxDestroy(
+static int xUartCtxTerm(
     struct uartCtx *    uartCtx);
+
+static void xUartProtoSet(
+    struct uartCtx *    uartCtx,
+    const struct xUartProto *  proto);
 
 /**@brief       Named device open handler
  */
-static int xUartOpen(
-    struct rtdm_dev_context * ctx,
+static int handleOpen(
+    struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo,
     int                 oflag);
 
 /**@brief       Device close handler
  */
-static int xUartClose(
-    struct rtdm_dev_context * ctx,
+static int handleClose(
+    struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo);
 
 /**@brief       IOCTL handler
  */
-static int xUartIOctl(
-    struct rtdm_dev_context * ctx,
+static int handleIOctl(
+    struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo,
     unsigned int        req,
-    void __user *       args);
+    void __user *       arg);
 
 /**@brief       Read device handler
  */
-static int xUartRd(
+static int handleRd(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo,
     void *              buff,
@@ -128,14 +139,17 @@ static int xUartRd(
 
 /**@brief       Write device handler
  */
-static int xUartWr(
-    struct rtdm_dev_context * ctx,
+static int handleWr(
+    struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo,
     const void *        buff,
     size_t              bytes);
 
-static int xUartIrqHandle(
-    rtdm_irq_t *        irqHandle);
+static int handleIrq(
+    rtdm_irq_t *        arg);
+
+static void moduleCleanup(
+    enum moduleState    state);
 
 /*=======================================================  LOCAL VARIABLES  ==*/
 
@@ -147,18 +161,18 @@ static struct rtdm_device gUartDev = {
     .protocol_family    = 0,
     .socket_type        = 0,
     .open_rt            = NULL,
-    .open_nrt           = xUartOpen,
+    .open_nrt           = handleOpen,
     .socket_rt          = NULL,
     .socket_nrt         = NULL,
     .ops                = {
         .close_rt       = NULL,
-        .close_nrt      = xUartClose,
-        .ioctl_rt       = xUartIOctl,
-        .ioctl_nrt      = xUartIOctl,
+        .close_nrt      = handleClose,
+        .ioctl_rt       = handleIOctl,
+        .ioctl_nrt      = handleIOctl,
         .select_bind    = NULL,
-        .read_rt        = xUartRd,
+        .read_rt        = handleRd,
         .read_nrt       = NULL,
-        .write_rt       = xUartWr,
+        .write_rt       = handleWr,
         .write_nrt      = NULL,
         .recvmsg_rt     = NULL,
         .recvmsg_nrt    = NULL,
@@ -242,14 +256,16 @@ static void xUartCtxCleanup(
     }
 }
 
-static int xUartCtxCreate(
-    struct uartCtx *    uartCtx) {
+static int xUartCtxInit(
+    struct uartCtx *    uartCtx,
+    volatile u8 *       io,
+    u32                 id) {
 
-    enum ctxState       state;
-    int                 retval;
     char                qTxName[DEF_Q_NAME_MAX_SIZE + 1U];
     char                qRxName[DEF_Q_NAME_MAX_SIZE + 1U];
-    void *              tmpPtr;
+    enum ctxState       state;
+    int                 retval;
+    void *              buff;
 
     /*-- STATE: init ---------------------------------------------------------*/
     state = CTX_STATE_INIT;
@@ -258,12 +274,12 @@ static int xUartCtxCreate(
         qTxName,
         DEF_Q_NAME_MAX_SIZE,
         CFG_Q_TX_NAME ".%d",
-        uartCtx->id);
+        id);
     scnprintf(
         qRxName,
         DEF_Q_NAME_MAX_SIZE,
         CFG_Q_RX_NAME ".%d",
-        uartCtx->id);
+        id);
 
     /*-- STATE: TX allocate --------------------------------------------------*/
     state = CTX_STATE_TX_ALLOC;
@@ -326,7 +342,7 @@ static int xUartCtxCreate(
         &uartCtx->tx.heapHandle,
         0U,
         TM_INFINITE,
-        &tmpPtr);
+        &buff);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to allocate internal TX buffer");
@@ -338,7 +354,7 @@ static int xUartCtxCreate(
     }
     circInit(
         &uartCtx->tx.buffHandle,
-        tmpPtr,
+        buff,
         CFG_DRV_BUFF_SIZE);
 
     /*-- STATE: Create RX buffer ---------------------------------------------*/
@@ -364,7 +380,7 @@ static int xUartCtxCreate(
         &uartCtx->rx.heapHandle,
         0U,
         TM_INFINITE,
-        &tmpPtr);
+        &buff);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to allocate internal RX buffer");
@@ -376,27 +392,22 @@ static int xUartCtxCreate(
     }
     circInit(
         &uartCtx->rx.buffHandle,
-        tmpPtr,
+        buff,
         CFG_DRV_BUFF_SIZE);
 
     /*-- Prepare UART data ---------------------------------------------------*/
+    uartCtx->io = io;
+    uartCtx->id = id;
     uartCtx->tx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
     uartCtx->tx.status  = UART_STATUS_NORMAL;
     uartCtx->rx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
     uartCtx->rx.status  = UART_STATUS_NORMAL;
-
-    (void)lldSoftReset(
-        uartCtx->io);
-    (void)lldFIFOSetup(
-        uartCtx->io);
-    (void)lldProtocolSet(
-        uartCtx->io,
-        &gDefProtocol);
+    uartCtx->signature  = CTX_SIGNATURE;
 
     return (retval);
 }
 
-static int xUartCtxDestroy(
+static int xUartCtxTerm(
     struct uartCtx *    uartCtx) {
 
     int                 retval;
@@ -428,35 +439,65 @@ static int xUartCtxDestroy(
     retval = rt_queue_delete(
         &uartCtx->tx.queueHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete TX queue");
-    memset(
-        uartCtx,
-        0,
-        sizeof(struct uartCtx));
+    uartCtx->signature = ~CTX_SIGNATURE;
 
     return (retval);
 }
 
-static int xUartOpen(
-    struct rtdm_dev_context * ctx,
+static BOOLEAN xUartIsProtoValid(
+    const struct xUartProto * proto) {
+
+    return (TRUE);
+}
+
+static void xUartProtoSet(
+    struct uartCtx *    uartCtx,
+    const struct xUartProto *  proto) {
+
+    (void)lldProtocolSet(
+        uartCtx->io,
+        proto);
+    memcpy(
+        &uartCtx->proto,
+        proto,
+        sizeof(struct xUartProto));
+}
+
+static struct uartCtx * uartCtxFromDevCtx(
+    struct rtdm_dev_context * devCtx) {
+
+    return ((struct uartCtx *)devCtx->dev_private);
+}
+
+static int handleOpen(
+    struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo,
     int                 oflag) {
 
     int                 retval;
     struct uartCtx *    uartCtx;
     rtdm_lockctx_t      lockCtx;
+    volatile u8 *       io;
 
-    uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
-    LOG_INFO("open UART: %d", ctx->device->device_id);
+    uartCtx = uartCtxFromDevCtx(
+        devCtx);
+    io = portIORemapGet(devCtx->device->device_data);
+    LOG_INFO("open UART: %d", devCtx->device->device_id);
     rtdm_lock_init(&uartCtx->lock);
     rtdm_lock_get_irqsave(
         &uartCtx->lock,
         lockCtx);
-    uartCtx->signature = CTX_SIGNATURE;
-    uartCtx->id = ctx->device->device_id;
-    uartCtx->io = portIORemapGet(
-        ctx->device->device_data);
-    retval = xUartCtxCreate(
-        uartCtx);
+    retval = xUartCtxInit(
+        uartCtx,
+        io,
+        devCtx->device->device_id);
+    xUartProtoSet(
+        uartCtx,
+        &gDefProtocol);
+    (void)lldSoftReset(
+        io);
+    (void)lldFIFOSetup(
+        io);
 
     if (RETVAL_SUCCESS != retval) {
         rtdm_lock_put_irqrestore(
@@ -468,10 +509,10 @@ static int xUartOpen(
     }
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
-        gPortIRQ[ctx->device->device_id],
-        xUartIrqHandle,
+        gPortIRQ[devCtx->device->device_id],
+        handleIrq,
         RTDM_IRQTYPE_EDGE,
-        ctx->device->proc_name,
+        devCtx->device->proc_name,
         uartCtx);
 
     if (RETVAL_SUCCESS != retval) {
@@ -483,7 +524,7 @@ static int xUartOpen(
         return (retval);
     }
     lldIntEnable(
-        uartCtx->io,
+        io,
         LLD_INT_RX);
     rtdm_lock_put_irqrestore(
         &uartCtx->lock,
@@ -492,36 +533,37 @@ static int xUartOpen(
     return (retval);
 }
 
-static int xUartClose(
-    struct rtdm_dev_context * ctx,
+static int handleClose(
+    struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo) {
 
     struct uartCtx *    uartCtx;
     int                 retval;
 
     retval = RETVAL_SUCCESS;
-    uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
+    uartCtx = uartCtxFromDevCtx(devCtx);
 
     if (CTX_SIGNATURE == uartCtx->signature) {
         int             retval2;
         rtdm_lockctx_t  lockCtx;
+        volatile u8 *   io;
 
-        LOG_INFO("close UART: %d", ctx->device->device_id);
+        LOG_INFO("close UART: %d", devCtx->device->device_id);
         rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        io = uartCtx->io;
         lldIntDisable(                                                              /* Turn off all interrupts                                  */
-            uartCtx->io,
+            io,
             LLD_INT_TX);
         lldIntDisable(
-            uartCtx->io,
+            io,
             LLD_INT_RX);
         lldIntDisable(
-            uartCtx->io,
+            io,
             LLD_INT_RX_TIMEOUT);
         retval = rtdm_irq_free(
             &uartCtx->irqHandle);
-        retval2 = xUartCtxDestroy(
+        retval2 = xUartCtxTerm(
                 uartCtx);
-        uartCtx->signature = ~CTX_SIGNATURE;
         rtdm_lock_put_irqrestore(
             &uartCtx->lock,
             lockCtx);
@@ -532,27 +574,64 @@ static int xUartClose(
     return (retval);
 }
 
-static int xUartConfigSet(
-    struct uartCtx *    ctx,
-    const struct xUartProtocol * config,
-    uint64_t **         history) {
-
-    return (RETVAL_SUCCESS);
-}
-
-static int xUartIOctl(
-    struct rtdm_dev_context * ctx,
+static int handleIOctl(
+    struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo,
     unsigned int        req,
-    void __user *       args) {
+    void __user *       arg) {
 
     struct uartCtx *    uartCtx;
     int                 retval;
 
-    uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
+    uartCtx = uartCtxFromDevCtx(devCtx);
     retval = RETVAL_SUCCESS;
 
     switch (req) {
+        case XUART_PROTOCOL_GET : {
+
+            if (NULL != usrInfo) {
+                retval = rtdm_safe_copy_to_user(
+                    usrInfo,
+                    arg,
+                    &uartCtx->proto,
+                    sizeof(struct xUartProto));
+            } else {
+                memcpy(
+                    arg,
+                    &uartCtx->proto,
+                    sizeof(struct xUartProto));
+            }
+            break;
+        }
+
+        case XUART_PROTOCOL_SET : {
+            struct xUartProto proto;
+
+            if (NULL != usrInfo) {
+                retval = rtdm_safe_copy_from_user(
+                    usrInfo,
+                    &proto,
+                    arg,
+                    sizeof(struct xUartProto));
+            } else {
+                memcpy(
+                    &proto,
+                    arg,
+                    sizeof(struct xUartProto));
+            }
+
+            if (TRUE == xUartIsProtoValid(&proto)) {
+                rtdm_lockctx_t  lockCtx;
+
+                rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+                xUartProtoSet(
+                    uartCtx,
+                    &proto);
+                rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+            }
+
+            break;
+        }
 
         default : {
             retval = -ENOTSUPP;
@@ -562,7 +641,7 @@ static int xUartIOctl(
     return (retval);
 }
 
-static int xUartRd(
+static int handleRd(
     struct rtdm_dev_context * ctx,
     rtdm_user_info_t *  usrInfo,
     void *              buff,
@@ -576,8 +655,8 @@ static int xUartRd(
     return (RETVAL_SUCCESS);
 }
 
-static int xUartWr(
-    struct rtdm_dev_context * ctx,
+static int handleWr(
+    struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo,
     const void *        buff,
     size_t              bytes) {
@@ -590,12 +669,6 @@ static int xUartWr(
     u8 *                dst;
     size_t              written;
 
-    uartCtx = RTDMDEVCTX_TO_UARTCTX(ctx);
-
-    if (0U == bytes) {
-        return (0);
-    }
-
     if (NULL != usrInfo) {
 
         if (0 == rtdm_read_user_ok(usrInfo, buff, bytes)) {
@@ -603,10 +676,10 @@ static int xUartWr(
             return (-EFAULT);
         }
     }
+    uartCtx = uartCtxFromDevCtx(devCtx);
     rtdm_toseq_init(
         &timeoutSeq,
         uartCtx->rx.timeout);
-
     retval = rtdm_mutex_timedlock(
         &uartCtx->rx.mtx,
         uartCtx->rx.timeout,
@@ -678,22 +751,23 @@ static int xUartWr(
     return (retval);
 }
 
-static int xUartIrqHandle(
-    rtdm_irq_t *        irqHandle) {
+static int handleIrq(
+    rtdm_irq_t *        arg) {
 
     struct uartCtx *    uartCtx;
+    volatile u8 *       io;
     int                 retval;
     enum lldINT         intNum;
 
     retval = RTDM_IRQ_NONE;
 
-    uartCtx = rtdm_irq_get_arg(irqHandle, struct uartCtx);
-
+    uartCtx = rtdm_irq_get_arg(arg, struct uartCtx);
+    io = uartCtx->io;
     rtdm_lock_get(&uartCtx->lock);
 
     uartCtx->rx.status = UART_STATUS_NORMAL;
     intNum = lldIntGet(
-        uartCtx->io);
+        io);
 
     while (LLD_INT_NONE != intNum) {                                            /* Loop until there are interrupts to process               */
         retval = RTDM_IRQ_HANDLED;
@@ -705,7 +779,7 @@ static int xUartIrqHandle(
                 u32 item;
 
                 item = lldRegRd(
-                    uartCtx->io,
+                    io,
                     RHR);
                 circItemPut(
                     &uartCtx->rx.buffHandle,
@@ -713,7 +787,7 @@ static int xUartIrqHandle(
             } else {
                 uartCtx->rx.status = UART_STATUS_SOFT_OVERFLOW;
                 lldRegRd(
-                    uartCtx->io,
+                    io,
                     RHR);
             }
 
@@ -726,28 +800,23 @@ static int xUartIrqHandle(
                 item = circItemGet(
                     &uartCtx->tx.buffHandle);
                 lldRegWr(
-                    uartCtx->io,
+                    io,
                     wTHR,
                     (u16)item);
             } else {
                 lldIntDisable(
-                    uartCtx->io,
+                    io,
                     LLD_INT_TX);
             }
         }
         intNum = lldIntGet(                                                     /* Get new interrupt                                        */
-            uartCtx->io);
+            io);
     }
     LOG_WARN_IF(UART_STATUS_SOFT_OVERFLOW == uartCtx->rx.status, "RX buffer overflow");
     rtdm_lock_put(&uartCtx->lock);
 
     return (retval);
 }
-
-enum moduleState {
-    MOD_STATE_PORT,
-    MOD_STATE_DEV_REG
-};
 
 static void moduleCleanup(
     enum moduleState    state) {
@@ -789,7 +858,7 @@ int __init moduleInit(
         gUartDev.device_id);                                                    /* Initialize Linux device driver                           */
 
     if (NULL == gUartDev.device_data) {
-        LOG_ERR("failed to initialize kernel platform device driver");
+        LOG_ERR("failed to initialize port driver");
         moduleCleanup(
             state);
 

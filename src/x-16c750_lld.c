@@ -42,7 +42,7 @@
 
 /*======================================================  LOCAL DATA TYPES  ==*/
 
-const struct xUartProtocol gDefProtocol = {
+const struct xUartProto gDefProtocol = {
     .baud               = CFG_DEFAULT_BAUD_RATE,
     .parity             = XUART_PARITY_NONE,
     .dataBits           = XUART_DATA_8,
@@ -347,7 +347,7 @@ int lldDMAFIFOSetup(
 }
 
 void lldProtocolPrint(
-    const struct xUartProtocol * protocol) {
+    const struct xUartProto * protocol) {
 
     char *              parity;
     char *              stopBits;
@@ -425,7 +425,7 @@ void lldProtocolPrint(
  */
 int lldProtocolSet(
     volatile u8 *       ioRemap,
-    const struct xUartProtocol * protocol) {
+    const struct xUartProto * protocol) {
 
     u16                 tmp;
     u16                 arg;
