@@ -180,6 +180,11 @@ enum hwReg {
 #define IER_THRIT                       (0x1U << 1)
 #define IER_RHRIT                       (0x1U << 0)
 
+/* Interrupt Identification Register (IIR) : register bits                    */
+#define IIR_IT_TYPE_Mask                (0x1FU << 1)
+#define IIR_IT_TYPE_THR                 (0x01U << 1)
+#define IIR_IT_TYPE_RHR                 (0x02U << 1)
+#define IIR_IT_TYPE_RX_TIMEOUT          (0x07U << 1)
 /* Line Control Register (LCR) : register bits                                */
 #define LCR_DIV_EN                      (0x1U << 7)
 #define LCR_BREAK_EN                    (0x1U << 6)
