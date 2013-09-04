@@ -43,7 +43,7 @@
 
 /**@brief       HWMOD UART name
  */
-#define DEF_UART_NAME                   "uart"
+#define DEF_OMAP_UART_NAME              "uart"
 #define DEF_UART_NAME_MAX_SIZE          10
 
 #define BAUD_RATE_CFG_EXPAND_AS_BAUD(a, b, c)                                   \
@@ -201,7 +201,7 @@ void * portInit(
     scnprintf(
         uartName,
         DEF_UART_NAME_MAX_SIZE,
-        DEF_UART_NAME "%d",
+        DEF_OMAP_UART_NAME "%d",
         id);                                                                    /* NOTE: Since hwmod UART count is messed up we need the right name now */
     LOG_DBG("OMAP UART: creating %s device", uartName);
 
@@ -210,7 +210,7 @@ void * portInit(
     scnprintf(
         hwmodUartName,
         DEF_UART_NAME_MAX_SIZE,
-        DEF_UART_NAME "%d",
+        DEF_OMAP_UART_NAME "%d",
         id + 1U);                                                               /* NOTE: hwmod UART count starts at 1, so we must add 1 here */
     hwmod = omap_hwmod_lookup(
         hwmodUartName);
@@ -276,6 +276,10 @@ void * portInit(
     /*-- Saving references to device data ------------------------------------*/
     devRes->io = omap_device_get_rt_va(
         to_omap_device(devRes->platDev));
+
+    /*
+     * XXX, NOTE: Board initialization code should setup MUX accordingly
+     */
 
     return (devRes);
 }

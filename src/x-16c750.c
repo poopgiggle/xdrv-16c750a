@@ -850,6 +850,7 @@ int __init moduleInit(
     gUartDev.device_id = CFG_UART_ID;
     memcpy(&gUartDev.device_name, CFG_DRV_NAME, sizeof(CFG_DRV_NAME));
 
+    /*-- STATE: Port initialization ------------------------------------------git*/
     state = MOD_STATE_PORT;
     LOG_INFO(DEF_DRV_DESCRIPTION);
     LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
@@ -874,8 +875,6 @@ int __init moduleInit(
         LOG_ERR("failed to register to Real-Time DM");
         moduleCleanup(
             state);
-
-        return (retval);
     }
 
     return (retval);
