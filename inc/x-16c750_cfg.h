@@ -40,7 +40,9 @@
 /**@brief       UART number as assigned by silicon manufacturer
  * @note        The chosen driver must not be managed by Linux kernel
  */
-#define CFG_UART                        3
+#define CFG_UART_ID                     3
+
+#define CFG_Q_NAME_MAX_SIZE             10
 
 #define CFG_Q_TX_NAME                   "uartQTx"
 #define CFG_Q_TX_SIZE                   4096UL

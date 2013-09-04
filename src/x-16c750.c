@@ -48,9 +48,8 @@
 #define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
 #define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
-#define DEF_Q_NAME_MAX_SIZE             10
 
-#define CTX_SIGNATURE                   0xDEADBEEF
+#define UART_CTX_SIGNATURE              0xDEADBEEF
 
 #define NS_PER_US                       1000
 #define US_PER_MS                       1000
@@ -261,8 +260,8 @@ static int xUartCtxInit(
     volatile u8 *       io,
     u32                 id) {
 
-    char                qTxName[DEF_Q_NAME_MAX_SIZE + 1U];
-    char                qRxName[DEF_Q_NAME_MAX_SIZE + 1U];
+    char                qTxName[CFG_Q_NAME_MAX_SIZE + 1U];
+    char                qRxName[CFG_Q_NAME_MAX_SIZE + 1U];
     enum ctxState       state;
     int                 retval;
     void *              buff;
@@ -272,12 +271,12 @@ static int xUartCtxInit(
     LOG_DBG("creating device context");
     scnprintf(
         qTxName,
-        DEF_Q_NAME_MAX_SIZE,
+        CFG_Q_NAME_MAX_SIZE,
         CFG_Q_TX_NAME ".%d",
         id);
     scnprintf(
         qRxName,
-        DEF_Q_NAME_MAX_SIZE,
+        CFG_Q_NAME_MAX_SIZE,
         CFG_Q_RX_NAME ".%d",
         id);
 
@@ -396,13 +395,13 @@ static int xUartCtxInit(
         CFG_DRV_BUFF_SIZE);
 
     /*-- Prepare UART data ---------------------------------------------------*/
-    uartCtx->io = io;
-    uartCtx->id = id;
+    uartCtx->ioCache = io;
+    uartCtx->idCache = id;
     uartCtx->tx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
     uartCtx->tx.status  = UART_STATUS_NORMAL;
     uartCtx->rx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
     uartCtx->rx.status  = UART_STATUS_NORMAL;
-    uartCtx->signature  = CTX_SIGNATURE;
+    uartCtx->signature  = UART_CTX_SIGNATURE;
 
     return (retval);
 }
@@ -439,7 +438,7 @@ static int xUartCtxTerm(
     retval = rt_queue_delete(
         &uartCtx->tx.queueHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete TX queue");
-    uartCtx->signature = ~CTX_SIGNATURE;
+    uartCtx->signature = ~UART_CTX_SIGNATURE;
 
     return (retval);
 }
@@ -455,7 +454,7 @@ static void xUartProtoSet(
     const struct xUartProto *  proto) {
 
     (void)lldProtocolSet(
-        uartCtx->io,
+        uartCtx->ioCache,
         proto);
     memcpy(
         &uartCtx->proto,
@@ -543,14 +542,14 @@ static int handleClose(
     retval = RETVAL_SUCCESS;
     uartCtx = uartCtxFromDevCtx(devCtx);
 
-    if (CTX_SIGNATURE == uartCtx->signature) {
+    if (UART_CTX_SIGNATURE == uartCtx->signature) {
         int             retval2;
         rtdm_lockctx_t  lockCtx;
         volatile u8 *   io;
 
         LOG_INFO("close UART: %d", devCtx->device->device_id);
         rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-        io = uartCtx->io;
+        io = uartCtx->ioCache;
         lldIntDisable(                                                              /* Turn off all interrupts                                  */
             io,
             LLD_INT_TX);
@@ -762,7 +761,7 @@ static int handleIrq(
     retval = RTDM_IRQ_NONE;
 
     uartCtx = rtdm_irq_get_arg(arg, struct uartCtx);
-    io = uartCtx->io;
+    io = uartCtx->ioCache;
     rtdm_lock_get(&uartCtx->lock);
 
     uartCtx->rx.status = UART_STATUS_NORMAL;
@@ -848,7 +847,7 @@ int __init moduleInit(
     int                 retval;
     enum moduleState    state;
 
-    gUartDev.device_id = CFG_UART;
+    gUartDev.device_id = CFG_UART_ID;
     memcpy(&gUartDev.device_name, CFG_DRV_NAME, sizeof(CFG_DRV_NAME));
 
     state = MOD_STATE_PORT;

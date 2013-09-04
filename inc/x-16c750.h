@@ -64,17 +64,17 @@ enum uartStatus {
 struct uartCtx {
     rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
-    volatile u8 *       io;
-    u32                 id;
+    volatile u8 *       ioCache;
+    u32                 idCache;
     struct {
-        RT_HEAP             heapHandle;                                             /**<@brief Heap for internal buffers                        */
-        RT_QUEUE            queueHandle;                                            /**<@brief Queue for RT comms                               */
-        CIRC_BUFF           buffHandle;                                             /**<@brief Buffer handle                                    */
+        RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
+        RT_QUEUE            queueHandle;                                        /**<@brief Queue for RT comms                               */
+        CIRC_BUFF           buffHandle;                                         /**<@brief Buffer handle                                    */
         nanosecs_rel_t      timeout;
-        rtdm_mutex_t        mtx;                                                    /**<@brief Write to buffer mutex                            */
-        void *              queue;                                                  /**<@brief Buffer storage                                   */
+        rtdm_mutex_t        mtx;                                                /**<@brief Write to buffer mutex                            */
+        void *              queue;                                              /**<@brief Buffer storage                                   */
         enum uartStatus     status;
-    }                   tx, rx;                                                     /**<@brief TX channel                                       */
+    }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
     struct xUartProto   proto;
     u32                 signature;
 };
