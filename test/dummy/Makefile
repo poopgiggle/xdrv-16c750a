@@ -29,10 +29,13 @@ LD_LIB = -lc -lpthread $(LD_XENO_LIB)
 LD_FLAGS = 
 LD_SCRIPT := $(LD_SCRIPT_PATH)/armelf_linux_eabi.x
 
-all : $(PROGNAME).elf
+all : $(PROGNAME)2.elf $(PROGNAME)1.elf
 
-%.elf :
-	$(CC) $(CC_FLAGS) $(CC_INCLUDE) $(LD_FLAGS) $(LD_INCLUDE) $(LD_LIB) $(SRC) -o "$@"
+%1.elf :
+	$(CC) $(CC_FLAGS) $(CC_INCLUDE) -DTEST1 $(LD_FLAGS) $(LD_INCLUDE) $(LD_LIB) $(SRC) -o "$@"
+	
+%2.elf :
+	$(CC) $(CC_FLAGS) $(CC_INCLUDE) -DTEST2 $(LD_FLAGS) $(LD_INCLUDE) $(LD_LIB) $(SRC) -o "$@"
 	
 %.o : %.c
 	$(CC) $(CC_FLAGS) $(CC_INCLUDE) -c "$<" -o "$@"
