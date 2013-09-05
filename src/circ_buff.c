@@ -85,15 +85,33 @@ u8 circItemGet(
     return (tmp);
 }
 
-size_t circRemainingGet(
+size_t circRemainingFreeGet(
     const CIRC_BUFF *   buff) {
 
     u32                 tmp;
 
     if (buff->tail > buff->head) {
         tmp = buff->tail - buff->head;
-    } else {
+    } else if (buff->tail < buff->head) {
         tmp = buff->size - buff->head;
+    } else {
+        tmp = buff->free;
+    }
+
+    return ((size_t)tmp);
+}
+
+size_t circRemainingOccGet(
+    const CIRC_BUFF *   buff) {
+
+    u32                 tmp;
+
+    if (buff->tail < buff->head) {
+        tmp = buff->head - buff->tail;
+    } else if (buff->tail > buff->head) {
+        tmp = buff->size - buff->tail;
+    } else {
+        tmp = buff->size - buff->free;
     }
 
     return ((size_t)tmp);
@@ -120,6 +138,18 @@ void circHeadPosSet(
 
     if (buff->size == buff->head) {
         buff->head = 0U;
+    }
+}
+
+void circMemTailPosSet(
+    CIRC_BUFF *         buff,
+    s32                 position) {
+
+    buff->free += position;
+    buff->tail += position;
+
+    if (buff->size == buff->tail) {
+        buff->tail = 0U;
     }
 }
 

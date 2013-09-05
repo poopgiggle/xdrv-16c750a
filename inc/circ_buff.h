@@ -84,7 +84,10 @@ void circItemPut(
 u8 circItemGet(
     CIRC_BUFF *         buff);
 
-size_t circRemainingGet(
+size_t circRemainingFreeGet(
+    const CIRC_BUFF *   buff);
+
+size_t circRemainingOccGet(
     const CIRC_BUFF *   buff);
 
 u8 * circMemBaseGet(
@@ -94,6 +97,10 @@ u8 * circMemHeadGet(
     const CIRC_BUFF *   buff);
 
 void circHeadPosSet(
+    CIRC_BUFF *         buff,
+    s32                 position);
+
+void circMemTailPosSet(
     CIRC_BUFF *         buff,
     s32                 position);
 
