@@ -171,7 +171,20 @@ void lldIntDisable(
         tmp);
 }
 
-enum lldINT lldIntGet(
+u16 lldIntGet(
+    volatile u8 *       ioRemap) {
+
+    u16                 tmp;
+
+    tmp = lldRegRd(
+        ioRemap,
+        IIR);
+    tmp &= IIR_IT_TYPE_Mask;
+
+    return (tmp);
+}
+
+u16 lldIsIntPending(
     volatile u8 *       ioRemap) {
 
     u16                 tmp;
@@ -180,49 +193,122 @@ enum lldINT lldIntGet(
         ioRemap,
         IIR);
 
-    switch (tmp) {
-        case 0xc0: {
+    return (tmp & IIR_IT_PENDING);
+}
 
-            return (LLD_INT_RX_TIMEOUT);
+void lldEnhanced(
+    volatile u8 *       ioRemap,
+    enum lldState       state) {
+
+    u16                 regLCR;
+    u16                 tmp;
+
+    regLCR = lldRegRd(ioRemap, LCR);
+    lldRegWr(ioRemap, LCR, LLD_CFG_MODE_B);
+    lldCfgModeSet(
+        ioRemap,
+        LLD_CFG_MODE_B);
+    tmp = lldRegRd(
+        ioRemap,
+        bEFR);
+
+    switch (state) {
+        case LLD_ENABLE : {
+            tmp |= EFR_ENHANCEDEN;
+            break;
         }
 
-        case 0x04: {
-
-            return (LLD_INT_RX);
+        case LLD_DISABLE : {
+            tmp &= ~EFR_ENHANCEDEN;
+            break;
         }
 
-        case 0x02: {
-
-            return (LLD_INT_TX);
-        }
-
-        default: {
-
-            return (LLD_INT_NONE);
+        default : {
+            break;
         }
     }
+    lldRegWr(
+        ioRemap,
+        wbEFR,
+        tmp);
+    lldRegWr(
+        ioRemap,
+        LCR,
+        regLCR);
 }
 
 int lldSoftReset(
     volatile u8 *       ioRemap) {
 
+    int                 retval;
+    u32                 cnt;
+
     lldRegWr(
         ioRemap,
         SYSC,
         SYSC_SOFTRESET);
+    cnt = 1000U;
 
-    while (0 == (SYSS_RESETDONE & lldRegRd(ioRemap, SYSS)));
+    while ((0 == (SYSS_RESETDONE & lldRegRd(ioRemap, SYSS))) && (0U != cnt)) {
+        --cnt;
+    }
 
-    return (RETVAL_SUCCESS);
+    if (0U != cnt) {
+        retval = RETVAL_SUCCESS;
+    } else {
+        retval = RETVAL_FAILURE;
+    }
+
+    return (retval);
 }
 
-int lldFIFOSetup(
+void lldInit(
+    volatile u8 *       io) {
+
+    struct {
+        u16             EFR;
+        u16             MCR;
+    }                   reg;
+    int                 retval;
+
+    /* Reset UART */
+    retval = lldSoftReset(io);
+    LOG_WARN_IF(RETVAL_FAILURE == retval, "failed to reset UART");
+
+    /* Switch off DLL and DLH to access UART registers */
+    lldCfgModeSet(io, LLD_CFG_MODE_A);
+    lldRegWr(io, waDLL, 0U);
+    lldRegWr(io, waDLH, 0U);
+    lldCfgModeSet(io, LLD_CFG_MODE_NORM);
+    lldCfgModeSet(io,LLD_CFG_MODE_B);
+    reg.EFR = lldRegRd(io, bEFR);
+    lldRegWr(io, wbEFR, reg.EFR | EFR_ENHANCEDEN);
+    lldCfgModeSet(io, LLD_CFG_MODE_A);
+    reg.MCR = lldRegRd(io, aMCR);
+    lldRegWr(io, waMCR, reg.MCR | MCR_TCRTLR);
+
+    /* FIFO reset and enable */
+    lldRegWr(io, waFCR, FCR_RX_FIFO_CLEAR | FCR_TX_FIFO_CLEAR);
+    lldRegWr(io, waFCR, FCR_RX_FIFO_TRIG_8 | FCR_TX_FIFO_TRIG_8 | FCR_FIFO_EN);
+    lldCfgModeSet(io, LLD_CFG_MODE_B);
+    lldRegWr(io, wbSCR, 0U);
+    lldRegWr(io, wbEFR, reg.EFR);
+    lldCfgModeSet(io, LLD_CFG_MODE_A);
+    lldRegWr(io, waMCR, reg.MCR);
+
+    /* Protocol */
+
+}
+
+void lldFIFOInit(
     volatile u8 *       ioRemap) {
 
     u16                 tmp;
     u16                 regLCR;
     u16                 regEFR;
     u16                 regMCR;
+    u16                 regDLL;
+    u16                 regDLH;
 
     regLCR = lldRegRd(                                                          /* Switch to register configuration mode B to access the    */
         ioRemap,                                                                /* EFR register                                             */
@@ -237,10 +323,19 @@ int lldFIFOSetup(
     lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
         ioRemap,                                                                /* register                                                 */
         LLD_CFG_MODE_A);
+    regDLL = lldRegRd(ioRemap, aDLL);
+    lldRegWr(ioRemap, waDLL, 0);
+    regDLH = lldRegRd(ioRemap, aDLH);
+    lldRegWr(ioRemap, waDLH, 0);
     regMCR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
         ioRemap,                                                                /* register (2/2)                                           */
         aMCR,
         MCR_TCRTLR);
+    (void)lldRegResetBits(                                                      /* Load the new FIFO triggers (3/3) and the new DMA mode    */
+        ioRemap,                                                                /* (2/2)                                                    */
+        SCR,
+        SCR_RXTRIGGRANU1 | SCR_TXTRIGGRANU1 | SCR_DMAMODE2_Mask |
+            SCR_DMAMODECTL);
     lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
         ioRemap,                                                                /* (1/2)                                                    */
         waFCR,
@@ -253,11 +348,6 @@ int lldFIFOSetup(
         ioRemap,
         wbTLR,
         TLR_RX_FIFO_TRIG_DMA_0 | TLR_TX_FIFO_TRIG_DMA_0);
-    (void)lldRegResetBits(                                                      /* Load the new FIFO triggers (3/3) and the new DMA mode    */
-        ioRemap,                                                                /* (2/2)                                                    */
-        SCR,
-        SCR_RXTRIGGRANU1 | SCR_TXTRIGGRANU1 | SCR_DMAMODE2_Mask |
-            SCR_DMAMODECTL);
     tmp = regEFR & EFR_ENHANCEDEN;                                              /* Restore EFR<4> ENHANCED_EN bit                           */
     tmp |= lldRegRd(ioRemap, bEFR) & ~EFR_ENHANCEDEN;
     lldRegWr(
@@ -277,8 +367,6 @@ int lldFIFOSetup(
         ioRemap,
         LCR,
         regLCR);
-
-    return (RETVAL_SUCCESS);
 }
 
 int lldDMAFIFOSetup(

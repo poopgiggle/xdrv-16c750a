@@ -50,6 +50,7 @@ void circInit(
     buff->head = 0U;
     buff->tail = 0U;
     buff->size = (u32)size;
+    buff->free = (u32)size;
 }
 
 void circItemPut(
@@ -58,6 +59,7 @@ void circItemPut(
 
     buff->mem[buff->head] = item;
     smp_wmb();
+    buff->free--;
     buff->head++;
 
     if (buff->head == buff->size) {
@@ -70,14 +72,15 @@ u8 circItemGet(
 
     u8                  tmp;
 
+    smp_read_barrier_depends();
+    tmp = buff->mem[buff->tail];
     smp_mb();
+    buff->free++;
     buff->tail++;
 
     if (buff->tail == buff->size) {
         buff->tail = 0;
     }
-    smp_read_barrier_depends();
-    tmp = buff->mem[buff->tail];
 
     return (tmp);
 }
@@ -86,19 +89,11 @@ size_t circRemainingGet(
     const CIRC_BUFF *   buff) {
 
     u32                 tmp;
-    u32                 indx;
 
-    indx = buff->head;
-    indx++;
-
-    if (indx == buff->size) {
-        indx = 0U;
-    }
-
-    if (buff->tail > indx) {
-        tmp = buff->tail - indx;
+    if (buff->tail > buff->head) {
+        tmp = buff->tail - buff->head;
     } else {
-        tmp = buff->size - indx;
+        tmp = buff->size - buff->head;
     }
 
     return ((size_t)tmp);
@@ -113,31 +108,27 @@ u8 * circMemBaseGet(
 u8 * circMemHeadGet(
     const CIRC_BUFF *   buff) {
 
-    u32                 indx;
-
-    indx = buff->head;
-    indx++;
-
-    if (indx == buff->size) {
-        indx = 0U;
-    }
-
-    return ((u8 *)&buff->mem[indx]);
+    return ((u8 *)&buff->mem[buff->head]);
 }
 
 void circHeadPosSet(
     CIRC_BUFF *         buff,
     s32                 position) {
 
+    buff->free -= position;
     buff->head += position;
+
+    if (buff->size == buff->head) {
+        buff->head = 0U;
+    }
 }
 
 BOOLEAN circIsEmpty(
-    CIRC_BUFF *         buff) {
+    const CIRC_BUFF *   buff) {
 
     BOOLEAN             ans;
 
-    if (buff->head == buff->tail) {
+    if (buff->size == buff->free) {
         ans = TRUE;
     } else {
         ans = FALSE;
@@ -147,11 +138,11 @@ BOOLEAN circIsEmpty(
 }
 
 BOOLEAN circIsFull(
-    CIRC_BUFF *         buff) {
+    const CIRC_BUFF *   buff) {
 
     BOOLEAN             ans;
 
-    if ((buff->head + 1U) == buff->tail) {
+    if (0U == buff->free) {
         ans = TRUE;
     } else {
         ans = FALSE;

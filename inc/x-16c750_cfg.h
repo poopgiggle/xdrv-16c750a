@@ -50,7 +50,7 @@
 #define CFG_Q_RX_NAME                   "uartQRx"
 #define CFG_Q_RX_SIZE                   4096UL
 
-#define CFG_DBG_ENABLE                  1
+#define CFG_DBG_ENABLE                  0
 
 /** @} *//*---------------------------------------------------------------*//**
  * @name        Advanced driver settings
@@ -61,11 +61,19 @@
 #define CFG_WAIT_EXIT_MS                1000
 #define CFG_WAIT_WR_MS                  200
 
+/**@brief       Trigger level of UART FIFO
+ * @details     Lower value:    + less generated interrupts
+ *                              - may cause pauses in data flow
+ *              Higher values:  + data flow is more consistent
+ *                              - interrupts are generated very often
+ */
+#define CFG_FIFO_TRIG                   8
+
 /** @} *//*---------------------------------------------------------------*//**
  * @name        Default driver settings
  * @{ *//*--------------------------------------------------------------------*/
 
-#define CFG_DEFAULT_BAUD_RATE           115200
+#define CFG_DEFAULT_BAUD_RATE           921600
 
 /** @} *//*-------------------------------------------------------------------*/
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/

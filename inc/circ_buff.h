@@ -51,6 +51,7 @@ struct circBuff {
     volatile u32        head;
     volatile u32        tail;
     u32                 size;
+    u32                 free;
 };
 
 typedef struct circBuff CIRC_BUFF;
@@ -97,10 +98,10 @@ void circHeadPosSet(
     s32                 position);
 
 BOOLEAN circIsEmpty(
-    CIRC_BUFF *         buff);
+    const CIRC_BUFF *   buff);
 
 BOOLEAN circIsFull(
-    CIRC_BUFF *         buff);
+    const CIRC_BUFF *   buff);
 
 /** @} *//*-------------------------------------------------------------------*/
 /*--------------------------------------------------------  C++ extern end  --*/

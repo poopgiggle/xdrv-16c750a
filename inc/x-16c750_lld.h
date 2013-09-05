@@ -185,6 +185,8 @@ enum hwReg {
 #define IIR_IT_TYPE_THR                 (0x01U << 1)
 #define IIR_IT_TYPE_RHR                 (0x02U << 1)
 #define IIR_IT_TYPE_RX_TIMEOUT          (0x07U << 1)
+#define IIR_IT_PENDING                  (0x01U << 0)
+
 /* Line Control Register (LCR) : register bits                                */
 #define LCR_DIV_EN                      (0x1U << 7)
 #define LCR_BREAK_EN                    (0x1U << 6)
@@ -197,6 +199,9 @@ enum hwReg {
 #define LCR_CHAR_LENGTH_7               (0x2U << 0)
 #define LCR_CHAR_LENGTH_6               (0x1U << 0)
 #define LCR_CHAR_LENGTH_5               (0x0U << 0)
+
+/* Supplementary Status Register (SSR) : register bits                        */
+#define SSR_TXFIFOFULL                  (0x01U << 0)
 
 /** @} *//*-------------------------------------------------------------------*/
 /*============================================================  DATA TYPES  ==*/
@@ -235,10 +240,15 @@ enum cfgParity {
 };
 
 enum lldINT {
-    LLD_INT_NONE,
-    LLD_INT_RX,
-    LLD_INT_RX_TIMEOUT,
-    LLD_INT_TX
+    LLD_INT_NONE        = 0x00,
+    LLD_INT_RX          = IIR_IT_TYPE_RHR,
+    LLD_INT_RX_TIMEOUT  = IIR_IT_TYPE_RX_TIMEOUT,
+    LLD_INT_TX          = IIR_IT_TYPE_THR
+};
+
+enum lldState {
+    LLD_ENABLE,
+    LLD_DISABLE
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/
@@ -359,13 +369,20 @@ void lldIntDisable(
     volatile u8 *       ioRemap,
     enum lldINT         intNum);
 
-enum lldINT lldIntGet(
+u16 lldIntGet(
+    volatile u8 *       ioRemap);
+
+u16 lldIsIntPending(
     volatile u8 *       ioRemap);
 
 int lldSoftReset(
     volatile u8 *       ioRemap);
 
-int lldFIFOSetup(
+void lldEnhanced(
+    volatile u8 *       io,
+    enum lldState       state);
+
+void lldFIFOInit(
     volatile u8 *       ioRemap);
 
 /**@brief       Setup UART module to use FIFO and DMA
