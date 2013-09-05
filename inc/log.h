@@ -67,6 +67,12 @@
         }                                                                       \
     } while (0)
 
+#define LOG_VAR(var)                                                            \
+    printk(KERN_INFO CFG_DRV_NAME " VAR " #var " : %d\n", var )
+
+#define LOG_PVAR(var)                                                           \
+    printk(KERN_INFO CFG_DRV_NAME " PTR " #var " : %p\n", var )
+
 /*============================================================  DATA TYPES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
