@@ -469,7 +469,7 @@ static void xUartProtoSet(
 static struct uartCtx * uartCtxFromDevCtx(
     struct rtdm_dev_context * devCtx) {
 
-    return ((struct uartCtx *)devCtx->dev_private);
+    return ((struct uartCtx *)rtdm_context_to_private(devCtx));
 }
 
 static int handleOpen(
@@ -686,6 +686,7 @@ static int handleRd(
             return (-EFAULT);
         }
     }
+    LOG_INFO("device read: %d bytes", bytes);
     uartCtx = uartCtxFromDevCtx(devCtx);
     rtdm_toseq_init(
         &timeoutSeq,
@@ -704,25 +705,80 @@ static int handleRd(
      * Should I turn on RX status line interrupt?
      */
     written = 0U;
-    src = (u8 *)buff;
-    dst = circMemHeadGet(
+    dst = (u8 *)buff;
+    src = circMemHeadGet(
         &uartCtx->rx.buffHandle);
+    LOG_VAR(written);
+    LOG_PVAR(src);
+    LOG_PVAR(dst);
 
     while (0 < bytes) {
         size_t          remaining;
+        size_t          transfer;
         rtdm_lockctx_t  lockCtx;
 
         rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-        remaining = circRemainingGet(
+        remaining = circRemainingOccGet(
             &uartCtx->rx.buffHandle);
-        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+        LOG_VAR(remaining);
 
         if (0 != remaining) {
-        }
-    }
-    rtdm_mutex_unlock(&uartCtx->rx.access);
 
-    return (RETVAL_SUCCESS);
+            if (remaining > bytes) {
+                transfer = bytes;
+            } else {
+                transfer = remaining;
+            }
+            LOG_VAR(transfer);
+
+            if (NULL != usrInfo) {
+                retval = rtdm_copy_to_user(
+                    usrInfo,
+                    dst,
+                    src,
+                    transfer);
+
+                if (RETVAL_SUCCESS != retval) {
+                    retval = -EFAULT;
+                    bytes = 0;
+                }
+            } else {
+                memcpy(
+                    dst,
+                    src,
+                    transfer);
+            }
+            written += transfer;
+            bytes   -= transfer;
+            dst     += transfer;
+            circMemTailPosSet(
+                &uartCtx->rx.buffHandle,
+                transfer);
+            src = circMemHeadGet(
+                &uartCtx->rx.buffHandle);
+            LOG_VAR(written);
+            LOG_VAR(bytes);
+            LOG_PVAR(src);
+            LOG_PVAR(dst);
+        } else {
+            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+            LOG_INFO("BLOCKED");
+            while (TRUE == circIsEmpty(&uartCtx->rx.buffHandle));
+            /*
+             * Blocking or not-blocking
+             */
+            rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        }
+        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+    }
+    rtdm_mutex_unlock(
+        &uartCtx->rx.access);
+
+    if (RETVAL_SUCCESS == retval) {
+        retval = written;
+    }
+
+    return (retval);
 }
 
 static int handleWr(
@@ -773,7 +829,7 @@ static int handleWr(
 
 
         rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-        remaining = circRemainingGet(
+        remaining = circRemainingFreeGet(
             &uartCtx->tx.buffHandle);
 
         if (0U != remaining) {
@@ -890,6 +946,9 @@ static int handleIrq(
                     break;
                 }
             }
+        /*-- Line status -----------------------------------------------------*/
+        } else if (LLD_INT_LINEST == intNum) {
+
         }
     }
     rtdm_lock_put(&uartCtx->lock);

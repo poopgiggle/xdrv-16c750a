@@ -72,7 +72,7 @@ struct uartCtx {
         CIRC_BUFF           buffHandle;                                         /**<@brief Buffer handle                                    */
         nanosecs_rel_t      timeout;
         rtdm_mutex_t        operation;                                                /**<@brief Write to buffer mutex                            */
-        u32                 access;
+        rtdm_mutex_t        access;
         void *              queue;                                              /**<@brief Buffer storage                                   */
         enum uartStatus     status;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
