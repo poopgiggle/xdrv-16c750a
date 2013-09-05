@@ -134,6 +134,16 @@ void lldIntEnable(
             break;
         }
 
+        case LLD_INT_RX_TIMEOUT : {
+            tmp = IER_RHRIT;
+            break;
+        }
+
+        case LLD_INT_LINEST : {
+            tmp = IER_LINESTSIT;
+            break;
+        }
+
         default : {
             tmp = 0U;
         }
@@ -158,6 +168,16 @@ void lldIntDisable(
 
         case LLD_INT_RX : {
             tmp = IER_RHRIT;
+            break;
+        }
+
+        case LLD_INT_RX_TIMEOUT : {
+            tmp = IER_RHRIT;
+            break;
+        }
+
+        case LLD_INT_LINEST : {
+            tmp = IER_LINESTSIT;
             break;
         }
 
@@ -662,8 +682,8 @@ int lldProtocolSet(
         LCR_NB_STOP,
         arg);
 
-    tmp = portModeGet(                                                          /* NOTE: return should not be checked here because DIV func */
-        protocol->baud);                                                        /* already did it before                                    */
+    tmp = portModeGet(
+        protocol->baud);
 
     if (RETVAL_FAILURE != tmp) {
         lldModeSet(

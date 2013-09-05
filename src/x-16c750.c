@@ -447,6 +447,9 @@ static int xUartCtxTerm(
 static BOOLEAN xUartIsProtoValid(
     const struct xUartProto * proto) {
 
+    /*
+     * TODO: Check proto values here
+     */
     return (TRUE);
 }
 
@@ -513,9 +516,13 @@ static int handleOpen(
         uartCtx,
         &gDefProtocol);
     rtdm_mutex_init(
-        &uartCtx->tx.mtx);
+        &uartCtx->tx.access);
     rtdm_mutex_init(
-        &uartCtx->rx.mtx);
+        &uartCtx->tx.operation);
+    rtdm_mutex_init(
+        &uartCtx->rx.access);
+    rtdm_mutex_init(
+        &uartCtx->rx.operation);
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
         gPortIRQ[devCtx->device->device_id],
@@ -571,6 +578,14 @@ static int handleClose(
             LLD_INT_RX_TIMEOUT);
         retval = rtdm_irq_free(
             &uartCtx->irqHandle);
+        rtdm_mutex_destroy(
+            &uartCtx->rx.operation);
+        rtdm_mutex_destroy(
+            &uartCtx->rx.access);
+        rtdm_mutex_destroy(
+            &uartCtx->tx.operation);
+        rtdm_mutex_destroy(
+            &uartCtx->tx.access);
         retval2 = xUartCtxTerm(
                 uartCtx);
         rtdm_lock_put_irqrestore(
@@ -657,10 +672,56 @@ static int handleRd(
     size_t              bytes) {
 
     struct uartCtx *    uartCtx;
-    uartCtx = uartCtxFromDevCtx(devCtx);
+    rtdm_toseq_t        timeoutSeq;
+    int                 retval;
+    u8 *                src;
+    u8 *                dst;
+    size_t              written;
 
     if (NULL != usrInfo) {
+
+        if (0 == rtdm_rw_user_ok(usrInfo, buff, bytes)) {
+            LOG_ERR("user memory access invalid");
+
+            return (-EFAULT);
+        }
     }
+    uartCtx = uartCtxFromDevCtx(devCtx);
+    rtdm_toseq_init(
+        &timeoutSeq,
+        uartCtx->rx.timeout);
+    retval = rtdm_mutex_timedlock(
+        &uartCtx->rx.access,
+        uartCtx->rx.timeout,
+        &timeoutSeq);
+
+    if (RETVAL_SUCCESS != retval) {
+        LOG_ERR("read: failed to get access lock");
+
+        return (-EBUSY);
+    }
+    /*
+     * Should I turn on RX status line interrupt?
+     */
+    written = 0U;
+    src = (u8 *)buff;
+    dst = circMemHeadGet(
+        &uartCtx->rx.buffHandle);
+
+    while (0 < bytes) {
+        size_t          remaining;
+        rtdm_lockctx_t  lockCtx;
+
+        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        remaining = circRemainingGet(
+            &uartCtx->rx.buffHandle);
+        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+
+        if (0 != remaining) {
+        }
+    }
+    rtdm_mutex_unlock(&uartCtx->rx.access);
+
     return (RETVAL_SUCCESS);
 }
 
@@ -680,7 +741,7 @@ static int handleWr(
     if (NULL != usrInfo) {
 
         if (0 == rtdm_read_user_ok(usrInfo, buff, bytes)) {
-            LOG_WARN("user mode invalid");
+            LOG_ERR("user memory access invalid");
 
             return (-EFAULT);
         }
@@ -689,16 +750,16 @@ static int handleWr(
     uartCtx = uartCtxFromDevCtx(devCtx);
     rtdm_toseq_init(
         &timeoutSeq,
-        uartCtx->rx.timeout);
+        uartCtx->tx.timeout);
     retval = rtdm_mutex_timedlock(
-        &uartCtx->rx.mtx,
-        uartCtx->rx.timeout,
+        &uartCtx->tx.access,
+        uartCtx->tx.timeout,
         &timeoutSeq);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_INFO("write: failed to get lock");
+        LOG_WARN("write: failed to get access lock");
 
-        return (retval);
+        return (-EBUSY);
     }
     written = 0U;
     src = (u8 *)buff;
@@ -755,7 +816,7 @@ static int handleWr(
         rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
     }
     rtdm_mutex_unlock(
-        &uartCtx->rx.mtx);
+        &uartCtx->tx.access);
 
     if (RETVAL_SUCCESS == retval) {
         retval = written;

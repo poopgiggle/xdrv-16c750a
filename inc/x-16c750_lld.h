@@ -184,6 +184,7 @@ enum hwReg {
 #define IIR_IT_TYPE_Mask                (0x1FU << 1)
 #define IIR_IT_TYPE_THR                 (0x01U << 1)
 #define IIR_IT_TYPE_RHR                 (0x02U << 1)
+#define IIR_IT_TYPE_LINEST              (0x03U << 1)
 #define IIR_IT_TYPE_RX_TIMEOUT          (0x07U << 1)
 #define IIR_IT_PENDING                  (0x01U << 0)
 
@@ -240,10 +241,10 @@ enum cfgParity {
 };
 
 enum lldINT {
-    LLD_INT_NONE        = 0x00,
     LLD_INT_RX          = IIR_IT_TYPE_RHR,
     LLD_INT_RX_TIMEOUT  = IIR_IT_TYPE_RX_TIMEOUT,
-    LLD_INT_TX          = IIR_IT_TYPE_THR
+    LLD_INT_TX          = IIR_IT_TYPE_THR,
+    LLD_INT_LINEST      = IIR_IT_TYPE_LINEST
 };
 
 enum lldState {

@@ -35,6 +35,7 @@
 #include <native/heap.h>
 #include <rtdm/rtdm.h>
 #include <stdint.h>
+#include <unistd.h>
 
 /*=========================================================  LOCAL MACRO's  ==*/
 
@@ -104,7 +105,6 @@ static void task(
 
     printf("sent %d bytes\n", retval);
 }
-#include <unistd.h>
 
 int main(
     int                 argc,
