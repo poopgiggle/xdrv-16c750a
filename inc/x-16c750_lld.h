@@ -241,6 +241,7 @@ enum cfgParity {
 };
 
 enum lldIntNum {
+    LLD_INT_ALL         = 0xFFU,
     LLD_INT_RX          = IIR_IT_TYPE_RHR,
     LLD_INT_RX_TIMEOUT  = IIR_IT_TYPE_RX_TIMEOUT,
     LLD_INT_TX          = IIR_IT_TYPE_THR,

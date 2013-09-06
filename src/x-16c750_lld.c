@@ -144,6 +144,11 @@ void lldIntEnable(
             break;
         }
 
+        case LLD_INT_ALL : {
+            tmp = 0x00FFU;
+            break;
+        }
+
         default : {
             tmp = 0U;
         }
@@ -178,6 +183,11 @@ void lldIntDisable(
 
         case LLD_INT_LINEST : {
             tmp = IER_LINESTSIT;
+            break;
+        }
+
+        case LLD_INT_ALL : {
+            tmp = 0x00FFU;
             break;
         }
 

@@ -56,7 +56,12 @@ extern "C" {
 
 enum uartStatus {
     UART_STATUS_NORMAL,
-    UART_STATUS_SOFT_OVERFLOW
+    UART_STATUS_SOFT_OVERFLOW,
+    UART_STATUS_TIMEOUT,
+    UART_STATUS_FAULT_USAGE,
+    UART_STATUS_BUSY,
+    UART_STATUS_BAD_FILE_NUMBER,
+    UART_STATUS_UNHANDLED_INTERRUPT
 };
 
 /**@brief       UART device context structure
@@ -77,7 +82,6 @@ struct uartCtx {
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
     struct {
         volatile u8 *       io;
-        u32                 id;
         u32                 IER;
     }                   cache;
     struct xUartProto   proto;
