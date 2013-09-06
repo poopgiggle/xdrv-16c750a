@@ -50,7 +50,7 @@ void circInit(
     buff->head = 0U;
     buff->tail = 0U;
     buff->size = (u32)size;
-    buff->free = (u32)size;
+    buff->free = buff->size;
 }
 
 void circItemPut(
@@ -129,7 +129,13 @@ u8 * circMemHeadGet(
     return ((u8 *)&buff->mem[buff->head]);
 }
 
-void circHeadPosSet(
+u8 * circMemTailGet(
+    const CIRC_BUFF *   buff) {
+
+    return ((u8 *)&buff->mem[buff->tail]);
+}
+
+void circPosHeadSet(
     CIRC_BUFF *         buff,
     s32                 position) {
 
@@ -141,7 +147,7 @@ void circHeadPosSet(
     }
 }
 
-void circMemTailPosSet(
+void circPosTailSet(
     CIRC_BUFF *         buff,
     s32                 position) {
 

@@ -185,7 +185,7 @@ enum hwReg {
 #define IIR_IT_TYPE_THR                 (0x01U << 1)
 #define IIR_IT_TYPE_RHR                 (0x02U << 1)
 #define IIR_IT_TYPE_LINEST              (0x03U << 1)
-#define IIR_IT_TYPE_RX_TIMEOUT          (0x07U << 1)
+#define IIR_IT_TYPE_RX_TIMEOUT          (0x06U << 1)
 #define IIR_IT_PENDING                  (0x01U << 0)
 
 /* Line Control Register (LCR) : register bits                                */
@@ -240,7 +240,7 @@ enum cfgParity {
     UART_CFG_PARITY_ODD
 };
 
-enum lldINT {
+enum lldIntNum {
     LLD_INT_RX          = IIR_IT_TYPE_RHR,
     LLD_INT_RX_TIMEOUT  = IIR_IT_TYPE_RX_TIMEOUT,
     LLD_INT_TX          = IIR_IT_TYPE_THR,
@@ -364,11 +364,11 @@ u16 lldModeGet(
 
 void lldIntEnable(
     volatile u8 *       ioRemap,
-    enum lldINT         intNum);
+    enum lldIntNum         intNum);
 
 void lldIntDisable(
     volatile u8 *       ioRemap,
-    enum lldINT         intNum);
+    enum lldIntNum         intNum);
 
 u16 lldIntGet(
     volatile u8 *       ioRemap);

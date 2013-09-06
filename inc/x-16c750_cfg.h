@@ -59,7 +59,7 @@
 #define CFG_DRV_NAME                    "xuart"
 #define CFG_DRV_BUFF_SIZE               1024U
 #define CFG_WAIT_EXIT_MS                1000
-#define CFG_WAIT_WR_MS                  200
+#define CFG_WAIT_WR_MS                  2000
 
 /**@brief       Trigger level of UART FIFO
  * @details     Lower value:    + less generated interrupts

@@ -96,11 +96,14 @@ u8 * circMemBaseGet(
 u8 * circMemHeadGet(
     const CIRC_BUFF *   buff);
 
-void circHeadPosSet(
+u8 * circMemTailGet(
+    const CIRC_BUFF *   buff);
+
+void circPosHeadSet(
     CIRC_BUFF *         buff,
     s32                 position);
 
-void circMemTailPosSet(
+void circPosTailSet(
     CIRC_BUFF *         buff,
     s32                 position);
 

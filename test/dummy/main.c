@@ -46,11 +46,13 @@
 #define TASK_MODE                       0
 #define TASK_PRIO                       99
 
-#if !defined(TEST1) && !defined(TEST2)
-#define TEST1
+#if !defined(TEST0) && !defined(TEST1) && !defined(TEST2)
+#define TEST0
 #endif
 
-#if defined(TEST1)
+#if defined(TEST0)
+#define HEAP_SIZE                       2400
+#elif defined(TEST1)
 #define HEAP_SIZE                       100000
 #elif defined(TEST2)
 #define HEAP_SIZE                       30
@@ -60,7 +62,7 @@
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 /*=======================================================  LOCAL VARIABLES  ==*/
 
-#if defined(TEST1) || defined(TEST2)
+#if defined(TEST0) || defined(TEST1) || defined(TEST2)
 static RT_TASK taskSendDesc;
 static RT_HEAP textSendHeap;
 #endif
@@ -156,7 +158,7 @@ static void taskRecv(
 
     printf("recv %d bytes\n", retval);
     text[HEAP_SIZE - 1U] = 0;
-    printf("\n Recvd text: %s", text);
+    printf("\n Recvd text: %s\n", text);
     rt_heap_free(
         &textSendHeap,
         text);
@@ -175,6 +177,12 @@ int main(
     printf("Real-Time UART tester\n");
     mlockall(MCL_CURRENT | MCL_FUTURE);
 
+    device = rt_dev_open(DEVICE_DRIVER_NAME, 0);
+
+    if (0 > device) {
+        printf("ERROR: failed to open device: %s (%d)\n", DEVICE_DRIVER_NAME, -device);
+        fflush(stdout);
+    }
     printf("Create: SEND task\n");
     retval = rt_task_create(
         &taskSendDesc,
@@ -184,16 +192,6 @@ int main(
         TASK_MODE);
 
     if (0 == retval) {
-        uint32_t i;
-
-        device = rt_dev_open(DEVICE_DRIVER_NAME, 0);
-
-        if (0 > device) {
-            printf("ERROR: failed to open device: %s (%d)\n", DEVICE_DRIVER_NAME, -device);
-            fflush(stdout);
-            (void)rt_task_delete(
-                &taskSendDesc);
-        }
         retval = rt_task_start(
             &taskSendDesc,
             taskSend,
@@ -201,12 +199,6 @@ int main(
 
         printf("wait.\n");
         sleep(4);
-        retval = rt_dev_close(
-            device);
-
-        if (0 != retval) {
-            printf("ERROR: failed to close device: %s (%d)\n", DEVICE_DRIVER_NAME, -retval);
-        }
         retval = rt_task_delete(
             &taskSendDesc);
     }
@@ -221,14 +213,6 @@ int main(
         TASK_MODE);
 
     if (0 == retval) {
-        device = rt_dev_open(DEVICE_DRIVER_NAME, 0);
-
-        if (0 > device) {
-            printf("ERROR: failed to open device: %s (%d)\n", DEVICE_DRIVER_NAME, -device);
-            fflush(stdout);
-            (void)rt_task_delete(
-                &taskRecvDesc);
-        }
         retval = rt_task_start(
             &taskRecvDesc,
             taskRecv,
@@ -236,16 +220,17 @@ int main(
 
         printf("wait.\n");
         sleep(4);
-        retval = rt_dev_close(
-            device);
-
-        if (0 != retval) {
-            printf("ERROR: failed to close device: %s (%d)\n", DEVICE_DRIVER_NAME, -retval);
-        }
         retval = rt_task_delete(
             &taskRecvDesc);
     }
 #endif
+
+    retval = rt_dev_close(
+        device);
+
+    if (0 != retval) {
+        printf("ERROR: failed to close device: %s (%d)\n", DEVICE_DRIVER_NAME, -retval);
+    }
 
     return (retval);
 }

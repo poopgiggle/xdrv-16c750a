@@ -187,10 +187,6 @@ static struct rtdm_device gUartDev = {
     .device_data        = NULL
 };
 
-static u32 dbg_e = 0U;
-static u32 dbg_s = 0U;
-static u32 dbg_w = 0U;
-
 /*======================================================  GLOBAL VARIABLES  ==*/
 
 MODULE_LICENSE("GPL");
@@ -199,6 +195,33 @@ MODULE_DESCRIPTION(DEF_DRV_DESCRIPTION);
 MODULE_SUPPORTED_DEVICE(DEF_DRV_SUPP_DEVICE);
 
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
+
+enum xInt {
+    XINT_TX,
+    XINT_RX,
+    XINT_RX_TIMEOUT
+};
+
+static void cIntEnable(
+    struct uartCtx *    uartCtx,
+    enum xInt           xInt) {
+
+    uartCtx->cache.IER |= xInt;
+    lldRegWr(
+        uartCtx->cache.io,
+        uartCtx->cache.IER);
+}
+
+static void cIntDisable(
+    struct uartCtx *    uartCtx,
+    enum xInt           xInt) {
+
+    uartCtx->cache.IER &= ~xInt;
+    lldRegWr(
+        uartCtx->cache.io,
+        uartCtx->cache.IER);
+}
+
 
 static void xUartCtxCleanup(
     struct uartCtx *    uartCtx,
@@ -396,11 +419,13 @@ static int xUartCtxInit(
         CFG_DRV_BUFF_SIZE);
 
     /*-- Prepare UART data ---------------------------------------------------*/
-    uartCtx->ioCache = io;
-    uartCtx->idCache = id;
-    uartCtx->tx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
+    uartCtx->cache.io = io;
+    uartCtx->cache.id = id;
+    uartCtx->tx.accTimeout = MS_TO_NS(CFG_WAIT_WR_MS);
+    uartCtx->tx.oprTimeout = MS_TO_NS(CFG_WAIT_WR_MS);
     uartCtx->tx.status  = UART_STATUS_NORMAL;
-    uartCtx->rx.timeout = MS_TO_NS(CFG_WAIT_WR_MS);
+    uartCtx->rx.accTimeout = MS_TO_NS(CFG_WAIT_WR_MS);
+    uartCtx->rx.oprTimeout = MS_TO_NS(CFG_WAIT_WR_MS);
     uartCtx->rx.status  = UART_STATUS_NORMAL;
     uartCtx->signature  = UART_CTX_SIGNATURE;
 
@@ -458,7 +483,7 @@ static void xUartProtoSet(
     const struct xUartProto *  proto) {
 
     (void)lldProtocolSet(
-        uartCtx->ioCache,
+        uartCtx->cache.io,
         proto);
     memcpy(
         &uartCtx->proto,
@@ -482,9 +507,6 @@ static int handleOpen(
     rtdm_lockctx_t      lockCtx;
     volatile u8 *       io;
 
-    dbg_s = 0;
-    dbg_w = 0;
-    dbg_e = 0;
     uartCtx = uartCtxFromDevCtx(
         devCtx);
     io = portIORemapGet(devCtx->device->device_data);
@@ -516,13 +538,13 @@ static int handleOpen(
         uartCtx,
         &gDefProtocol);
     rtdm_mutex_init(
-        &uartCtx->tx.access);
+        &uartCtx->tx.acc);
+    rtdm_event_init(
+        &uartCtx->tx.opr, 0);
     rtdm_mutex_init(
-        &uartCtx->tx.operation);
-    rtdm_mutex_init(
-        &uartCtx->rx.access);
-    rtdm_mutex_init(
-        &uartCtx->rx.operation);
+        &uartCtx->rx.acc);
+    rtdm_event_init(
+        &uartCtx->rx.opr, 0);
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
         gPortIRQ[devCtx->device->device_id],
@@ -530,21 +552,15 @@ static int handleOpen(
         RTDM_IRQTYPE_EDGE,
         devCtx->device->proc_name,
         uartCtx);
+    rtdm_lock_put_irqrestore(
+        &uartCtx->lock,
+        lockCtx);
 
     if (RETVAL_SUCCESS != retval) {
-        rtdm_lock_put_irqrestore(
-            &uartCtx->lock,
-            lockCtx);
         LOG_ERR("failed to register interrupt");
 
         return (retval);
     }
-    lldIntEnable(
-        io,
-        LLD_INT_RX);
-    rtdm_lock_put_irqrestore(
-        &uartCtx->lock,
-        lockCtx);
 
     return (retval);
 }
@@ -566,8 +582,8 @@ static int handleClose(
 
         LOG_INFO("close UART: %d", devCtx->device->device_id);
         rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-        io = uartCtx->ioCache;
-        lldIntDisable(                                                              /* Turn off all interrupts                                  */
+        io = uartCtx->cache.io;
+        lldIntDisable(                                                          /* Turn off all interrupts                                  */
             io,
             LLD_INT_TX);
         lldIntDisable(
@@ -578,14 +594,14 @@ static int handleClose(
             LLD_INT_RX_TIMEOUT);
         retval = rtdm_irq_free(
             &uartCtx->irqHandle);
+        rtdm_event_destroy(
+            &uartCtx->rx.opr);
         rtdm_mutex_destroy(
-            &uartCtx->rx.operation);
+            &uartCtx->rx.acc);
+        rtdm_event_destroy(
+            &uartCtx->tx.opr);
         rtdm_mutex_destroy(
-            &uartCtx->rx.access);
-        rtdm_mutex_destroy(
-            &uartCtx->tx.operation);
-        rtdm_mutex_destroy(
-            &uartCtx->tx.access);
+            &uartCtx->tx.acc);
         retval2 = xUartCtxTerm(
                 uartCtx);
         rtdm_lock_put_irqrestore(
@@ -672,11 +688,12 @@ static int handleRd(
     size_t              bytes) {
 
     struct uartCtx *    uartCtx;
-    rtdm_toseq_t        timeoutSeq;
+    rtdm_toseq_t        accTimeSeq;
+    rtdm_toseq_t        oprTimeSeq;
     int                 retval;
     u8 *                src;
     u8 *                dst;
-    size_t              written;
+    size_t              read;
 
     if (NULL != usrInfo) {
 
@@ -689,38 +706,58 @@ static int handleRd(
     LOG_INFO("device read: %d bytes", bytes);
     uartCtx = uartCtxFromDevCtx(devCtx);
     rtdm_toseq_init(
-        &timeoutSeq,
-        uartCtx->rx.timeout);
+        &accTimeSeq,
+        uartCtx->rx.accTimeout);
     retval = rtdm_mutex_timedlock(
-        &uartCtx->rx.access,
-        uartCtx->rx.timeout,
-        &timeoutSeq);
+        &uartCtx->rx.acc,
+        uartCtx->rx.accTimeout,
+        &accTimeSeq);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("read: failed to get access lock");
 
         return (-EBUSY);
     }
+    rtdm_toseq_init(
+        &oprTimeSeq,
+        uartCtx->rx.oprTimeout);
     /*
      * Should I turn on RX status line interrupt?
      */
-    written = 0U;
+    read = 0U;
     dst = (u8 *)buff;
-    src = circMemHeadGet(
+    src = circMemTailGet(
         &uartCtx->rx.buffHandle);
-    LOG_VAR(written);
-    LOG_PVAR(src);
-    LOG_PVAR(dst);
 
     while (0 < bytes) {
         size_t          remaining;
         size_t          transfer;
         rtdm_lockctx_t  lockCtx;
+        lldIntEnable(
+            uartCtx->cache.io,
+            LLD_INT_RX);
+        /*
+         * TODO: Ovo treba drugacije da se uradi: RX int treba da bude uvek ukljucen!
+         */
 
+        retval = rtdm_event_timedwait(
+            &uartCtx->rx.opr,
+            uartCtx->rx.oprTimeout,
+            &oprTimeSeq);
+
+        if (RETVAL_SUCCESS != retval) {
+
+            if (-EIDRM == retval) {
+                retval = -EBADF;
+            } else {
+                LOG_WARN_IF(-ETIMEDOUT == retval, "RX timeout");
+                retval = RETVAL_SUCCESS;
+            }
+            break;
+        }
         rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
         remaining = circRemainingOccGet(
             &uartCtx->rx.buffHandle);
-        LOG_VAR(remaining);
 
         if (0 != remaining) {
 
@@ -729,7 +766,6 @@ static int handleRd(
             } else {
                 transfer = remaining;
             }
-            LOG_VAR(transfer);
 
             if (NULL != usrInfo) {
                 retval = rtdm_copy_to_user(
@@ -741,6 +777,9 @@ static int handleRd(
                 if (RETVAL_SUCCESS != retval) {
                     retval = -EFAULT;
                     bytes = 0;
+                    /*
+                     * TODO: exit in some way
+                     */
                 }
             } else {
                 memcpy(
@@ -748,34 +787,22 @@ static int handleRd(
                     src,
                     transfer);
             }
-            written += transfer;
+            read    += transfer;
             bytes   -= transfer;
             dst     += transfer;
-            circMemTailPosSet(
+            circPosTailSet(
                 &uartCtx->rx.buffHandle,
                 transfer);
-            src = circMemHeadGet(
+            src = circMemTailGet(
                 &uartCtx->rx.buffHandle);
-            LOG_VAR(written);
-            LOG_VAR(bytes);
-            LOG_PVAR(src);
-            LOG_PVAR(dst);
-        } else {
-            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-            LOG_INFO("BLOCKED");
-            while (TRUE == circIsEmpty(&uartCtx->rx.buffHandle));
-            /*
-             * Blocking or not-blocking
-             */
-            rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
         }
         rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
     }
     rtdm_mutex_unlock(
-        &uartCtx->rx.access);
+        &uartCtx->rx.acc);
 
     if (RETVAL_SUCCESS == retval) {
-        retval = written;
+        retval = read;
     }
 
     return (retval);
@@ -788,7 +815,8 @@ static int handleWr(
     size_t              bytes) {
 
     struct uartCtx *    uartCtx;
-    rtdm_toseq_t        timeoutSeq;
+    rtdm_toseq_t        accTimeSeq;
+    rtdm_toseq_t        oprTimeSeq;
     int                 retval;
     u8 *                src;
     u8 *                dst;
@@ -805,18 +833,21 @@ static int handleWr(
     LOG_INFO("device write: %d bytes", bytes);
     uartCtx = uartCtxFromDevCtx(devCtx);
     rtdm_toseq_init(
-        &timeoutSeq,
-        uartCtx->tx.timeout);
+        &accTimeSeq,
+        uartCtx->tx.accTimeout);
     retval = rtdm_mutex_timedlock(
-        &uartCtx->tx.access,
-        uartCtx->tx.timeout,
-        &timeoutSeq);
+        &uartCtx->tx.acc,
+        uartCtx->tx.accTimeout,
+        &accTimeSeq);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_WARN("write: failed to get access lock");
 
         return (-EBUSY);
     }
+    rtdm_toseq_init(
+        &oprTimeSeq,
+        uartCtx->tx.oprTimeout);
     written = 0U;
     src = (u8 *)buff;
     dst = circMemHeadGet(
@@ -860,23 +891,39 @@ static int handleWr(
             written += transfer;
             bytes   -= transfer;
             src     += transfer;
-            circHeadPosSet(
+            circPosHeadSet(
                 &uartCtx->tx.buffHandle,
                 transfer);
             dst = circMemHeadGet(
                 &uartCtx->tx.buffHandle);
         }
         lldIntEnable(
-            uartCtx->ioCache,
+            uartCtx->cache.io,
             LLD_INT_TX);
         rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+        retval = rtdm_event_timedwait(
+            &uartCtx->tx.opr,
+            uartCtx->tx.oprTimeout,
+            &oprTimeSeq);
+
+        if (RETVAL_SUCCESS != retval) {
+
+            if (-EIDRM == retval) {
+                retval = -EBADF;
+            } else {
+                LOG_WARN_IF(-ETIMEDOUT == retval, "TX timeout");
+                retval = RETVAL_SUCCESS;
+            }
+            break;
+        }
     }
     rtdm_mutex_unlock(
-        &uartCtx->tx.access);
+        &uartCtx->tx.acc);
 
     if (RETVAL_SUCCESS == retval) {
         retval = written;
     }
+
     return (retval);
 }
 
@@ -886,24 +933,27 @@ static int handleIrq(
     struct uartCtx *    uartCtx;
     volatile u8 *       io;
     int                 retval;
-    enum lldINT         intNum;
+    u32                 evtRx;
+    u32                 evtTx;
+    enum lldIntNum      intNum;
 
     retval = RTDM_IRQ_NONE;
 
     uartCtx = rtdm_irq_get_arg(arg, struct uartCtx);
-    io = uartCtx->ioCache;
+    io = uartCtx->cache.io;
     rtdm_lock_get(&uartCtx->lock);
-
     uartCtx->rx.status = UART_STATUS_NORMAL;
-    dbg_e++;
+    evtRx = 0U;
+    evtTx = 0U;
 
     while (0 == lldIsIntPending(io)) {                                          /* Loop until there are interrupts to process               */
-        retval = RTDM_IRQ_HANDLED;
         intNum = lldIntGet(                                                     /* Get new interrupt                                        */
             io);
 
         /*-- Receive interrupt -----------------------------------------------*/
         if ((LLD_INT_RX_TIMEOUT == intNum) || (LLD_INT_RX == intNum)) {
+            retval = RTDM_IRQ_HANDLED;
+            evtRx = 1U;
 
             if (FALSE == circIsFull(&uartCtx->rx.buffHandle)) {
                 u16 item;
@@ -919,17 +969,18 @@ static int handleIrq(
                 lldRegRd(
                     io,
                     RHR);
+                lldIntDisable(io, LLD_INT_RX);
+                lldIntDisable(io, LLD_INT_RX_TIMEOUT);
             }
 
         /*-- Transmit interrupt ----------------------------------------------*/
         } else if (LLD_INT_TX == intNum) {
+            retval = RTDM_IRQ_HANDLED;
 
             while (0 == (lldRegRd(io,SSR) & SSR_TXFIFOFULL)) {
 
                 if (FALSE == circIsEmpty(&uartCtx->tx.buffHandle)) {
                     u16 item;
-
-                    dbg_s++;
 
                     item = circItemGet(
                         &uartCtx->tx.buffHandle);
@@ -938,21 +989,32 @@ static int handleIrq(
                         wTHR,
                         item);
                 } else {
-                    dbg_w++;
-                    LOG_INFO("IRQ: %d %d %d", dbg_s, dbg_w, dbg_e);
                     lldIntDisable(
                         io,
                         LLD_INT_TX);
+                    evtTx = 1U;
                     break;
                 }
             }
-        /*-- Line status -----------------------------------------------------*/
-        } else if (LLD_INT_LINEST == intNum) {
-
+        /*-- Other interrupts ------------------------------------------------*/
+        } else {
+            retval = RTDM_IRQ_NONE;
+            break;
         }
+    }
+
+    if (0U != evtRx) {
+        rtdm_event_signal(
+            &uartCtx->rx.opr);
+    }
+
+    if (0U != evtTx) {
+        rtdm_event_signal(
+            &uartCtx->tx.opr);
     }
     rtdm_lock_put(&uartCtx->lock);
     LOG_WARN_IF(UART_STATUS_SOFT_OVERFLOW == uartCtx->rx.status, "RX buffer overflow");
+    LOG_WARN_IF(RTDM_IRQ_NONE == retval, "Unhandled interrupt!");
 
     return (retval);
 }

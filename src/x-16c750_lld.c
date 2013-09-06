@@ -119,7 +119,7 @@ u16 lldModeGet(
 
 void lldIntEnable(
     volatile u8 *       ioRemap,
-    enum lldINT         intNum) {
+    enum lldIntNum         intNum) {
 
     u16                 tmp;
 
@@ -156,7 +156,7 @@ void lldIntEnable(
 
 void lldIntDisable(
     volatile u8 *       ioRemap,
-    enum lldINT         intNum) {
+    enum lldIntNum         intNum) {
 
     u16                 tmp;
 

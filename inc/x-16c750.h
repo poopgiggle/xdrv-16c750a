@@ -64,18 +64,26 @@ enum uartStatus {
 struct uartCtx {
     rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
-    volatile u8 *       ioCache;
-    u32                 idCache;
     struct {
         RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
         RT_QUEUE            queueHandle;                                        /**<@brief Queue for RT comms                               */
         CIRC_BUFF           buffHandle;                                         /**<@brief Buffer handle                                    */
-        nanosecs_rel_t      timeout;
-        rtdm_mutex_t        operation;                                                /**<@brief Write to buffer mutex                            */
-        rtdm_mutex_t        access;
+        nanosecs_rel_t      accTimeout;
+        nanosecs_rel_t      oprTimeout;
+        rtdm_event_t        opr;                                                /**<@brief Operational event                                */
+        rtdm_mutex_t        acc;                                                /**<@brief Access mutex                                     */
         void *              queue;                                              /**<@brief Buffer storage                                   */
         enum uartStatus     status;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
+    struct {
+        volatile u8 *       io;
+        u32                 id;
+        u32                 IER;
+        u32                 FCR;
+        u32                 MCR;
+        u32                 MDR1;
+        u32                 EFR;
+    }                   cache;
     struct xUartProto   proto;
     u32                 signature;
 };
