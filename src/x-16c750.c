@@ -196,32 +196,39 @@ MODULE_SUPPORTED_DEVICE(DEF_DRV_SUPP_DEVICE);
 
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
 
-enum xInt {
-    XINT_TX,
-    XINT_RX,
-    XINT_RX_TIMEOUT
+enum cIntNum {
+    C_INT_TX            = IER_THRIT,
+    C_INT_RX            = IER_RHRIT,
+    C_INT_RX_TIMEOUT    = IER_RHRIT
 };
 
 static void cIntEnable(
     struct uartCtx *    uartCtx,
-    enum xInt           xInt) {
+    enum cIntNum        xInt) {
 
     uartCtx->cache.IER |= xInt;
     lldRegWr(
         uartCtx->cache.io,
+        wIER,
         uartCtx->cache.IER);
 }
 
 static void cIntDisable(
     struct uartCtx *    uartCtx,
-    enum xInt           xInt) {
+    enum cIntNum        xInt) {
 
     uartCtx->cache.IER &= ~xInt;
     lldRegWr(
         uartCtx->cache.io,
+        wIER,
         uartCtx->cache.IER);
 }
 
+static enum cIntNum cIntEnabledGet(
+    struct uartCtx *    uartCtx) {
+
+    return (uartCtx->cache.IER);
+}
 
 static void xUartCtxCleanup(
     struct uartCtx *    uartCtx,
@@ -421,6 +428,7 @@ static int xUartCtxInit(
     /*-- Prepare UART data ---------------------------------------------------*/
     uartCtx->cache.io = io;
     uartCtx->cache.id = id;
+    uartCtx->cache.IER = lldRegRd(io, IER);
     uartCtx->tx.accTimeout = MS_TO_NS(CFG_WAIT_WR_MS);
     uartCtx->tx.oprTimeout = MS_TO_NS(CFG_WAIT_WR_MS);
     uartCtx->tx.status  = UART_STATUS_NORMAL;
@@ -552,6 +560,7 @@ static int handleOpen(
         RTDM_IRQTYPE_EDGE,
         devCtx->device->proc_name,
         uartCtx);
+    cIntEnable(uartCtx, C_INT_RX | C_INT_RX_TIMEOUT);
     rtdm_lock_put_irqrestore(
         &uartCtx->lock,
         lockCtx);
@@ -583,15 +592,7 @@ static int handleClose(
         LOG_INFO("close UART: %d", devCtx->device->device_id);
         rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
         io = uartCtx->cache.io;
-        lldIntDisable(                                                          /* Turn off all interrupts                                  */
-            io,
-            LLD_INT_TX);
-        lldIntDisable(
-            io,
-            LLD_INT_RX);
-        lldIntDisable(
-            io,
-            LLD_INT_RX_TIMEOUT);
+        cIntDisable(uartCtx, C_INT_TX | C_INT_RX | C_INT_RX_TIMEOUT);              /* Turn off all interrupts                                  */
         retval = rtdm_irq_free(
             &uartCtx->irqHandle);
         rtdm_event_destroy(
@@ -733,12 +734,10 @@ static int handleRd(
         size_t          remaining;
         size_t          transfer;
         rtdm_lockctx_t  lockCtx;
-        lldIntEnable(
-            uartCtx->cache.io,
-            LLD_INT_RX);
-        /*
-         * TODO: Ovo treba drugacije da se uradi: RX int treba da bude uvek ukljucen!
-         */
+
+        if (0U == (cIntEnabledGet(uartCtx) & (C_INT_RX | C_INT_RX_TIMEOUT))) {
+            cIntEnable(uartCtx, C_INT_RX | C_INT_RX_TIMEOUT);
+        }
 
         retval = rtdm_event_timedwait(
             &uartCtx->rx.opr,
@@ -897,9 +896,9 @@ static int handleWr(
             dst = circMemHeadGet(
                 &uartCtx->tx.buffHandle);
         }
-        lldIntEnable(
-            uartCtx->cache.io,
-            LLD_INT_TX);
+        cIntEnable(
+            uartCtx,
+            C_INT_TX);
         rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
         retval = rtdm_event_timedwait(
             &uartCtx->tx.opr,
@@ -965,12 +964,11 @@ static int handleIrq(
                     &uartCtx->rx.buffHandle,
                     item);
             } else {
+                cIntDisable(uartCtx, C_INT_RX | C_INT_RX_TIMEOUT);
                 uartCtx->rx.status = UART_STATUS_SOFT_OVERFLOW;
                 lldRegRd(
                     io,
                     RHR);
-                lldIntDisable(io, LLD_INT_RX);
-                lldIntDisable(io, LLD_INT_RX_TIMEOUT);
             }
 
         /*-- Transmit interrupt ----------------------------------------------*/
@@ -989,9 +987,7 @@ static int handleIrq(
                         wTHR,
                         item);
                 } else {
-                    lldIntDisable(
-                        io,
-                        LLD_INT_TX);
+                    cIntDisable(uartCtx,C_INT_TX);
                     evtTx = 1U;
                     break;
                 }

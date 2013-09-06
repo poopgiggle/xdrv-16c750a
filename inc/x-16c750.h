@@ -79,10 +79,6 @@ struct uartCtx {
         volatile u8 *       io;
         u32                 id;
         u32                 IER;
-        u32                 FCR;
-        u32                 MCR;
-        u32                 MDR1;
-        u32                 EFR;
     }                   cache;
     struct xUartProto   proto;
     u32                 signature;
