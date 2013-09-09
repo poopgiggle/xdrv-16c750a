@@ -78,6 +78,11 @@ static char * text;
 static void taskSend(
     void *              arg);
 
+#if defined(TEST2)
+static void taskRecv(
+    void *              arg);
+#endif
+
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
