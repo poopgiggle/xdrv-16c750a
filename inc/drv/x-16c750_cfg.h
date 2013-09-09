@@ -50,8 +50,6 @@
 #define CFG_Q_RX_NAME                   "uartQRx"
 #define CFG_Q_RX_SIZE                   4096UL
 
-#define CFG_DBG_ENABLE                  0
-
 /** @} *//*---------------------------------------------------------------*//**
  * @name        Advanced driver settings
  * @{ *//*--------------------------------------------------------------------*/

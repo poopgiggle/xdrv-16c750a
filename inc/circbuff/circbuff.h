@@ -23,98 +23,97 @@
  *//***********************************************************************//**
  * @file
  * @author  	Nenad Radulovic
- * @brief       Port interface
+ * @brief       Circular buffer interface
  *********************************************************************//** @{ */
 
-#if !defined(PORT_H_)
-#define PORT_H_
+#if !defined(CIRC_BUFF_H_)
+#define CIRC_BUFF_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include "x-16c750.h"
+#include <linux/circ_buf.h>
+#include "port/compiler.h"
 
 /*===============================================================  MACRO's  ==*/
-
-/**@brief       Expand UART data as IO memory table
- */
-#define UART_DATA_EXPAND_AS_MEM(uart, mem, irq)                                 \
-    mem,
-
-/**@brief       Expand UART data as IRQ number table
- */
-#define UART_DATA_EXPAND_AS_IRQ(uart, mem, irq)                                 \
-    irq,
-
-/**@brief       Supported UARTs table
- */
-#define UART_DATA_EXPAND_AS_UART(uart, mem, iqr)                                \
-    uart,
-
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /*============================================================  DATA TYPES  ==*/
+
+/*------------------------------------------------------------------------*//**
+ * @name        Data types group
+ * @brief       brief description
+ * @{ *//*--------------------------------------------------------------------*/
+
+struct circBuff {
+    volatile uint8_t *  mem;
+    volatile uint32_t   head;
+    volatile uint32_t   tail;
+    uint32_t            size;
+    uint32_t            free;
+};
+
+typedef struct circBuff circBuff_T;
+
+/** @} *//*-------------------------------------------------------------------*/
 /*======================================================  GLOBAL VARIABLES  ==*/
-
-/**@brief       Hardware IO memory maps
- */
-extern const u32 gPortIOmap[];
-
-/**@brief       Hardware IRQ numbers
- */
-extern const u32 gPortIRQ[];
-
-/**@brief       Number of supported UARTs
- */
-extern const u32 gPortUartNum;
-
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
 /*------------------------------------------------------------------------*//**
- * @name        Port functions
+ * @name        Function group
+ * @brief       brief description
  * @{ *//*--------------------------------------------------------------------*/
 
-/**@brief       Create and init kernel device driver
- * @param       id
- *              Device driver ID as supplied by silicon manufacturer
- * @return      Private device data, needed to be saved somewhere for later
- *              reference
- */
-void * portInit(
-    u32                 id);
+void circInit(
+    circBuff_T *        buff,
+    void *              mem,
+    size_t              size);
 
-/**@brief       Deinit and destroy kernel device driver
- * @param       devResource
- *              Pointer returned by portInit()
- */
-int portTerm(
-    void *              devResource);
+void circItemPut(
+    circBuff_T *        buff,
+    uint8_t             item);
 
-int portDMAInit(
-    struct uartCtx *    uartCtx);
+uint8_t circItemGet(
+    circBuff_T *        buff);
 
-int portDMATerm(
-    struct uartCtx *    uartCtx);
+size_t circRemainingFreeGet(
+    const circBuff_T *  buff);
 
-u32 portModeGet(
-    u32                 baudrate);
+size_t circRemainingOccGet(
+    const circBuff_T *  buff);
 
-u32 portDIVdataGet(
-    u32                 baudrate);
+uint8_t * circMemBaseGet(
+    const circBuff_T *  buff);
 
-volatile u8 * portIORemapGet(
-    void *              devResource);
+uint8_t * circMemHeadGet(
+    const circBuff_T *  buff);
 
-/** @} *//*-------------------------------------------------------------------*/
-/*--------------------------------------------------------  C++ extern end  --*/
+uint8_t * circMemTailGet(
+    const circBuff_T *  buff);
+
+void circPosHeadSet(
+    circBuff_T *        buff,
+    int32_t             position);
+
+void circPosTailSet(
+    circBuff_T *        buff,
+    int32_t             position);
+
+bool_T circIsEmpty(
+    const circBuff_T *  buff);
+
+bool_T circIsFull(
+    const circBuff_T *  buff);
+
+/** @} *//*-----------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
 }
 #endif
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
- * END of port.h
+ * END of circ_buff.h
  ******************************************************************************/
-#endif /* PORT_H_ */
+#endif /* CIRC_BUFF_H_ */

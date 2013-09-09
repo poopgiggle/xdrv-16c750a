@@ -32,11 +32,12 @@
 #include <asm-generic/errno.h>
 #include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
-#include "x-16c750.h"
-#include "x-16c750_cfg.h"
-#include "x-16c750_lld.h"
+
+#include "drv/x-16c750.h"
+#include "drv/x-16c750_cfg.h"
+#include "drv/x-16c750_lld.h"
+#include "port/port.h"
 #include "plat_omap2.h"
-#include "port.h"
 #include "log.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/

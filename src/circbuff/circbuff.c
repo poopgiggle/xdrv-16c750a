@@ -30,7 +30,7 @@
 
 #include <asm/system.h>
 
-#include "circ_buff.h"
+#include "circbuff/circbuff.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/
 /*======================================================  LOCAL DATA TYPES  ==*/
@@ -42,20 +42,20 @@
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
 void circInit(
-    CIRC_BUFF *         buff,
+    circBuff_T *         buff,
     void *              mem,
     size_t              size) {
 
-    buff->mem  = (u8 *)mem;
+    buff->mem  = (uint8_t *)mem;
     buff->head = 0U;
     buff->tail = 0U;
-    buff->size = (u32)size;
+    buff->size = (uint32_t)size;
     buff->free = buff->size;
 }
 
 void circItemPut(
-    CIRC_BUFF *         buff,
-    u8                  item) {
+    circBuff_T *         buff,
+    uint8_t                  item) {
 
     buff->mem[buff->head] = item;
     smp_wmb();
@@ -67,10 +67,10 @@ void circItemPut(
     }
 }
 
-u8 circItemGet(
-    CIRC_BUFF *         buff) {
+uint8_t circItemGet(
+    circBuff_T *         buff) {
 
-    u8                  tmp;
+    uint8_t                  tmp;
 
     smp_read_barrier_depends();
     tmp = buff->mem[buff->tail];
@@ -86,9 +86,9 @@ u8 circItemGet(
 }
 
 size_t circRemainingFreeGet(
-    const CIRC_BUFF *   buff) {
+    const circBuff_T *   buff) {
 
-    u32                 tmp;
+    uint32_t                 tmp;
 
     if (buff->tail > buff->head) {
         tmp = buff->tail - buff->head;
@@ -102,9 +102,9 @@ size_t circRemainingFreeGet(
 }
 
 size_t circRemainingOccGet(
-    const CIRC_BUFF *   buff) {
+    const circBuff_T *   buff) {
 
-    u32                 tmp;
+    uint32_t                 tmp;
 
     if (buff->tail < buff->head) {
         tmp = buff->head - buff->tail;
@@ -117,26 +117,26 @@ size_t circRemainingOccGet(
     return ((size_t)tmp);
 }
 
-u8 * circMemBaseGet(
-    const CIRC_BUFF *   buff) {
+uint8_t * circMemBaseGet(
+    const circBuff_T *   buff) {
 
-    return ((u8 *)buff->mem);
+    return ((uint8_t *)buff->mem);
 }
 
-u8 * circMemHeadGet(
-    const CIRC_BUFF *   buff) {
+uint8_t * circMemHeadGet(
+    const circBuff_T *   buff) {
 
-    return ((u8 *)&buff->mem[buff->head]);
+    return ((uint8_t *)&buff->mem[buff->head]);
 }
 
-u8 * circMemTailGet(
-    const CIRC_BUFF *   buff) {
+uint8_t * circMemTailGet(
+    const circBuff_T *   buff) {
 
-    return ((u8 *)&buff->mem[buff->tail]);
+    return ((uint8_t *)&buff->mem[buff->tail]);
 }
 
 void circPosHeadSet(
-    CIRC_BUFF *         buff,
+    circBuff_T *         buff,
     s32                 position) {
 
     buff->free -= position;
@@ -148,7 +148,7 @@ void circPosHeadSet(
 }
 
 void circPosTailSet(
-    CIRC_BUFF *         buff,
+    circBuff_T *         buff,
     s32                 position) {
 
     buff->free += position;
@@ -159,10 +159,10 @@ void circPosTailSet(
     }
 }
 
-BOOLEAN circIsEmpty(
-    const CIRC_BUFF *   buff) {
+bool_T circIsEmpty(
+    const circBuff_T *   buff) {
 
-    BOOLEAN             ans;
+    bool_T              ans;
 
     if (buff->size == buff->free) {
         ans = TRUE;
@@ -173,10 +173,10 @@ BOOLEAN circIsEmpty(
     return (ans);
 }
 
-BOOLEAN circIsFull(
-    const CIRC_BUFF *   buff) {
+bool_T circIsFull(
+    const circBuff_T *   buff) {
 
-    BOOLEAN             ans;
+    bool_T              ans;
 
     if (0U == buff->free) {
         ans = TRUE;
