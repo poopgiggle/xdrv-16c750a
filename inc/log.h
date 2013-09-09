@@ -48,7 +48,7 @@
     printk(KERN_INFO CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
 
 #define LOG_WARN(msg, ...)                                                      \
-    printk(KERN_WARNING CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
+    printk(KERN_WARNING CFG_DRV_NAME " <WARN>: line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
 
 #define LOG_WARN_IF(expr, msg, ...)                                             \
     do {                                                                        \
@@ -58,7 +58,7 @@
     } while (0)
 
 #define LOG_ERR(msg, ...)                                                       \
-    printk(KERN_ERR CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
+    printk(KERN_ERR CFG_DRV_NAME " <ERR>: line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
 
 #define LOG_ERR_IF(expr, msg, ...)                                              \
     do {                                                                        \
