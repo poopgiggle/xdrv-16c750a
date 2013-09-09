@@ -46,31 +46,13 @@
 #define TASK_MODE                       0
 #define TASK_PRIO                       99
 
-#if !defined(TEST0) && !defined(TEST1) && !defined(TEST2)
-#define TEST0
-#endif
-
-#if defined(TEST0)
-#define HEAP_SIZE                       2400
-#elif defined(TEST1)
-#define HEAP_SIZE                       100000
-#elif defined(TEST2)
-#define HEAP_SIZE                       64
-#endif
-
 /*======================================================  LOCAL DATA TYPES  ==*/
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 /*=======================================================  LOCAL VARIABLES  ==*/
-
-#if defined(TEST0) || defined(TEST1) || defined(TEST2)
 static RT_TASK taskSendDesc;
 static RT_HEAP textSendHeap;
-#endif
-#if defined(TEST2)
 static RT_TASK taskRecvDesc;
 static RT_HEAP textRecvHeap;
-#endif
-static char * text;
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
@@ -78,10 +60,8 @@ static char * text;
 static void taskSend(
     void *              arg);
 
-#if defined(TEST2)
 static void taskRecv(
     void *              arg);
-#endif
 
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
@@ -112,10 +92,6 @@ static void taskSend(
         return;
     }
 
-    for (i = 0U; i < HEAP_SIZE; i++) {
-        text[i] = (char)('0' + i);
-    }
-    text[HEAP_SIZE - 1U] = 0;
     retval = rt_dev_write(
         device,
         text,
@@ -130,7 +106,6 @@ static void taskSend(
         &textSendHeap);
 }
 
-#if defined(TEST2)
 static void taskRecv(
     void *              arg) {
 
@@ -172,7 +147,6 @@ static void taskRecv(
     rt_heap_delete(
         &textSendHeap);
 }
-#endif
 
 int main(
     int                 argc,
@@ -203,14 +177,7 @@ int main(
             &taskSendDesc,
             taskSend,
             (void *)device);
-
-        printf("wait.\n");
-        sleep(4);
-        retval = rt_task_delete(
-            &taskSendDesc);
     }
-#if defined(TEST2)
-    sleep(1);
     printf("Create: RECV task\n");
     retval = rt_task_create(
         &taskRecvDesc,
@@ -224,14 +191,12 @@ int main(
             &taskRecvDesc,
             taskRecv,
             (void *)device);
-
-        printf("wait.\n");
-        sleep(4);
-        retval = rt_task_delete(
-            &taskRecvDesc);
     }
-#endif
 
+    retval = rt_task_delete(
+        &taskSendDesc);
+    retval = rt_task_delete(
+        &taskRecvDesc);
     retval = rt_dev_close(
         device);
 

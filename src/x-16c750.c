@@ -584,10 +584,6 @@ static int handleClose(
         rtdm_lockctx_t  lockCtx;
 
         LOG_INFO("close UART: %d", devCtx->device->device_id);
-        rtdm_mutex_lock(
-            &uartCtx->tx.acc);
-        rtdm_mutex_lock(
-            &uartCtx->rx.acc);
         rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
         cIntDisable(
             uartCtx,
