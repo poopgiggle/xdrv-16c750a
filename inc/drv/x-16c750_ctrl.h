@@ -33,7 +33,7 @@
 /*===============================================================  MACRO's  ==*/
 
 #define XUART_CMD_SIGNATURE             0xDEADBEAFU
-#define XUART_CMD_Q_NAME_SIZE           10U
+#define XUART_CMD_Q_NAME_SIZE           20U
 
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
@@ -41,6 +41,26 @@ extern "C" {
 #endif
 
 /*============================================================  DATA TYPES  ==*/
+
+enum xUartCmdId {
+    XUART_CMD_CHN_OPEN,
+    XUART_CMD_CHN_CLOSE,
+    XUART_CMD_CHN_SET_PROTO,
+    XUART_CMD_CHN_GET_PROTO,
+    XUART_CMD_CHN_GET_PARAM,
+    XUART_CMD_CHN_SET_PARAM
+};
+
+struct xUartCmd {
+    char                sender[XUART_CMD_Q_NAME_SIZE];
+    unsigned int        cmdId;
+    unsigned int        uartId;
+    unsigned int        signature;
+};
+
+typedef struct xUartCmd xUartCmd_T;
+
+/*-- Proto -------------------------------------------------------------------*/
 
 enum xUartParity {
     XUART_PARITY_NONE,
@@ -59,23 +79,6 @@ enum xUartStopBits {
     XUART_STOP_2
 };
 
-
-enum xUartCmdId {
-    XUART_CMD_CHN_OPEN,
-    XUART_CMD_CHN_CLOSE,
-    XUART_CMD_CHN_GET_PARAM,
-    XUART_CMD_CHN_SET_PARAM
-};
-
-struct xUartCmd {
-    char                sender[XUART_CMD_Q_NAME_SIZE];
-    unsigned int        cmdId;
-    unsigned int        uartId;
-    unsigned int        signature;
-};
-
-typedef struct xUartCmd xUartCmd_T;
-
 struct xUartCmdProto {
     struct xUartCmd     cmd;
     unsigned int        baud;
@@ -84,7 +87,31 @@ struct xUartCmdProto {
     enum xUartStopBits  stopBits;
 };
 
+struct xUartCmdProtoReport {
+    unsigned int        baud;
+    enum xUartParity    parity;
+    enum xUartDataBits  dataBits;
+    enum xUartStopBits  stopBits;
+};
+
 typedef struct xUartCmdProto xUartCmdProto_T;
+
+/*-- Open --------------------------------------------------------------------*/
+
+enum xUartMode {
+    XUART_MODE_NOTIFY,
+    XUART_MODE_READER
+};
+
+struct xUartCmdOpen {
+    struct xUartCmd     cmd;
+    enum xUartMode      mode;
+    unsigned int        bytes;
+};
+
+struct xUartCmdOpenReport {
+    char                recv[XUART_CMD_Q_NAME_SIZE];
+};
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/

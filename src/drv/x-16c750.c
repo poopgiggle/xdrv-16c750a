@@ -31,11 +31,9 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/ioport.h>
 
 #include "drv/x-16c750.h"
 #include "drv/x-16c750_fsm.h"
-#include "drv/x-16c750_lld.h"
 #include "drv/x-16c750_cfg.h"
 #include "drv/x-16c750_ctrl.h"
 #include "port/port.h"
@@ -58,52 +56,27 @@
 #define CTRL_QUEUE_NAME                 CFG_DRV_NAME "_ctrl"
 #define CTRL_QUEUE_MSG_SIZE             sizeof(struct xUartCmd)
 #define CTRL_QUEUE_SIZE                 50U * CTRL_QUEUE_MSG_SIZE
-#define CTRL_WR_QUEUE_NAME              CFG_DRV_NAME "_ctrlOut"
-#define CTRL_WR_QUEUE_MSG_SIZE          20U
-#define CTRL_WR_QUEUE_SIZE              10U * CTRL_WR_QUEUE_MSG_SIZE
 
 #define TASK_MANAGE_NAME                CFG_DRV_NAME "_manager"
 #define TASK_MANAGE_PRIO                99
 
 /*======================================================  LOCAL DATA TYPES  ==*/
 
-enum cIntNum {
-    C_INT_TX            = IER_THRIT,
-    C_INT_RX            = IER_RHRIT,
-    C_INT_RX_TIMEOUT    = IER_RHRIT
-};
-
-enum taskDrvManState {
-    DRV_MAN_Q_RD,
-    DRV_MAN_Q_WR,
+enum drvManState {
+    DRV_MAN_Q_CTRL,
     DRV_MAN_FSM,
     DRV_MAN_CREATE,
     DRV_MAN_RUN
 };
 
 struct drvManCtx {
+    rtdm_task_t         task;
+    RT_QUEUE            ctrl;
     u32                 registeredFsm;
+    enum drvManState    state;
 };
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
-
-static void cIntEnable(
-    struct uartCtx *    uartCtx,
-    enum cIntNum        cIntNum);
-
-static void cIntDisable(
-    struct uartCtx *    uartCtx,
-    enum cIntNum        cIntNum);
-
-static enum cIntNum cIntEnabledGet(
-    struct uartCtx *    uartCtx);
-
-static bool_T xProtoIsValid(
-    const struct protocol * proto);
-
-static void xProtoSet(
-    struct uartCtx *    uartCtx,
-    const struct protocol * proto);
 
 static bool_T ctrlCmdIsValid(
     xUartCmd_T *        cmd,
@@ -123,12 +96,6 @@ static void taskDrvMan (
 
 /*=======================================================  LOCAL VARIABLES  ==*/
 
-rtdm_task_t gTaskDrvMan;
-enum taskDrvManState gDrvManState;
-
-RT_QUEUE gQctrl;
-RT_QUEUE gQctrlWr;
-
 static struct uartCtx * gUartChn[DEF_MAX_CHANNELS];
 static struct drvManCtx gDrvManCtx;
 
@@ -140,56 +107,6 @@ MODULE_DESCRIPTION(DEF_DRV_DESCRIPTION);
 MODULE_SUPPORTED_DEVICE(DEF_DRV_SUPP_DEVICE);
 
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
-
-static void cIntEnable(
-    struct uartCtx *    uartCtx,
-    enum cIntNum        cIntNum) {
-
-    uartCtx->cache.IER |= cIntNum;
-    lldRegWr(
-        uartCtx->cache.io,
-        wIER,
-        uartCtx->cache.IER);
-}
-
-static void cIntDisable(
-    struct uartCtx *    uartCtx,
-    enum cIntNum        cIntNum) {
-
-    uartCtx->cache.IER &= ~cIntNum;
-    lldRegWr(
-        uartCtx->cache.io,
-        wIER,
-        uartCtx->cache.IER);
-}
-
-static enum cIntNum cIntEnabledGet(
-    struct uartCtx *    uartCtx) {
-
-    return (uartCtx->cache.IER);
-}
-
-static bool_T xProtoIsValid(
-    const struct protocol * proto) {
-
-    /*
-     * TODO: Check proto values here
-     */
-    return (TRUE);
-}
-
-static void xProtoSet(
-    struct uartCtx *    uartCtx,
-    const struct protocol *  proto) {
-
-    (void)lldProtocolSet(
-        uartCtx->cache.io,
-        proto);
-    memcpy(
-        &uartCtx->proto,
-        proto,
-        sizeof(struct protocol));
-}
 
 static bool_T ctrlCmdIsValid(
     xUartCmd_T *        cmd,
@@ -230,11 +147,17 @@ static void uartCtxInit(
     struct uartCtx *    uartCtx,
     u32                 id) {
 
-    fsmInit(
-        uartCtx);
     rtdm_lock_init(&uartCtx->lock);
+    scnprintf(
+        uartCtx->name,
+        UARTCTX_NAME_SIZE,
+        CFG_DRV_NAME ".%d",
+        id);
+    uartCtx->hw.initialized = FALSE;
     uartCtx->id = id;
     uartCtx->signature = UARTCTX_SIGNATURE;
+    fsmInit(
+        uartCtx);
 }
 
 static int drvManStart(
@@ -243,10 +166,10 @@ static int drvManStart(
     int                 retval;
     u8                  i;
 
-    gDrvManState = DRV_MAN_Q_RD;
+    gDrvManCtx.state = DRV_MAN_Q_CTRL;
     LOG_INFO("control queue %s, size %d", CTRL_QUEUE_NAME, CTRL_QUEUE_SIZE);
     retval = rt_queue_create(
-        &gQctrl,
+        &gDrvManCtx.ctrl,
         CTRL_QUEUE_NAME,
         CTRL_QUEUE_SIZE,
         Q_UNLIMITED,
@@ -258,21 +181,7 @@ static int drvManStart(
         return (retval);
     }
 
-    gDrvManState = DRV_MAN_Q_WR;
-    retval = rt_queue_create(
-        &gQctrlWr,
-        CTRL_WR_QUEUE_NAME,
-        CTRL_WR_QUEUE_SIZE,
-        Q_UNLIMITED,
-        Q_PRIO | Q_SHARED);
-
-    if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to create %s control queue", CTRL_WR_QUEUE_NAME);
-
-        return (retval);
-    }
-
-    gDrvManState = DRV_MAN_FSM;
+    gDrvManCtx.state = DRV_MAN_FSM;
 
     for (i = 0U; i < DEF_MAX_CHANNELS; i++) {
         gUartChn[i] = NULL;
@@ -297,10 +206,10 @@ static int drvManStart(
         }
     }
 
-    gDrvManState = DRV_MAN_CREATE;
+    gDrvManCtx.state = DRV_MAN_CREATE;
     LOG_INFO("creating driver manager");
     retval = rtdm_task_init(
-        &gTaskDrvMan,
+        &gDrvManCtx.task,
         TASK_MANAGE_NAME,
         taskDrvMan,
         NULL,
@@ -312,8 +221,7 @@ static int drvManStart(
 
         return (retval);
     }
-
-    gDrvManState = DRV_MAN_RUN;
+    gDrvManCtx.state = DRV_MAN_RUN;
 
     return (retval);
 }
@@ -325,7 +233,7 @@ static void drvManStop (
 
     LOG_INFO("removing driver");
 
-    switch (gDrvManState) {
+    switch (gDrvManCtx.state) {
         case DRV_MAN_RUN : {
             u32             i;
             volatile u32    cnt;
@@ -333,8 +241,8 @@ static void drvManStop (
 
             memcpy(
                 &cmd.sender,
-                CTRL_QUEUE_NAME,
-                sizeof(CTRL_QUEUE_NAME));
+                TASK_MANAGE_NAME,
+                sizeof(TASK_MANAGE_NAME));
             cmd.cmdId = SIG_INTR_TERM;
             cmd.signature = XUART_CMD_SIGNATURE;
 
@@ -343,7 +251,7 @@ static void drvManStop (
                 if (TRUE == portIsOnline(i)) {
                     cmd.uartId = i;
                     rt_queue_write(
-                        &gQctrl,
+                        &gDrvManCtx.ctrl,
                         &cmd,
                         sizeof(struct xUartCmd),
                         Q_URGENT);
@@ -354,7 +262,7 @@ static void drvManStop (
             LOG_WARN_IF(0U == cnt, "failed to exit cleanly");
 
             rtdm_task_destroy(
-                &gTaskDrvMan);
+                &gDrvManCtx.task);
             /* fall down */
         }
         case DRV_MAN_CREATE : {
@@ -373,17 +281,11 @@ static void drvManStop (
         }
         case DRV_MAN_FSM : {
             retval = rt_queue_delete(
-                &gQctrlWr);
-            LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to delete %s queue", CTRL_WR_QUEUE_NAME);
-            /* fall down */
-        }
-        case DRV_MAN_Q_WR : {
-            retval = rt_queue_delete(
-                &gQctrl);
+                &gDrvManCtx.ctrl);
             LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to delete %s queue", CTRL_QUEUE_NAME);
             /* fall down */
         }
-        case DRV_MAN_Q_RD : {
+        case DRV_MAN_Q_CTRL : {
             break;
         }
         default : {
@@ -396,7 +298,6 @@ static void drvManStop (
 static void taskDrvMan (
     void *              arg) {
 
-    int                 retval;
     u32                 i;
 
     gDrvManCtx.registeredFsm = 0;
@@ -414,7 +315,7 @@ static void taskDrvMan (
         xUartCmd_T *    cmd;
 
         len = rt_queue_receive(
-            &gQctrl,
+            &gDrvManCtx.ctrl,
             (void **)&cmd,
             TM_INFINITE);
         LOG_INFO("recv: cmd id: %d, UART: %d, from: %s", cmd->cmdId, cmd->uartId, cmd->sender);
@@ -433,7 +334,7 @@ static void taskDrvMan (
             gUartChn[cmd->uartId],
             cmd);
         rt_queue_free(
-            &gQctrl,
+            &gDrvManCtx.ctrl,
             cmd);
     }
 }

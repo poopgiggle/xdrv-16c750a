@@ -190,6 +190,12 @@ void * portInit(
 
     /*-- Initializaion state -------------------------------------------------*/
     state = PLAT_STATE_INIT;
+    scnprintf(
+        uartName,
+        DEF_UART_NAME_MAX_SIZE,
+        DEF_OMAP_UART_NAME "%d",
+        id);                                                                    /* NOTE: Since hwmod UART count is messed up we need the right name now */
+    LOG_INFO("OMAP UART: creating %s device", uartName);
     devRes = kmalloc(
         sizeof(struct devRes),
         GFP_KERNEL);
@@ -199,12 +205,6 @@ void * portInit(
 
         return (NULL);
     }
-    scnprintf(
-        uartName,
-        DEF_UART_NAME_MAX_SIZE,
-        DEF_OMAP_UART_NAME "%d",
-        id);                                                                    /* NOTE: Since hwmod UART count is messed up we need the right name now */
-    LOG_DBG("OMAP UART: creating %s device", uartName);
 
     /*-- HWMOD lookup state --------------------------------------------------*/
     state = PLAT_STATE_LOOKUP;

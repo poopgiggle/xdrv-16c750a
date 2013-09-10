@@ -37,24 +37,12 @@
  * @name        Generic driver configuration
  * @{ *//*--------------------------------------------------------------------*/
 
-/**@brief       UART number as assigned by silicon manufacturer
- * @note        The chosen driver must not be managed by Linux kernel
- */
-#define CFG_UART_ID                     3
-
-#define CFG_Q_NAME_MAX_SIZE             10
-
-#define CFG_Q_TX_NAME                   "uartQTx"
-#define CFG_Q_TX_SIZE                   4096UL
-
-#define CFG_Q_RX_NAME                   "uartQRx"
-#define CFG_Q_RX_SIZE                   4096UL
-
 /** @} *//*---------------------------------------------------------------*//**
  * @name        Advanced driver settings
  * @{ *//*--------------------------------------------------------------------*/
 
 #define CFG_DRV_NAME                    "xuart"
+
 #define CFG_DRV_BUFF_SIZE               1024U
 #define CFG_WAIT_EXIT_MS                1000
 #define CFG_WAIT_WR_MS                  2000

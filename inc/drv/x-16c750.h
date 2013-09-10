@@ -39,6 +39,7 @@
 
 #include "drv/x-16c750_ctrl.h"
 #include "circbuff/circbuff.h"
+#include "port/compiler.h"
 #include "eds/smp.h"
 
 /*===============================================================  MACRO's  ==*/
@@ -49,6 +50,8 @@
 #define RETVAL_FAILURE                  !RETVAL_SUCCESS
 
 #define UARTCTX_SIGNATURE               ((u32)0xDEADDEEEU)
+
+#define UARTCTX_NAME_SIZE               12U
 
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
@@ -94,7 +97,12 @@ struct uartCtx {
         enum xUartDataBits  dataBits;
         enum xUartStopBits  stopBits;
     }                   proto;
+    struct hwInfo {
+        bool_T              initialized;
+        void *              resource;
+    }                   hw;
     u32                 id;
+    char                name[UARTCTX_NAME_SIZE];
     u32                 signature;
 };
 
