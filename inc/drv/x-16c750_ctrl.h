@@ -33,6 +33,7 @@
 /*===============================================================  MACRO's  ==*/
 
 #define XUART_CMD_SIGNATURE             0xDEADBEAFU
+#define XUART_CMD_Q_NAME_SIZE           10U
 
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
@@ -60,7 +61,6 @@ enum xUartStopBits {
 
 
 enum xUartCmdId {
-    XUART_CMD_TERM,
     XUART_CMD_CHN_OPEN,
     XUART_CMD_CHN_CLOSE,
     XUART_CMD_CHN_GET_PARAM,
@@ -68,6 +68,7 @@ enum xUartCmdId {
 };
 
 struct xUartCmd {
+    char                sender[XUART_CMD_Q_NAME_SIZE];
     unsigned int        cmdId;
     unsigned int        uartId;
     unsigned int        signature;

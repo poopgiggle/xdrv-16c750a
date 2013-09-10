@@ -32,6 +32,7 @@
 /*=========================================================  INCLUDE FILES  ==*/
 
 #include "drv/x-16c750.h"
+#include "compiler.h"
 
 /*===============================================================  MACRO's  ==*/
 
@@ -106,6 +107,9 @@ u32 portDIVdataGet(
 
 volatile u8 * portIORemapGet(
     void *              devResource);
+
+bool_T portIsOnline(
+    u32                 id);
 
 /** @} *//*-----------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus

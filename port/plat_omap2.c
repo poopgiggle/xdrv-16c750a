@@ -374,6 +374,23 @@ u32 portDIVdataGet(
     }
 }
 
+bool_T portIsOnline(
+    u32                 id) {
+
+    bool_T              ans;
+
+    /*
+     * TODO: This function should check if UART is not managed by Linux kernel
+     */
+    if (3 == id) {
+        ans = TRUE;
+    } else {
+        ans = FALSE;
+    }
+
+    return (ans);
+}
+
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
  * END of plat_omap.c

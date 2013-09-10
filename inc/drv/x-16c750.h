@@ -48,6 +48,8 @@
 #define RETVAL_SUCCESS                  0
 #define RETVAL_FAILURE                  !RETVAL_SUCCESS
 
+#define UARTCTX_SIGNATURE               ((u32)0xDEADDEEEU)
+
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {
@@ -74,7 +76,7 @@ struct uartCtx {
     struct {
         RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
         RT_QUEUE            queueHandle;                                        /**<@brief Queue for RT comms                               */
-        circBuff_T           buffHandle;                                         /**<@brief Buffer handle                                    */
+        circBuff_T          buffHandle;                                         /**<@brief Buffer handle                                    */
         nanosecs_rel_t      accTimeout;
         nanosecs_rel_t      oprTimeout;
         rtdm_event_t        opr;                                                /**<@brief Operational event                                */
@@ -92,11 +94,19 @@ struct uartCtx {
         enum xUartDataBits  dataBits;
         enum xUartStopBits  stopBits;
     }                   proto;
+    u32                 id;
     u32                 signature;
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
+
+void drvManRegisterFSM(
+    u32                 id);
+
+void drvManUnregisterFSM(
+    u32                 id);
+
 /*--------------------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
 }

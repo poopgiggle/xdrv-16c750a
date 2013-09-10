@@ -1,4 +1,4 @@
-BASE_OBJS := src/drv/x-16c750.o src/drv/x-16c750_lld.o 
+BASE_OBJS := src/drv/x-16c750.o src/drv/x-16c750_lld.o src/drv/x-16c750_fsm.o
 CIRCBUFF_OBJS := src/circbuff/circbuff.o 
 EDS_OBJS := src/eds/smp.o src/eds/dbg.o
 obj-m += am335x_xuart.o

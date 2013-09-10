@@ -39,6 +39,25 @@
 
 /*===============================================================  DEFINES  ==*/
 /*===============================================================  MACRO's  ==*/
+
+#define ES_STATE_TRAN(fsm, nextState)                                            \
+    (((esFsm_T *)fsm)->state = nextState, RETN_TRAN)
+
+#define ES_RETN_DEFFERED(fsm)                                                   \
+    (RETN_DEFFERED)
+
+#define ES_STATE_HANDLED(fsm)                                                    \
+    (RETN_HANDLED)
+
+#define ES_RETN_IGNORED(fsm)                                                    \
+    (RETN_IGNORED)
+
+#define ES_STATE_SUPER(fsm, topState)                                            \
+    (((esFsm_T *)fsm)->state = topState, RETN_SUPER)
+
+#define ES_SIGNAL(signal)                                                       \
+    &esEvtSignal[signal]
+
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {
@@ -102,7 +121,7 @@ enum esEvtSignalId {
  * @brief       Signalni dogadjaj - prazan signal.
  * @note        Ne koristi se.
  */
-    SIG_EMPTY,
+    SIG_EMPTY = 1000U,
 
 /**
  * @brief       Signalni dogadjaj - zahteva se entry obrada u datom stanju.
@@ -145,13 +164,21 @@ enum esEvtSignalId {
 typedef uint_fast8_t esStatus_T;
 
 /**
+ * @brief       Objekat konacnog automata
+ * @details     Ovo je apstraktni tip koji se koristi za referenciranje SMP
+ *              objekata.
+ * @api
+ */
+typedef struct esFsm esFsm_T;
+
+/**
  * @brief       Tip state handler funkcija.
  * @details     State handler funkcije vracaju esStatus_T , a kao parametar
  *              prihvataju pokazivac (void *) na strukturu podataka i pokazivac
  *              na dogadjaj.
  * @api
  */
-typedef esStatus_T (* esState_T) (void *, esEvt_T *);
+typedef esStatus_T (* esState_T) (esFsm_T *, esEvt_T *);
 
 struct esFsm {
     esState_T       state;
@@ -160,14 +187,6 @@ struct esFsm {
     portReg_T       signature;
 #endif
 };
-
-/**
- * @brief       Objekat konacnog automata
- * @details     Ovo je apstraktni tip koji se koristi za referenciranje SMP
- *              objekata.
- * @api
- */
-typedef struct esFsm esFsm_T;
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 
@@ -210,6 +229,10 @@ void esFsmInit (
  */
 void esFsmTerm(
     esFsm_T *           fsm);
+
+esStatus_T esFsmTopState(
+    esFsm_T *           fsm,
+    esEvt_T *           evt);
 
 /** @} *//*-----------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus

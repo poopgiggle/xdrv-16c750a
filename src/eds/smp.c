@@ -191,6 +191,17 @@ esStatus_T esFsmDispatch(
     return (status);
 }
 
+/*----------------------------------------------------------------------------*/
+esStatus_T esFsmTopState(
+    esFsm_T *           fsm,
+    esEvt_T *           evt) {
+
+    (void)fsm;
+    (void)evt;
+
+    return ES_STATE_HANDLED(fsm);
+}
+
 /** @} *//*-------------------------------------------------------------------*/
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 

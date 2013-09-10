@@ -34,12 +34,12 @@
 #include <linux/ioport.h>
 
 #include "drv/x-16c750.h"
+#include "drv/x-16c750_fsm.h"
 #include "drv/x-16c750_lld.h"
 #include "drv/x-16c750_cfg.h"
 #include "drv/x-16c750_ctrl.h"
 #include "port/port.h"
 #include "port/compiler.h"
-#include "eds/smp.h"
 #include "log.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/
@@ -53,31 +53,36 @@
 
 /**@brief       Maximum number of supported channels
  */
-#define DEF_MAX_CHANNELS                10
+#define DEF_MAX_CHANNELS                10U
 
-#define CTRL_RD_QUEUE_NAME              CFG_DRV_NAME "_ctrlIn"
-#define CTRL_RD_QUEUE_MSG_SIZE          20U
-#define CTRL_RD_QUEUE_SIZE              10U * CTRL_RD_QUEUE_MSG_SIZE
+#define CTRL_QUEUE_NAME                 CFG_DRV_NAME "_ctrl"
+#define CTRL_QUEUE_MSG_SIZE             sizeof(struct xUartCmd)
+#define CTRL_QUEUE_SIZE                 50U * CTRL_QUEUE_MSG_SIZE
 #define CTRL_WR_QUEUE_NAME              CFG_DRV_NAME "_ctrlOut"
 #define CTRL_WR_QUEUE_MSG_SIZE          20U
 #define CTRL_WR_QUEUE_SIZE              10U * CTRL_WR_QUEUE_MSG_SIZE
 
-#define TASK_MANAGE_NAME                CFG_DRV_NAME "_manage"
+#define TASK_MANAGE_NAME                CFG_DRV_NAME "_manager"
 #define TASK_MANAGE_PRIO                99
 
 /*======================================================  LOCAL DATA TYPES  ==*/
 
 enum cIntNum {
-    C_INT_TX            = IER_THRIT,//!< C_INT_TX
-    C_INT_RX            = IER_RHRIT,//!< C_INT_RX
-    C_INT_RX_TIMEOUT    = IER_RHRIT //!< C_INT_RX_TIMEOUT
+    C_INT_TX            = IER_THRIT,
+    C_INT_RX            = IER_RHRIT,
+    C_INT_RX_TIMEOUT    = IER_RHRIT
 };
 
 enum taskDrvManState {
-    DRV_MAN_CREATE,
     DRV_MAN_Q_RD,
     DRV_MAN_Q_WR,
+    DRV_MAN_FSM,
+    DRV_MAN_CREATE,
     DRV_MAN_RUN
+};
+
+struct drvManCtx {
+    u32                 registeredFsm;
 };
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
@@ -100,9 +105,12 @@ static void xProtoSet(
     struct uartCtx *    uartCtx,
     const struct protocol * proto);
 
-static bool_T ctrlMsgIsValid(
+static bool_T ctrlCmdIsValid(
     xUartCmd_T *        cmd,
     size_t              len);
+
+static bool_T ctrlCmdUartIdIsValid(
+    xUartCmd_T *        cmd);
 
 static int drvManStart(
     void);
@@ -118,10 +126,11 @@ static void taskDrvMan (
 rtdm_task_t gTaskDrvMan;
 enum taskDrvManState gDrvManState;
 
-RT_QUEUE gQctrlRd;
+RT_QUEUE gQctrl;
 RT_QUEUE gQctrlWr;
 
 static struct uartCtx * gUartChn[DEF_MAX_CHANNELS];
+static struct drvManCtx gDrvManCtx;
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 
@@ -182,7 +191,7 @@ static void xProtoSet(
         sizeof(struct protocol));
 }
 
-static bool_T ctrlMsgIsValid(
+static bool_T ctrlCmdIsValid(
     xUartCmd_T *        cmd,
     size_t              len) {
 
@@ -207,21 +216,44 @@ static bool_T ctrlMsgIsValid(
     return (TRUE);
 }
 
+static bool_T ctrlCmdUartIdIsValid(
+    xUartCmd_T *        cmd) {
+
+    bool_T              ans;
+
+    ans = portIsOnline(cmd->uartId);
+
+    return (ans);
+}
+
+static void uartCtxInit(
+    struct uartCtx *    uartCtx,
+    u32                 id) {
+
+    fsmInit(
+        uartCtx);
+    rtdm_lock_init(&uartCtx->lock);
+    uartCtx->id = id;
+    uartCtx->signature = UARTCTX_SIGNATURE;
+}
+
 static int drvManStart(
     void) {
 
-    int             retval;
+    int                 retval;
+    u8                  i;
 
     gDrvManState = DRV_MAN_Q_RD;
+    LOG_INFO("control queue %s, size %d", CTRL_QUEUE_NAME, CTRL_QUEUE_SIZE);
     retval = rt_queue_create(
-        &gQctrlRd,
-        CTRL_RD_QUEUE_NAME,
-        CTRL_RD_QUEUE_SIZE,
+        &gQctrl,
+        CTRL_QUEUE_NAME,
+        CTRL_QUEUE_SIZE,
         Q_UNLIMITED,
         Q_PRIO | Q_SHARED);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to create %s control queue", CTRL_RD_QUEUE_NAME);
+        LOG_ERR("failed to create %s control queue", CTRL_QUEUE_NAME);
 
         return (retval);
     }
@@ -240,7 +272,33 @@ static int drvManStart(
         return (retval);
     }
 
+    gDrvManState = DRV_MAN_FSM;
+
+    for (i = 0U; i < DEF_MAX_CHANNELS; i++) {
+        gUartChn[i] = NULL;
+    }
+
+    for (i = 0U; i < DEF_MAX_CHANNELS; i++) {
+
+        if (TRUE == portIsOnline(i)) {
+            LOG_INFO("channel init %d", i);
+            gUartChn[i] = kmalloc(
+                sizeof(struct uartCtx),
+                GFP_KERNEL);
+
+            if (NULL == gUartChn[i]) {
+                LOG_ERR("failed to create UART %d channel", i);
+
+                return (-ENOMEM);
+            }
+            uartCtxInit(
+                gUartChn[i],
+                i);
+        }
+    }
+
     gDrvManState = DRV_MAN_CREATE;
+    LOG_INFO("creating driver manager");
     retval = rtdm_task_init(
         &gTaskDrvMan,
         TASK_MANAGE_NAME,
@@ -250,7 +308,7 @@ static int drvManStart(
         0);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to create %s task", TASK_MANAGE_NAME);
+        LOG_ERR("failed to create %s driver manager", TASK_MANAGE_NAME);
 
         return (retval);
     }
@@ -265,13 +323,55 @@ static void drvManStop (
 
     int                 retval;
 
+    LOG_INFO("removing driver");
+
     switch (gDrvManState) {
         case DRV_MAN_RUN : {
+            u32             i;
+            volatile u32    cnt;
+            struct xUartCmd cmd;
+
+            memcpy(
+                &cmd.sender,
+                CTRL_QUEUE_NAME,
+                sizeof(CTRL_QUEUE_NAME));
+            cmd.cmdId = SIG_INTR_TERM;
+            cmd.signature = XUART_CMD_SIGNATURE;
+
+            for (i = 0; i < DEF_MAX_CHANNELS; i++) {
+
+                if (TRUE == portIsOnline(i)) {
+                    cmd.uartId = i;
+                    rt_queue_write(
+                        &gQctrl,
+                        &cmd,
+                        sizeof(struct xUartCmd),
+                        Q_URGENT);
+                }
+            }
+            cnt = -1;
+            while ((0U != gDrvManCtx.registeredFsm) && (0U != cnt--));
+            LOG_WARN_IF(0U == cnt, "failed to exit cleanly");
+
             rtdm_task_destroy(
                 &gTaskDrvMan);
             /* fall down */
         }
         case DRV_MAN_CREATE : {
+            u32         i;
+
+            for (i = 0U; i < DEF_MAX_CHANNELS; i++) {
+
+                if (NULL != gUartChn[i]) {
+                    fsmTerm(
+                        gUartChn[i]);
+                    kfree(
+                        gUartChn[i]);
+                }
+            }
+            /* fall down */
+        }
+        case DRV_MAN_FSM : {
             retval = rt_queue_delete(
                 &gQctrlWr);
             LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to delete %s queue", CTRL_WR_QUEUE_NAME);
@@ -279,8 +379,8 @@ static void drvManStop (
         }
         case DRV_MAN_Q_WR : {
             retval = rt_queue_delete(
-                &gQctrlRd);
-            LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to delete %s queue", CTRL_RD_QUEUE_NAME);
+                &gQctrl);
+            LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to delete %s queue", CTRL_QUEUE_NAME);
             /* fall down */
         }
         case DRV_MAN_Q_RD : {
@@ -293,70 +393,47 @@ static void drvManStop (
     }
 }
 
-
-
-struct uartCtx * xCtxCreate(
-    u8                  id) {
-
-
-}
-
-struct evtCmd {
-    esEvt_T             header;
-    xUartCmd_T *        cmd;
-};
-
-static void fillEvtFromCmd(
-    struct evtCmd *     evtCmd,
-    xUartCmd_T *        cmd) {
-
-    evtCmd->header.id = cmd->cmdId;
-    evtCmd->header.dynamic = 0U;
-    ES_DBG_API_OBLIGATION(evtCmd->header.signature = EVT_SIGNATURE;);
-    evtCmd->cmd = cmd;
-}
-
-static esFsm_T * getFsmFromId(u32 id) {
-    esFsm_T * fsm;
-
-    fsm = (esFsm_T *)&gUartChn[id]->fsm;
-
-    return (fsm);
-}
-
 static void taskDrvMan (
     void *              arg) {
 
-    char                buffRd[CTRL_RD_QUEUE_MSG_SIZE];
-    u8                  i;
+    int                 retval;
+    u32                 i;
+
+    gDrvManCtx.registeredFsm = 0;
 
     for (i = 0U; i < DEF_MAX_CHANNELS; i++) {
-        gUartChn[i] = NULL;
+
+        if (NULL != gUartChn[i]) {
+            fsmStart(
+                gUartChn[i]);
+        }
     }
 
-    while (TRUE) {
-        struct evtCmd   evt;
+    while (0U != gDrvManCtx.registeredFsm) {
         ssize_t         len;
         xUartCmd_T *    cmd;
-        esFsm_T *       fsm;
 
-        len = rt_queue_read(
-            &gQctrlRd,
-            &buffRd,
-            CTRL_RD_QUEUE_MSG_SIZE,
+        len = rt_queue_receive(
+            &gQctrl,
+            (void **)&cmd,
             TM_INFINITE);
-        cmd = (xUartCmd_T *)buffRd;
+        LOG_INFO("recv: cmd id: %d, UART: %d, from: %s", cmd->cmdId, cmd->uartId, cmd->sender);
 
-        if (FALSE == ctrlMsgIsValid(cmd, len)) {
+        if (FALSE == ctrlCmdIsValid(cmd, len)) {
+            LOG_ERR("sender: %s invalid control message", cmd->sender);
+
             continue;
         }
-        fillEvtFromCmd(&evt, cmd);
-        fsm = &gUartChn[cmd->uartId]->fsm;
-        esFsmDispatch(
-            fsm,
-            &evt);
+        if (FALSE == ctrlCmdUartIdIsValid(cmd)) {
+            LOG_ERR("sender: %s invalid UART ID: %d", cmd->sender, cmd->uartId);
+
+            continue;
+        }
+        fsmDispatch(
+            gUartChn[cmd->uartId],
+            cmd);
         rt_queue_free(
-            &gQctrlRd,
+            &gQctrl,
             cmd);
     }
 }
@@ -364,10 +441,25 @@ static void taskDrvMan (
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
+void drvManRegisterFSM(
+    u32                 id) {
+
+    gDrvManCtx.registeredFsm |= (0x01U << id);
+}
+
+void drvManUnregisterFSM(
+    u32                 id) {
+
+    gDrvManCtx.registeredFsm &= ~(0x01U << id);
+}
+
 int __init moduleInit(
     void) {
 
     int                 retval;
+
+    LOG_INFO(DEF_DRV_DESCRIPTION);
+    LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
 
     retval = drvManStart();
 
@@ -378,6 +470,7 @@ void __exit moduleTerm(
     void) {
 
     drvManStop();
+    LOG_INFO("driver removed");
 }
 
 void userAssert(
