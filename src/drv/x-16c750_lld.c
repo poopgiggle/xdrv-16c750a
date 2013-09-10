@@ -28,9 +28,9 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include "x-16c750_ioctl.h"
-#include "x-16c750_lld.h"
-#include "port.h"
+#include "drv/x-16c750_ctrl.h"
+#include "drv/x-16c750_lld.h"
+#include "port/port.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/
 
@@ -42,7 +42,7 @@
 
 /*======================================================  LOCAL DATA TYPES  ==*/
 
-const struct xUartProto gDefProtocol = {
+const struct protocol gDefProtocol = {
     .baud               = CFG_DEFAULT_BAUD_RATE,
     .parity             = XUART_PARITY_NONE,
     .dataBits           = XUART_DATA_8,
@@ -465,7 +465,7 @@ int lldDMAFIFOSetup(
 }
 
 void lldProtocolPrint(
-    const struct xUartProto * protocol) {
+    const struct protocol * protocol) {
 
     char *              parity;
     char *              stopBits;
@@ -543,7 +543,7 @@ void lldProtocolPrint(
  */
 int lldProtocolSet(
     volatile u8 *       ioRemap,
-    const struct xUartProto * protocol) {
+    const struct protocol * protocol) {
 
     u16                 tmp;
     u16                 arg;

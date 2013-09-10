@@ -23,46 +23,24 @@
  *//***********************************************************************//**
  * @file
  * @author  	Nenad Radulovic
- * @brief       IOCTL interface for 16C750 UART driver.
+ * @brief       Control interface for 16C750 UART driver.
  *********************************************************************//** @{ */
 
 #if !defined(X_16C750_IOCTL_H_)
 #define X_16C750_IOCTL_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
-
-#include <linux/ioctl.h>
-#include <rtdm/rtdm.h>
-
 /*===============================================================  MACRO's  ==*/
 
-/*------------------------------------------------------------------------*//**
- * @name        Macro group
- * @brief       brief description
- * @{ *//*--------------------------------------------------------------------*/
+#define XUART_CMD_SIGNATURE             0xDEADBEAFU
+#define XUART_CMD_Q_NAME_SIZE           10U
 
-#define XUART_IOCTL_VERSION             1
-
-#define XUART_IOCTL_TYPE                RTDM_CLASS_SERIAL
-
-#define XUART_PROTOCOL_GET                                                      \
-    _IOR(XUART_IOCTL_TYPE, 0x00,struct xUartProto)
-
-#define XUART_PROTOCOL_SET                                                      \
-    _IOW(XUART_IOCTL_TYPE, 0x01,struct xUartProto)
-
-/** @} *//*-------------------------------------------------------------------*/
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /*============================================================  DATA TYPES  ==*/
-
-/*------------------------------------------------------------------------*//**
- * @name        Data types group
- * @brief       brief description
- * @{ *//*--------------------------------------------------------------------*/
 
 enum xUartParity {
     XUART_PARITY_NONE,
@@ -81,30 +59,35 @@ enum xUartStopBits {
     XUART_STOP_2
 };
 
-struct xUartProto {
-    u32                 baud;
+
+enum xUartCmdId {
+    XUART_CMD_CHN_OPEN,
+    XUART_CMD_CHN_CLOSE,
+    XUART_CMD_CHN_GET_PARAM,
+    XUART_CMD_CHN_SET_PARAM
+};
+
+struct xUartCmd {
+    char                sender[XUART_CMD_Q_NAME_SIZE];
+    unsigned int        cmdId;
+    unsigned int        uartId;
+    unsigned int        signature;
+};
+
+typedef struct xUartCmd xUartCmd_T;
+
+struct xUartCmdProto {
+    struct xUartCmd     cmd;
+    unsigned int        baud;
     enum xUartParity    parity;
     enum xUartDataBits  dataBits;
     enum xUartStopBits  stopBits;
 };
 
-/** @} *//*-------------------------------------------------------------------*/
+typedef struct xUartCmdProto xUartCmdProto_T;
+
 /*======================================================  GLOBAL VARIABLES  ==*/
-
-/*------------------------------------------------------------------------*//**
- * @name        Variables group
- * @brief       brief description
- * @{ *//*--------------------------------------------------------------------*/
-
-/** @} *//*-------------------------------------------------------------------*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
-
-/*------------------------------------------------------------------------*//**
- * @name        Function group
- * @brief       brief description
- * @{ *//*--------------------------------------------------------------------*/
-
-/** @} *//*-------------------------------------------------------------------*/
 /*--------------------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
 }

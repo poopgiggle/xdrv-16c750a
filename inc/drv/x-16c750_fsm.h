@@ -23,98 +23,56 @@
  *//***********************************************************************//**
  * @file
  * @author  	Nenad Radulovic
- * @brief       Port interface
+ * @brief       Interface driver FSM
  *********************************************************************//** @{ */
 
-#if !defined(PORT_H_)
-#define PORT_H_
+#if !defined(X_16C750_FSM_H_)
+#define X_16C750_FSM_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include "x-16c750.h"
+#include "drv/x-16c750.h"
 
 /*===============================================================  MACRO's  ==*/
-
-/**@brief       Expand UART data as IO memory table
- */
-#define UART_DATA_EXPAND_AS_MEM(uart, mem, irq)                                 \
-    mem,
-
-/**@brief       Expand UART data as IRQ number table
- */
-#define UART_DATA_EXPAND_AS_IRQ(uart, mem, irq)                                 \
-    irq,
-
-/**@brief       Supported UARTs table
- */
-#define UART_DATA_EXPAND_AS_UART(uart, mem, iqr)                                \
-    uart,
-
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /*============================================================  DATA TYPES  ==*/
+
+enum internCmd {
+    SIG_INTR_TERM = 100
+};
+
 /*======================================================  GLOBAL VARIABLES  ==*/
-
-/**@brief       Hardware IO memory maps
- */
-extern const u32 gPortIOmap[];
-
-/**@brief       Hardware IRQ numbers
- */
-extern const u32 gPortIRQ[];
-
-/**@brief       Number of supported UARTs
- */
-extern const u32 gPortUartNum;
-
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
 /*------------------------------------------------------------------------*//**
- * @name        Port functions
+ * @name        Function group
+ * @brief       brief description
  * @{ *//*--------------------------------------------------------------------*/
 
-/**@brief       Create and init kernel device driver
- * @param       id
- *              Device driver ID as supplied by silicon manufacturer
- * @return      Private device data, needed to be saved somewhere for later
- *              reference
- */
-void * portInit(
-    u32                 id);
-
-/**@brief       Deinit and destroy kernel device driver
- * @param       devResource
- *              Pointer returned by portInit()
- */
-int portTerm(
-    void *              devResource);
-
-int portDMAInit(
+void fsmInit(
     struct uartCtx *    uartCtx);
 
-int portDMATerm(
+void fsmDispatch(
+    struct uartCtx *    uartCtx,
+    struct xUartCmd *   cmd);
+
+void fsmTerm(
     struct uartCtx *    uartCtx);
 
-u32 portModeGet(
-    u32                 baudrate);
+void fsmStart(
+    struct uartCtx *    uartCtx);
 
-u32 portDIVdataGet(
-    u32                 baudrate);
-
-volatile u8 * portIORemapGet(
-    void *              devResource);
-
-/** @} *//*-------------------------------------------------------------------*/
-/*--------------------------------------------------------  C++ extern end  --*/
+/** @} *//*-----------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
 }
 #endif
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
- * END of port.h
+ * END of x-16c750_fsm.h
  ******************************************************************************/
-#endif /* PORT_H_ */
+#endif /* X_16C750_FSM_H_ */

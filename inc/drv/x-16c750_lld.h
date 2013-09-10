@@ -255,7 +255,7 @@ enum lldState {
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 
-extern const struct xUartProto gDefProtocol;
+extern const struct protocol gDefProtocol;
 
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
@@ -405,10 +405,10 @@ int lldDMAFIFOSetup(
  */
 int lldProtocolSet(
     volatile u8 *       ioRemap,
-    const struct xUartProto * protocol);
+    const struct protocol * protocol);
 
 void lldProtocolPrint(
-    const struct xUartProto * protocol);
+    const struct protocol * protocol);
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************

@@ -23,104 +23,101 @@
  *//***********************************************************************//**
  * @file
  * @author  	Nenad Radulovic
- * @brief       Circular buffer interface
+ * @brief       Port interface
  *********************************************************************//** @{ */
 
-#if !defined(CIRC_BUFF_H_)
-#define CIRC_BUFF_H_
+#if !defined(PORT_H_)
+#define PORT_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include <linux/circ_buf.h>
+#include "drv/x-16c750.h"
+#include "compiler.h"
 
 /*===============================================================  MACRO's  ==*/
+
+/**@brief       Expand UART data as IO memory table
+ */
+#define UART_DATA_EXPAND_AS_MEM(uart, mem, irq)                                 \
+    mem,
+
+/**@brief       Expand UART data as IRQ number table
+ */
+#define UART_DATA_EXPAND_AS_IRQ(uart, mem, irq)                                 \
+    irq,
+
+/**@brief       Supported UARTs table
+ */
+#define UART_DATA_EXPAND_AS_UART(uart, mem, iqr)                                \
+    uart,
+
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /*============================================================  DATA TYPES  ==*/
-
-/*------------------------------------------------------------------------*//**
- * @name        Data types group
- * @brief       brief description
- * @{ *//*--------------------------------------------------------------------*/
-
-struct circBuff {
-    volatile u8 *       mem;
-    volatile u32        head;
-    volatile u32        tail;
-    u32                 size;
-    u32                 free;
-};
-
-typedef struct circBuff CIRC_BUFF;
-
-enum boolean {
-    TRUE,
-    FALSE
-};
-
-typedef enum boolean BOOLEAN;
-
-/** @} *//*-------------------------------------------------------------------*/
 /*======================================================  GLOBAL VARIABLES  ==*/
+
+/**@brief       Hardware IO memory maps
+ */
+extern const u32 gPortIOmap[];
+
+/**@brief       Hardware IRQ numbers
+ */
+extern const u32 gPortIRQ[];
+
+/**@brief       Number of supported UARTs
+ */
+extern const u32 gPortUartNum;
+
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
 /*------------------------------------------------------------------------*//**
- * @name        Function group
- * @brief       brief description
+ * @name        Port functions
  * @{ *//*--------------------------------------------------------------------*/
 
-void circInit(
-    CIRC_BUFF *         buff,
-    void *              mem,
-    size_t              size);
+/**@brief       Create and init kernel device driver
+ * @param       id
+ *              Device driver ID as supplied by silicon manufacturer
+ * @return      Private device data, needed to be saved somewhere for later
+ *              reference
+ */
+void * portInit(
+    u32                 id);
 
-void circItemPut(
-    CIRC_BUFF *         buff,
-    u8                  item);
+/**@brief       Deinit and destroy kernel device driver
+ * @param       devResource
+ *              Pointer returned by portInit()
+ */
+int portTerm(
+    void *              devResource);
 
-u8 circItemGet(
-    CIRC_BUFF *         buff);
+int portDMAInit(
+    struct uartCtx *    uartCtx);
 
-size_t circRemainingFreeGet(
-    const CIRC_BUFF *   buff);
+int portDMATerm(
+    struct uartCtx *    uartCtx);
 
-size_t circRemainingOccGet(
-    const CIRC_BUFF *   buff);
+u32 portModeGet(
+    u32                 baudrate);
 
-u8 * circMemBaseGet(
-    const CIRC_BUFF *   buff);
+u32 portDIVdataGet(
+    u32                 baudrate);
 
-u8 * circMemHeadGet(
-    const CIRC_BUFF *   buff);
+volatile u8 * portIORemapGet(
+    void *              devResource);
 
-u8 * circMemTailGet(
-    const CIRC_BUFF *   buff);
+bool_T portIsOnline(
+    u32                 id);
 
-void circPosHeadSet(
-    CIRC_BUFF *         buff,
-    s32                 position);
-
-void circPosTailSet(
-    CIRC_BUFF *         buff,
-    s32                 position);
-
-BOOLEAN circIsEmpty(
-    const CIRC_BUFF *   buff);
-
-BOOLEAN circIsFull(
-    const CIRC_BUFF *   buff);
-
-/** @} *//*-------------------------------------------------------------------*/
-/*--------------------------------------------------------  C++ extern end  --*/
+/** @} *//*-----------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
 }
 #endif
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
- * END of circ_buff.h
+ * END of port.h
  ******************************************************************************/
-#endif /* CIRC_BUFF_H_ */
+#endif /* PORT_H_ */

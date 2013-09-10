@@ -32,11 +32,12 @@
 #include <asm-generic/errno.h>
 #include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
-#include "x-16c750.h"
-#include "x-16c750_cfg.h"
-#include "x-16c750_lld.h"
+
+#include "drv/x-16c750.h"
+#include "drv/x-16c750_cfg.h"
+#include "drv/x-16c750_lld.h"
+#include "port/port.h"
 #include "plat_omap2.h"
-#include "port.h"
 #include "log.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/
@@ -371,6 +372,23 @@ u32 portDIVdataGet(
 
         return (gDIVdata[indx]);
     }
+}
+
+bool_T portIsOnline(
+    u32                 id) {
+
+    bool_T              ans;
+
+    /*
+     * TODO: This function should check if UART is not managed by Linux kernel
+     */
+    if (3 == id) {
+        ans = TRUE;
+    } else {
+        ans = FALSE;
+    }
+
+    return (ans);
 }
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/

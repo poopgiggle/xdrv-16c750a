@@ -37,8 +37,9 @@
 #include <native/heap.h>
 #include <native/queue.h>
 
-#include "circ_buff.h"
-#include "x-16c750_ioctl.h"
+#include "drv/x-16c750_ctrl.h"
+#include "circbuff/circbuff.h"
+#include "eds/smp.h"
 
 /*===============================================================  MACRO's  ==*/
 
@@ -46,6 +47,8 @@
  */
 #define RETVAL_SUCCESS                  0
 #define RETVAL_FAILURE                  !RETVAL_SUCCESS
+
+#define UARTCTX_SIGNATURE               ((u32)0xDEADDEEEU)
 
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
@@ -64,15 +67,16 @@ enum uartStatus {
     UART_STATUS_UNHANDLED_INTERRUPT
 };
 
-/**@brief       UART device context structure
+/**@brief       UART channel context structure
  */
 struct uartCtx {
+    esFsm_T             fsm;
     rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
     struct {
         RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
         RT_QUEUE            queueHandle;                                        /**<@brief Queue for RT comms                               */
-        CIRC_BUFF           buffHandle;                                         /**<@brief Buffer handle                                    */
+        circBuff_T          buffHandle;                                         /**<@brief Buffer handle                                    */
         nanosecs_rel_t      accTimeout;
         nanosecs_rel_t      oprTimeout;
         rtdm_event_t        opr;                                                /**<@brief Operational event                                */
@@ -84,12 +88,25 @@ struct uartCtx {
         volatile u8 *       io;
         u32                 IER;
     }                   cache;
-    struct xUartProto   proto;
+    struct protocol {
+        u32                 baud;
+        enum xUartParity    parity;
+        enum xUartDataBits  dataBits;
+        enum xUartStopBits  stopBits;
+    }                   proto;
+    u32                 id;
     u32                 signature;
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
+
+void drvManRegisterFSM(
+    u32                 id);
+
+void drvManUnregisterFSM(
+    u32                 id);
+
 /*--------------------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
 }

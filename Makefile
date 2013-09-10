@@ -1,8 +1,10 @@
-BASE_OBJECTS := src/x-16c750.o src/x-16c750_lld.o src/circ_buff.o
-obj-m += am335x-xuart.o
-am335x-xuart-y := $(BASE_OBJECTS) port/plat_omap2.o 
+BASE_OBJS := src/drv/x-16c750.o src/drv/x-16c750_lld.o src/drv/x-16c750_fsm.o
+CIRCBUFF_OBJS := src/circbuff/circbuff.o 
+EDS_OBJS := src/eds/smp.o src/eds/dbg.o
+obj-m += am335x_xuart.o
+am335x_xuart-y := $(BASE_OBJS) $(EDS_OBJS) $(CIRCBUFF_OBJS) port/plat_omap2.o 
 
-EXTRA_CFLAGS += -I$(PWD)/src -I$(PWD)/inc -Iinclude/xenomai 
+EXTRA_CFLAGS += -I$(PWD)/inc -Iinclude/xenomai 
 
 all:
 	make -C $(LINUX_SRC) M=$(PWD) modules
