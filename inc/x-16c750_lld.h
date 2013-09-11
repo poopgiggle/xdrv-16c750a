@@ -370,17 +370,20 @@ u16 lldModeGet(
 
 void lldIntEnable(
     volatile u8 *       ioRemap,
-    enum lldIntNum         intNum);
+    enum lldIntNum      intNum);
 
 void lldIntDisable(
     volatile u8 *       ioRemap,
-    enum lldIntNum         intNum);
+    enum lldIntNum      intNum);
 
 u16 lldIntGet(
     volatile u8 *       ioRemap);
 
-u16 lldIsIntPending(
-    volatile u8 *       ioRemap);
+struct devData * lldInit(
+    u32                 id);
+
+u32 lldTerm(
+    struct devData *    devData);
 
 int lldSoftReset(
     volatile u8 *       ioRemap);

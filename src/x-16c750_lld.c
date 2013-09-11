@@ -214,18 +214,6 @@ u16 lldIntGet(
     return (tmp);
 }
 
-u16 lldIsIntPending(
-    volatile u8 *       ioRemap) {
-
-    u16                 tmp;
-
-    tmp = lldRegRd(
-        ioRemap,
-        IIR);
-
-    return (tmp & IIR_IT_PENDING);
-}
-
 void lldEnhanced(
     volatile u8 *       ioRemap,
     enum lldState       state) {
@@ -292,42 +280,40 @@ int lldSoftReset(
     return (retval);
 }
 
-void lldInit(
-    volatile u8 *       io) {
+struct devData * lldInit(
+    u32                 id) {
 
-    struct {
-        u16             EFR;
-        u16             MCR;
-    }                   reg;
-    int                 retval;
+    struct devData *    devData;
 
-    /* Reset UART */
-    retval = lldSoftReset(io);
-    LOG_WARN_IF(RETVAL_FAILURE == retval, "failed to reset UART");
+    devData = portInit(
+        id);
 
-    /* Switch off DLL and DLH to access UART registers */
-    lldCfgModeSet(io, LLD_CFG_MODE_A);
-    lldRegWr(io, waDLL, 0U);
-    lldRegWr(io, waDLH, 0U);
-    lldCfgModeSet(io, LLD_CFG_MODE_NORM);
-    lldCfgModeSet(io,LLD_CFG_MODE_B);
-    reg.EFR = lldRegRd(io, bEFR);
-    lldRegWr(io, wbEFR, reg.EFR | EFR_ENHANCEDEN);
-    lldCfgModeSet(io, LLD_CFG_MODE_A);
-    reg.MCR = lldRegRd(io, aMCR);
-    lldRegWr(io, waMCR, reg.MCR | MCR_TCRTLR);
+    if (NULL != devData) {
+        volatile u8 * io;
 
-    /* FIFO reset and enable */
-    lldRegWr(io, waFCR, FCR_RX_FIFO_CLEAR | FCR_TX_FIFO_CLEAR);
-    lldRegWr(io, waFCR, FCR_RX_FIFO_TRIG_8 | FCR_TX_FIFO_TRIG_8 | FCR_FIFO_EN);
-    lldCfgModeSet(io, LLD_CFG_MODE_B);
-    lldRegWr(io, wbSCR, 0U);
-    lldRegWr(io, wbEFR, reg.EFR);
-    lldCfgModeSet(io, LLD_CFG_MODE_A);
-    lldRegWr(io, waMCR, reg.MCR);
+        io = portIORemapGet(
+            devData);
+        lldSoftReset(
+            io);
+        lldFIFOInit(
+            io);
+        lldEnhanced(
+            io,
+            LLD_ENABLE);
+    }
 
-    /* Protocol */
+    return (devData);
+}
 
+u32 lldTerm(
+    struct devData *    devData) {
+
+    u32                 retval;
+
+    retval = portTerm(
+        devData);
+
+    return (retval);
 }
 
 void lldFIFOInit(
