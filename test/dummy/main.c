@@ -42,9 +42,9 @@
 #define DEVICE_DRIVER_NAME              "xuart"
 #define TASK_SEND_NAME                  "UART_tester_send"
 #define TASK_RECV_NAME                  "UART_tester_recv"
-#define TASK_STKSZ                      0
-#define TASK_MODE                       0
-#define TASK_PRIO                       99
+#define TASK_SEND_STKSZ                      0
+#define TASK_SEND_MODE                       0
+#define TASK_SEND_PRIO                       99
 
 #if !defined(TEST0) && !defined(TEST1) && !defined(TEST2)
 #define TEST0
@@ -192,9 +192,9 @@ int main(
     retval = rt_task_create(
         &taskSendDesc,
         TASK_SEND_NAME,
-        TASK_STKSZ,
-        TASK_PRIO,
-        TASK_MODE);
+        TASK_SEND_STKSZ,
+        TASK_SEND_PRIO,
+        TASK_SEND_MODE);
 
     if (0 == retval) {
         retval = rt_task_start(
@@ -213,9 +213,9 @@ int main(
     retval = rt_task_create(
         &taskRecvDesc,
         TASK_RECV_NAME,
-        TASK_STKSZ,
-        TASK_PRIO,
-        TASK_MODE);
+        TASK_SEND_STKSZ,
+        TASK_SEND_PRIO,
+        TASK_SEND_MODE);
 
     if (0 == retval) {
         retval = rt_task_start(
