@@ -53,38 +53,6 @@ void circInit(
     buff->free = buff->size;
 }
 
-void circItemPut(
-    CIRC_BUFF *         buff,
-    u8                  item) {
-
-    buff->mem[buff->head] = item;
-    smp_wmb();
-    buff->free--;
-    buff->head++;
-
-    if (buff->head == buff->size) {
-        buff->head = 0;
-    }
-}
-
-u8 circItemGet(
-    CIRC_BUFF *         buff) {
-
-    u8                  tmp;
-
-    smp_read_barrier_depends();
-    tmp = buff->mem[buff->tail];
-    smp_mb();
-    buff->free++;
-    buff->tail++;
-
-    if (buff->tail == buff->size) {
-        buff->tail = 0;
-    }
-
-    return (tmp);
-}
-
 size_t circRemainingFreeGet(
     const CIRC_BUFF *   buff) {
 

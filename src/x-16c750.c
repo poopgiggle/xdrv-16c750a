@@ -457,7 +457,7 @@ static struct uartCtx * uartCtxFromDevCtx(
     return ((struct uartCtx *)rtdm_context_to_private(devCtx));
 }
 
-static u32 rxTransfer(
+static inline u32 rxTransfer(
     struct uartCtx *    uartCtx,
     volatile u8 *       io) {
 

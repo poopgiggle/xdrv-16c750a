@@ -77,12 +77,37 @@ void circInit(
     void *              mem,
     size_t              size);
 
-void circItemPut(
+static inline void circItemPut(
     CIRC_BUFF *         buff,
-    u8                  item);
+    u8                  item) {
 
-u8 circItemGet(
-    CIRC_BUFF *         buff);
+    buff->mem[buff->head] = item;
+    smp_wmb();
+    buff->free--;
+    buff->head++;
+
+    if (buff->head == buff->size) {
+        buff->head = 0;
+    }
+}
+
+static inline u8 circItemGet(
+    CIRC_BUFF *         buff) {
+
+    u8                  tmp;
+
+    smp_read_barrier_depends();
+    tmp = buff->mem[buff->tail];
+    smp_mb();
+    buff->free++;
+    buff->tail++;
+
+    if (buff->tail == buff->size) {
+        buff->tail = 0;
+    }
+
+    return (tmp);
+}
 
 size_t circRemainingFreeGet(
     const CIRC_BUFF *   buff);
