@@ -403,6 +403,14 @@ static int xUartCtxTerm(
 
     LOG_DBG("destroying device context");
     uartCtx->signature = ~UART_CTX_SIGNATURE;
+    rtdm_event_destroy(
+        &uartCtx->rx.opr);
+    rtdm_mutex_destroy(
+        &uartCtx->rx.acc);
+    rtdm_event_destroy(
+        &uartCtx->tx.opr);
+    rtdm_mutex_destroy(
+        &uartCtx->tx.acc);
     retval = rt_heap_free(
         &uartCtx->rx.heapHandle,
         circMemBaseGet(&uartCtx->rx.buffHandle));
@@ -555,14 +563,6 @@ static int handleClose(
         retval = rtdm_irq_free(
             &uartCtx->irqHandle);
         LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to unregister interrupt");
-        rtdm_event_destroy(
-            &uartCtx->rx.opr);
-        rtdm_mutex_destroy(
-            &uartCtx->rx.acc);
-        rtdm_event_destroy(
-            &uartCtx->tx.opr);
-        rtdm_mutex_destroy(
-            &uartCtx->tx.acc);
         retval = xUartCtxTerm(
             uartCtx);
         rtdm_lock_put_irqrestore(
