@@ -181,7 +181,8 @@ enum hwReg {
 #define IER_RHRIT                       (0x1U << 0)
 
 /* Interrupt Identification Register (IIR) : register bits                    */
-#define IIR_IT_TYPE_Mask                (0x1FU << 1)
+#define IIR_IT_TYPE_Mask                (0x3FU << 0)
+#define IIR_IT_TYPE_NONE                (0x01U << 0)
 #define IIR_IT_TYPE_THR                 (0x01U << 1)
 #define IIR_IT_TYPE_RHR                 (0x02U << 1)
 #define IIR_IT_TYPE_LINEST              (0x03U << 1)
@@ -203,6 +204,9 @@ enum hwReg {
 
 /* Supplementary Status Register (SSR) : register bits                        */
 #define SSR_TXFIFOFULL                  (0x01U << 0)
+
+/* Line Status Register (LSR) : register bits                                 */
+#define LSR_RXFIFOE                     (0x01U << 0)
 
 /** @} *//*-------------------------------------------------------------------*/
 /*============================================================  DATA TYPES  ==*/
@@ -242,6 +246,7 @@ enum cfgParity {
 
 enum lldIntNum {
     LLD_INT_ALL         = 0xFFU,
+    LLD_INT_NONE        = IIR_IT_TYPE_NONE,
     LLD_INT_RX          = IIR_IT_TYPE_RHR,
     LLD_INT_RX_TIMEOUT  = IIR_IT_TYPE_RX_TIMEOUT,
     LLD_INT_TX          = IIR_IT_TYPE_THR,
