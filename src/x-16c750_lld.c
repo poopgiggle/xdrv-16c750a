@@ -40,6 +40,17 @@
 #define U16_HIGH_BYTE(val)                                                      \
     ((val) >> 8)
 
+#if (CFG_FIFO_TRIG <= 8)
+# define FIFO_RX_LVL                    FCR_RX_FIFO_TRIG_8
+# define FIFO_TX_LVL                    FCR_TX_FIFO_TRIG_8
+#elif (CFG_FIFO_TRIG <= 16)
+# define FIFO_RX_LVL                    FCR_RX_FIFO_TRIG_16
+# define FIFO_TX_LVL                    FCR_TX_FIFO_TRIG_16
+#else
+# define FIFO_RX_LVL                    FCR_RX_FIFO_TRIG_56
+# define FIFO_TX_LVL                    FCR_TX_FIFO_TRIG_56
+#endif
+
 /*======================================================  LOCAL DATA TYPES  ==*/
 
 const struct xUartProto gDefProtocol = {
@@ -201,19 +212,6 @@ void lldIntDisable(
         tmp);
 }
 
-u16 lldIntGet(
-    volatile u8 *       ioRemap) {
-
-    u16                 tmp;
-
-    tmp = lldRegRd(
-        ioRemap,
-        IIR);
-    tmp &= IIR_IT_TYPE_Mask;
-
-    return (tmp);
-}
-
 void lldEnhanced(
     volatile u8 *       ioRemap,
     enum lldState       state) {
@@ -355,7 +353,7 @@ void lldFIFOInit(
     lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
         ioRemap,                                                                /* (1/2)                                                    */
         waFCR,
-        FCR_RX_FIFO_TRIG_56 | FCR_TX_FIFO_TRIG_56 |
+        FIFO_RX_LVL | FIFO_TX_LVL |
             FCR_TX_FIFO_CLEAR | FCR_RX_FIFO_CLEAR | FCR_FIFO_EN);
     lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
         ioRemap,                                                                /* register                                                 */

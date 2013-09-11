@@ -31,11 +31,8 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include <linux/platform_device.h>
-
 #include <rtdm/rtdm_driver.h>
 #include <native/heap.h>
-#include <native/queue.h>
 
 #include "circ_buff.h"
 #include "x-16c750_ioctl.h"
@@ -82,6 +79,7 @@ struct uartCtx {
     struct {
         volatile u8 *       io;
         u32                 IER;
+        u32                 LSR;
     }                   cache;
     struct xUartProto   proto;
     u32                 signature;

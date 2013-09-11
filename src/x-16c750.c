@@ -105,6 +105,9 @@ static int xUartCtxInit(
 static int xUartCtxTerm(
     struct uartCtx *    uartCtx);
 
+static BOOLEAN xProtoIsValid(
+    const struct xUartProto * proto);
+
 static void xProtoSet(
     struct uartCtx *    uartCtx,
     const struct xUartProto *  proto);
@@ -112,7 +115,7 @@ static void xProtoSet(
 static struct uartCtx * uartCtxFromDevCtx(
     struct rtdm_dev_context * devCtx);
 
-static u32 rxTransfer(
+static inline u32 rxTransfer(
     struct uartCtx *    uartCtx,
     volatile u8 *       io);
 

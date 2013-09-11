@@ -42,14 +42,6 @@
  */
 #define CFG_UART_ID                     3
 
-#define CFG_Q_NAME_MAX_SIZE             10
-
-#define CFG_Q_TX_NAME                   "uartQTx"
-#define CFG_Q_TX_SIZE                   4096UL
-
-#define CFG_Q_RX_NAME                   "uartQRx"
-#define CFG_Q_RX_SIZE                   4096UL
-
 #define CFG_DBG_ENABLE                  0
 
 /** @} *//*---------------------------------------------------------------*//**
@@ -67,7 +59,7 @@
  *              Higher values:  + data flow is more consistent
  *                              - interrupts are generated very often
  */
-#define CFG_FIFO_TRIG                   8
+#define CFG_FIFO_TRIG                   56
 
 /** @} *//*---------------------------------------------------------------*//**
  * @name        Default driver settings
