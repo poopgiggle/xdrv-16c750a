@@ -45,7 +45,7 @@
 
 #define DEF_DRV_VERSION_MAJOR           1
 #define DEF_DRV_VERSION_MINOR           0
-#define DEF_DRV_VERSION_PATCH           0
+#define DEF_DRV_VERSION_PATCH           1
 #define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
 #define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
@@ -110,6 +110,13 @@ static int xUartCtxTerm(
 static void xProtoSet(
     struct uartCtx *    uartCtx,
     const struct xUartProto *  proto);
+
+static struct uartCtx * uartCtxFromDevCtx(
+    struct rtdm_dev_context * devCtx);
+
+static u32 rxTransfer(
+    struct uartCtx *    uartCtx,
+    volatile u8 *       io);
 
 /**@brief       Named device open handler
  */
@@ -503,6 +510,41 @@ static struct uartCtx * uartCtxFromDevCtx(
     struct rtdm_dev_context * devCtx) {
 
     return ((struct uartCtx *)rtdm_context_to_private(devCtx));
+}
+
+static u32 rxTransfer(
+    struct uartCtx *    uartCtx,
+    volatile u8 *       io) {
+
+    u32         transfered;
+
+    transfered = 0U;
+
+    do {
+        u16 item;
+
+        item = lldRegRd(
+            io,
+            RHR);
+
+        if (FALSE == circIsFull(&uartCtx->rx.buffHandle)) {
+            circItemPut(
+                &uartCtx->rx.buffHandle,
+                item);
+            transfered++;
+        } else {
+            cIntDisable(
+                uartCtx,
+                C_INT_RX | C_INT_RX_TIMEOUT);
+            uartCtx->rx.status = UART_STATUS_SOFT_OVERFLOW;
+            /*
+             * TODO: Flush FIFO here
+             */
+            break;
+        }
+    } while (0U != (LSR_RXFIFOE & lldRegRd(io, LSR)));
+
+    return (transfered);
 }
 
 static int handleOpen(
@@ -912,6 +954,7 @@ static int handleWr(
                 uartCtx->rx.status = UART_STATUS_TIMEOUT;
                 retval = RETVAL_SUCCESS;
             }
+
             break;
         }
     }
@@ -925,42 +968,6 @@ static int handleWr(
     return (retval);
 }
 
-u32 rxTransfer(struct uartCtx * uartCtx, volatile u8 * io) {
-
-    u32         transfered;
-
-    transfered = 0U;
-
-    do {
-
-        if (FALSE == circIsFull(&uartCtx->rx.buffHandle)) {
-            u16 item;
-
-            item = lldRegRd(
-                io,
-                RHR);
-            circItemPut(
-                &uartCtx->rx.buffHandle,
-                item);
-            transfered++;
-        } else {
-            cIntDisable(
-                uartCtx,
-                C_INT_RX | C_INT_RX_TIMEOUT);
-            uartCtx->rx.status = UART_STATUS_SOFT_OVERFLOW;
-            lldRegRd(
-                io,
-                RHR);
-            /*
-             * TODO: Flush FIFO here
-             */
-            break;
-        }
-    } while (0U != (LSR_RXFIFOE & lldRegRd(io, LSR)));
-
-    return (transfered);
-}
-
 static int handleIrq(
     rtdm_irq_t *        arg) {
 
@@ -968,17 +975,9 @@ static int handleIrq(
     volatile u8 *       io;
     int                 retval;
     enum lldIntNum      intNum;
-    u32                 evtRx;
-    u32                 evtTx;
-
-    u32 temp;
-
-    temp = 0U;
 
     uartCtx = rtdm_irq_get_arg(arg, struct uartCtx);
     io = uartCtx->cache.io;
-    evtRx = 0U;
-    evtTx = 0U;
     retval = RTDM_IRQ_HANDLED;
     rtdm_lock_get(&uartCtx->lock);
     uartCtx->rx.status = UART_STATUS_NORMAL;
@@ -993,13 +992,15 @@ static int handleIrq(
             transfered = rxTransfer(uartCtx, io);
 
             if (transfered >= uartCtx->rx.pend) {
-                evtRx = 1U;
+                rtdm_event_signal(
+                    &uartCtx->rx.opr);
             }
 
+        /*-- Receive timeout interrupt ---------------------------------------*/
         } else if (LLD_INT_RX_TIMEOUT == intNum) {
             (void)rxTransfer(uartCtx, io);
-            evtRx = 1U;
-            temp = 1U;
+            rtdm_event_signal(
+                &uartCtx->rx.opr);
 
         /*-- Transmit interrupt ----------------------------------------------*/
         } else if (LLD_INT_TX == intNum) {
@@ -1019,7 +1020,9 @@ static int handleIrq(
                     cIntDisable(
                         uartCtx,
                         C_INT_TX);
-                    evtTx = 1U;
+                    rtdm_event_signal(
+                        &uartCtx->tx.opr);
+
                     break;
                 }
             }
@@ -1040,21 +1043,7 @@ static int handleIrq(
             break;
         }
     }
-
-    if (0U != evtRx) {                                                          /* Notify read listeners                                    */
-        rtdm_event_signal(
-            &uartCtx->rx.opr);
-    }
-
-    if (0U != evtTx) {                                                          /* Notify write listeners                                   */
-        rtdm_event_signal(
-            &uartCtx->tx.opr);
-    }
     rtdm_lock_put(&uartCtx->lock);
-
-    if (0 != temp) {
-        LOG_INFO("stale read");
-    }
 
     return (retval);
 }
