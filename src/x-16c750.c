@@ -283,6 +283,11 @@ static int xUartCtxInit(
     int                 retval;
     void *              buff;
 
+    if (UART_CTX_SIGNATURE == uartCtx->signature) {
+        LOG_ERR("UART context already initialized");
+
+        return (-EINVAL);
+    }
     /*-- STATE: init ---------------------------------------------------------*/
     state = CTX_STATE_INIT;
     LOG_DBG("creating device context");
@@ -373,6 +378,20 @@ static int xUartCtxInit(
     uartCtx->rx.oprTimeout  = MS_TO_NS(CFG_TIMEOUT_MS);
     uartCtx->rx.status      = UART_STATUS_NORMAL;
     uartCtx->signature      = UART_CTX_SIGNATURE;
+
+    xProtoSet(
+        uartCtx,
+        &gDefProtocol);
+    rtdm_mutex_init(
+        &uartCtx->tx.acc);
+    rtdm_event_init(
+        &uartCtx->tx.opr,
+        0);
+    rtdm_mutex_init(
+        &uartCtx->rx.acc);
+    rtdm_event_init(
+        &uartCtx->rx.opr,
+        0);
 
     return (retval);
 }
@@ -482,12 +501,6 @@ static int handleOpen(
     io = portIORemapGet(devCtx->device->device_data);
     id = devCtx->device->device_id;
     LOG_INFO("open UART: %d", devCtx->device->device_id);
-
-    if (UART_CTX_SIGNATURE == uartCtx->signature) {
-        LOG_ERR("UART context already initialized");
-
-        return (-EINVAL);
-    }
     rtdm_lock_init(&uartCtx->lock);
     rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
     retval = xUartCtxInit(
@@ -501,26 +514,6 @@ static int handleOpen(
 
         return (retval);
     }
-    lldSoftReset(
-        io);
-    lldFIFOInit(
-        io);
-    lldEnhanced(
-        io,
-        LLD_ENABLE);
-    xProtoSet(
-        uartCtx,
-        &gDefProtocol);
-    rtdm_mutex_init(
-        &uartCtx->tx.acc);
-    rtdm_event_init(
-        &uartCtx->tx.opr,
-        0);
-    rtdm_mutex_init(
-        &uartCtx->rx.acc);
-    rtdm_event_init(
-        &uartCtx->rx.opr,
-        0);
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
         gPortIRQ[id],
@@ -982,7 +975,7 @@ static void moduleCleanup(
 
     switch (state) {
         case MOD_STATE_DEV_REG : {
-            portTerm(
+            lldTerm(
                 gUartDev.device_data);
             /* fall down */
         }
@@ -1014,7 +1007,7 @@ int __init moduleInit(
     state = MOD_STATE_PORT;
     LOG_INFO(DEF_DRV_DESCRIPTION);
     LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
-    gUartDev.device_data = portInit(
+    gUartDev.device_data = lldInit(
         gUartDev.device_id);                                                    /* Initialize Linux device driver                           */
 
     if (NULL == gUartDev.device_data) {
@@ -1049,7 +1042,7 @@ void __exit moduleTerm(
         &gUartDev,
         CFG_WAIT_EXIT_MS);
     LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
-    retval = portTerm(
+    retval = lldTerm(
         gUartDev.device_data);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed terminate platform device driver");
 }
