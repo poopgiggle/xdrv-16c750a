@@ -68,8 +68,6 @@
  */
 enum ctxState {
     CTX_STATE_INIT,                                                             /**<@brief STATE_INIT                                       */
-    CTX_STATE_TX_ALLOC,                                                         /**<@brief STATE_TX_ALLOC                                   */
-    CTX_STATE_RX_ALLOC,                                                         /**<@brief STATE_RX_ALLOC                                   */
     CTX_STATE_TX_BUFF,
     CTX_STATE_TX_BUFF_ALLOC,
     CTX_STATE_RX_BUFF,
@@ -266,24 +264,6 @@ static void xUartCtxCleanup(
         }
 
         case CTX_STATE_TX_BUFF : {
-            LOG_INFO("reversing action: RX allocate");
-            (void)rt_queue_flush(
-                &uartCtx->rx.queueHandle);
-            (void)rt_queue_delete(
-                &uartCtx->rx.queueHandle);
-            /* fall through */
-        }
-
-        case CTX_STATE_RX_ALLOC: {
-            LOG_INFO("reversing action: TX allocate");
-            (void)rt_queue_flush(
-                &uartCtx->tx.queueHandle);
-            (void)rt_queue_delete(
-                &uartCtx->tx.queueHandle);
-            /* fall through */
-        }
-
-        case CTX_STATE_TX_ALLOC: {
             LOG_INFO("reversing action: init");
             break;
         }
@@ -299,8 +279,6 @@ static int xUartCtxInit(
     volatile u8 *       io,
     u32                 id) {
 
-    char                qTxName[CFG_Q_NAME_MAX_SIZE + 1U];
-    char                qRxName[CFG_Q_NAME_MAX_SIZE + 1U];
     enum ctxState       state;
     int                 retval;
     void *              buff;
@@ -308,54 +286,6 @@ static int xUartCtxInit(
     /*-- STATE: init ---------------------------------------------------------*/
     state = CTX_STATE_INIT;
     LOG_DBG("creating device context");
-    scnprintf(
-        qTxName,
-        CFG_Q_NAME_MAX_SIZE,
-        CFG_Q_TX_NAME ".%d",
-        id);
-    scnprintf(
-        qRxName,
-        CFG_Q_NAME_MAX_SIZE,
-        CFG_Q_RX_NAME ".%d",
-        id);
-
-    /*-- STATE: TX allocate --------------------------------------------------*/
-    state = CTX_STATE_TX_ALLOC;
-    LOG_INFO("TX queue: %s, size: %ld", qTxName, CFG_Q_TX_SIZE);
-    retval = rt_queue_create(
-        &uartCtx->tx.queueHandle,
-        qTxName,
-        CFG_Q_TX_SIZE,
-        Q_UNLIMITED,
-        Q_PRIO | Q_SHARED);
-
-    if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to create queue");
-        xUartCtxCleanup(
-            uartCtx,
-            state);
-
-        return (retval);
-    }
-
-    /*-- STATE: RX allocate --------------------------------------------------*/
-    state = CTX_STATE_RX_ALLOC;
-    LOG_INFO("RX queue: %s, size: %ld", qRxName, CFG_Q_RX_SIZE);
-    retval = rt_queue_create(
-        &uartCtx->rx.queueHandle,
-        qRxName,
-        CFG_Q_RX_SIZE,
-        Q_UNLIMITED,
-        Q_PRIO | Q_SHARED);
-
-    if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to create queue");
-        xUartCtxCleanup(
-            uartCtx,
-            state);
-
-        return (retval);
-    }
 
     /*-- STATE: Create TX buffer ---------------------------------------------*/
     state  = CTX_STATE_TX_BUFF;
@@ -436,11 +366,11 @@ static int xUartCtxInit(
     /*-- Prepare UART data ---------------------------------------------------*/
     uartCtx->cache.io       = io;
     uartCtx->cache.IER      = lldRegRd(io, IER);
-    uartCtx->tx.accTimeout  = MS_TO_NS(CFG_WAIT_WR_MS);
-    uartCtx->tx.oprTimeout  = MS_TO_NS(CFG_WAIT_WR_MS);
+    uartCtx->tx.accTimeout  = MS_TO_NS(CFG_TIMEOUT_MS);
+    uartCtx->tx.oprTimeout  = MS_TO_NS(CFG_TIMEOUT_MS);
     uartCtx->tx.status      = UART_STATUS_NORMAL;
-    uartCtx->rx.accTimeout  = MS_TO_NS(CFG_WAIT_WR_MS);
-    uartCtx->rx.oprTimeout  = MS_TO_NS(CFG_WAIT_WR_MS);
+    uartCtx->rx.accTimeout  = MS_TO_NS(CFG_TIMEOUT_MS);
+    uartCtx->rx.oprTimeout  = MS_TO_NS(CFG_TIMEOUT_MS);
     uartCtx->rx.status      = UART_STATUS_NORMAL;
     uartCtx->signature      = UART_CTX_SIGNATURE;
 
@@ -468,18 +398,6 @@ static int xUartCtxTerm(
     retval = rt_heap_delete(
         &uartCtx->tx.heapHandle);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal TX buffer");
-    retval = rt_queue_flush(
-        &uartCtx->rx.queueHandle);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to flush RX queue");
-    retval = rt_queue_delete(
-        &uartCtx->rx.queueHandle);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete RX queue");
-    retval = rt_queue_flush(
-        &uartCtx->tx.queueHandle);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to flush TX queue");
-    retval = rt_queue_delete(
-        &uartCtx->tx.queueHandle);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete TX queue");
 
     return (retval);
 }
@@ -560,9 +478,16 @@ static int handleOpen(
 
     uartCtx = uartCtxFromDevCtx(
         devCtx);
+
     io = portIORemapGet(devCtx->device->device_data);
     id = devCtx->device->device_id;
     LOG_INFO("open UART: %d", devCtx->device->device_id);
+
+    if (UART_CTX_SIGNATURE == uartCtx->signature) {
+        LOG_ERR("UART context already initialized");
+
+        return (-EINVAL);
+    }
     rtdm_lock_init(&uartCtx->lock);
     rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
     retval = xUartCtxInit(
@@ -808,14 +733,16 @@ static int handleRd(
                 transfer);
             src = circMemTailGet(
                 &uartCtx->rx.buffHandle);
+            uartCtx->rx.pend = bytes;
             rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
         } else {
-            uartCtx->rx.pend = bytes;
+
             if (0U == (cIntEnabledGet(uartCtx) & (C_INT_RX | C_INT_RX_TIMEOUT))) {
                 cIntEnable(
                     uartCtx,
                     C_INT_RX | C_INT_RX_TIMEOUT);
             }
+            uartCtx->rx.pend = bytes;
             rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
 
             retval = rtdm_event_timedwait(
@@ -916,6 +843,7 @@ static int handleWr(
                     uartCtx->tx.status = UART_STATUS_FAULT_USAGE;
                     retval = -EFAULT;
                     rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+
                     break;                                                      /* Exit from loop                                           */
                 }
             } else {
@@ -1040,6 +968,7 @@ static int handleIrq(
             lldIntDisable(
                 uartCtx->cache.io,
                 LLD_INT_ALL);
+
             break;
         }
     }

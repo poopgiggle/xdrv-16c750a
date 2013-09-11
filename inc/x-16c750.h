@@ -71,14 +71,12 @@ struct uartCtx {
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
     struct {
         RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
-        RT_QUEUE            queueHandle;                                        /**<@brief Queue for RT comms                               */
         CIRC_BUFF           buffHandle;                                         /**<@brief Buffer handle                                    */
         nanosecs_rel_t      accTimeout;
         nanosecs_rel_t      oprTimeout;
         rtdm_event_t        opr;                                                /**<@brief Operational event                                */
         rtdm_mutex_t        acc;                                                /**<@brief Access mutex                                     */
         u32                 pend;
-        void *              queue;                                              /**<@brief Buffer storage                                   */
         enum uartStatus     status;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
     struct {
