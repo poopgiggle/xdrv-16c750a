@@ -77,6 +77,7 @@ struct uartCtx {
         nanosecs_rel_t      oprTimeout;
         rtdm_event_t        opr;                                                /**<@brief Operational event                                */
         rtdm_mutex_t        acc;                                                /**<@brief Access mutex                                     */
+        u32                 pend;
         void *              queue;                                              /**<@brief Buffer storage                                   */
         enum uartStatus     status;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
