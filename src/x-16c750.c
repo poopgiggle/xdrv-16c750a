@@ -465,7 +465,7 @@ static inline u32 rxTransfer(
     volatile u8 *       io) {
 
     u32         transfered;
-
+#if 1
     transfered = 0U;
 
     do {
@@ -491,6 +491,10 @@ static inline u32 rxTransfer(
             break;
         }
     } while (0U != (LSR_RXFIFOE & lldRegRd(io, LSR)));
+#else
+    u32 transfer;
+#endif
+
 
     return (transfered);
 }
@@ -685,7 +689,7 @@ static int handleRd(
     src = circMemTailGet(
         &uartCtx->rx.buffHandle);
 
-    while (0U < bytes) {
+    while (TRUE) {
         size_t          remaining;
         size_t          transfer;
         rtdm_lockctx_t  lockCtx;
@@ -729,35 +733,37 @@ static int handleRd(
                 transfer);
             src = circMemTailGet(
                 &uartCtx->rx.buffHandle);
-            uartCtx->rx.pend = bytes;
-            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-        } else {
 
-            if (0U == (cIntEnabledGet(uartCtx) & (C_INT_RX | C_INT_RX_TIMEOUT))) {
-                cIntEnable(
-                    uartCtx,
-                    C_INT_RX | C_INT_RX_TIMEOUT);
-            }
-            uartCtx->rx.pend = bytes;
-            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-
-            retval = rtdm_event_timedwait(
-                &uartCtx->rx.opr,
-                uartCtx->rx.oprTimeout,
-                &oprTimeSeq);
-
-            if (RETVAL_SUCCESS != retval) {
-
-                if (-EIDRM == retval) {
-                    uartCtx->rx.status = UART_STATUS_BAD_FILE_NUMBER;
-                    retval = -EBADF;
-                } else {
-                    uartCtx->rx.status = UART_STATUS_TIMEOUT;
-                    retval = RETVAL_SUCCESS;
-                }
+            if (0U == bytes) {
+                rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
 
                 break;
             }
+        }
+
+        if (0U == (cIntEnabledGet(uartCtx) & (C_INT_RX | C_INT_RX_TIMEOUT))) {
+            cIntEnable(
+                uartCtx,
+                C_INT_RX | C_INT_RX_TIMEOUT);
+        }
+        uartCtx->rx.pend = bytes;
+        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+        retval = rtdm_event_timedwait(
+            &uartCtx->rx.opr,
+            uartCtx->rx.oprTimeout,
+            &oprTimeSeq);
+
+        if (RETVAL_SUCCESS != retval) {
+
+            if (-EIDRM == retval) {
+                uartCtx->rx.status = UART_STATUS_BAD_FILE_NUMBER;
+                retval = -EBADF;
+            } else {
+                uartCtx->rx.status = UART_STATUS_TIMEOUT;
+                retval = RETVAL_SUCCESS;
+            }
+
+            break;
         }
     }
     rtdm_mutex_unlock(
@@ -864,6 +870,7 @@ static int handleWr(
                     uartCtx,
                     C_INT_TX);
             }
+            uartCtx->tx.pend = FALSE;
             rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
         } else {
 
@@ -872,6 +879,7 @@ static int handleWr(
                     uartCtx,
                     C_INT_TX);
             }
+            uartCtx->tx.pend = TRUE;
             rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
             retval = rtdm_event_timedwait(
                 &uartCtx->tx.opr,
@@ -910,6 +918,13 @@ static int handleIrq(
     int                 retval;
     enum lldIntNum      intNum;
 
+    RTIME begin, end;
+    u32 cnt;
+
+    begin = 0UL;
+    end = 0UL;
+    cnt = 0UL;
+
     uartCtx = rtdm_irq_get_arg(arg, struct uartCtx);
     io = uartCtx->cache.io;
     retval = RTDM_IRQ_HANDLED;
@@ -917,6 +932,7 @@ static int handleIrq(
     uartCtx->rx.status = UART_STATUS_NORMAL;
 
     while (LLD_INT_NONE != (intNum = lldIntGet(io))) {                                          /* Loop until there are interrupts to process               */
+        cnt++;
 
         /*-- Receive interrupt -----------------------------------------------*/
         if (LLD_INT_RX == intNum) {
@@ -938,7 +954,6 @@ static int handleIrq(
 
         /*-- Transmit interrupt ----------------------------------------------*/
         } else if (LLD_INT_TX == intNum) {
-
             while (0 == (lldRegRd(io,SSR) & SSR_TXFIFOFULL)) {
 
                 if (FALSE == circIsEmpty(&uartCtx->tx.buffHandle)) {
@@ -954,8 +969,12 @@ static int handleIrq(
                     cIntDisable(
                         uartCtx,
                         C_INT_TX);
-                    rtdm_event_signal(
-                        &uartCtx->tx.opr);
+
+                    if (TRUE == uartCtx->tx.pend) {
+                        uartCtx->tx.pend = FALSE;
+                        rtdm_event_signal(
+                            &uartCtx->tx.opr);
+                    }
 
                     break;
                 }

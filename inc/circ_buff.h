@@ -57,8 +57,8 @@ struct circBuff {
 typedef struct circBuff CIRC_BUFF;
 
 enum boolean {
-    TRUE,
-    FALSE
+    TRUE                = 1,
+    FALSE               = 0
 };
 
 typedef enum boolean BOOLEAN;

@@ -176,7 +176,7 @@ static void taskSend(
     retval = rt_task_set_periodic(
         NULL,
         TM_NOW,
-        SEC_TO_NS(1));
+        MS_TO_NS(100));
     LOG_ERR_IF(0 != retval, "failed to set period (err: %d)", retval);
 
     while (true) {

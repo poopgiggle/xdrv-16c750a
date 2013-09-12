@@ -75,6 +75,8 @@ enum hwUart {
 struct devData {
     volatile u8 *       io;
     struct platform_device * platDev;
+#if (1 == CFG_DMA_ENABLE)
+#endif
 };
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
@@ -323,6 +325,12 @@ int portTerm(
         devData);
 
     return (retval);
+}
+
+void portDMAinit(
+    struct devData *    devData) {
+
+
 }
 
 enum lldMode portModeGet(
