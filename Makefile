@@ -2,15 +2,15 @@ BASE_OBJECTS := src/x-16c750.o src/x-16c750_lld.o src/circ_buff.o
 
 obj-m += am335x-xuart.o
 
-PORT_ARCH := arm
-PORT_PLAT := $(PORT_ARCH)/omap2
+M_PORT_ARCH := arm
+M_PORT_PLAT := $(M_PORT_ARCH)/omap2
 
-PORT_OBJECTS := port/$(PORT_PLAT)/plat_omap2.o
-PORT_INCLUDE := $(PORT_ARCH)
+M_PORT_OBJECTS := port/$(M_PORT_PLAT)/plat_omap2.o
+M_PORT_INCLUDE := $(M_PORT_ARCH)
 
-am335x-xuart-y := $(BASE_OBJECTS) $(PORT_OBJECTS)
+am335x-xuart-y := $(BASE_OBJECTS) $(M_PORT_OBJECTS)
 
-C_INCLUDE := -I$(PWD) -I$(PWD)/inc -I$(PWD)/port/$(PORT_INCLUDE) -Iinclude/xenomai 
+C_INCLUDE := -I$(PWD) -I$(PWD)/inc -I$(PWD)/port/$(M_PORT_INCLUDE) -Iinclude/xenomai 
 EXTRA_CFLAGS += $(C_INCLUDE)
 
 
