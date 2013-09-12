@@ -820,6 +820,7 @@ static int handleWr(
         remaining = circRemainingFreeGet(
             &uartCtx->tx.buffHandle);
 
+
         if (0U != remaining) {
 
             if (remaining < bytes) {
@@ -856,30 +857,39 @@ static int handleWr(
                 transfer);
             dst = circMemHeadGet(
                 &uartCtx->tx.buffHandle);
-        }
 
-        if (0U == (cIntEnabledGet(uartCtx) & C_INT_TX)) {
-            cIntEnable(
-                uartCtx,
-                C_INT_TX);
-        }
-        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-        retval = rtdm_event_timedwait(
-            &uartCtx->tx.opr,
-            uartCtx->tx.oprTimeout,
-            &oprTimeSeq);
 
-        if (RETVAL_SUCCESS != retval) {
-
-            if (-EIDRM == retval) {
-                uartCtx->rx.status = UART_STATUS_BAD_FILE_NUMBER;
-                retval = -EBADF;
-            } else {
-                uartCtx->rx.status = UART_STATUS_TIMEOUT;
-                retval = RETVAL_SUCCESS;
+            if (0U == (cIntEnabledGet(uartCtx) & C_INT_TX)) {
+                cIntEnable(
+                    uartCtx,
+                    C_INT_TX);
             }
+            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+        } else {
 
-            break;
+            if (0U == (cIntEnabledGet(uartCtx) & C_INT_TX)) {
+                cIntEnable(
+                    uartCtx,
+                    C_INT_TX);
+            }
+            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+            retval = rtdm_event_timedwait(
+                &uartCtx->tx.opr,
+                uartCtx->tx.oprTimeout,
+                &oprTimeSeq);
+
+            if (RETVAL_SUCCESS != retval) {
+
+                if (-EIDRM == retval) {
+                    uartCtx->rx.status = UART_STATUS_BAD_FILE_NUMBER;
+                    retval = -EBADF;
+                } else {
+                    uartCtx->rx.status = UART_STATUS_TIMEOUT;
+                    retval = RETVAL_SUCCESS;
+                }
+
+                break;
+            }
         }
     }
     rtdm_mutex_unlock(
