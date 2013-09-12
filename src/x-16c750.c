@@ -105,7 +105,7 @@ static int xUartCtxInit(
 static int xUartCtxTerm(
     struct uartCtx *    uartCtx);
 
-static BOOLEAN xProtoIsValid(
+static bool_T xProtoIsValid(
     const struct xUartProto * proto);
 
 static void xProtoSet(
@@ -432,7 +432,7 @@ static int xUartCtxTerm(
     return (retval);
 }
 
-static BOOLEAN xProtoIsValid(
+static bool_T xProtoIsValid(
     const struct xUartProto * proto) {
 
     /*
