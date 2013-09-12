@@ -31,8 +31,7 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include <linux/circ_buf.h>
-#include "port/compiler.h"
+#include "arch/compiler.h"
 
 /*===============================================================  MACRO's  ==*/
 /*------------------------------------------------------  C++ extern begin  --*/
@@ -71,12 +70,37 @@ void circInit(
     void *              mem,
     size_t              size);
 
-void circItemPut(
-    circBuff_T *        buff,
-    uint8_t             item);
+static inline void circItemPut(
+    CIRC_BUFF *         buff,
+    u8                  item) {
 
-uint8_t circItemGet(
-    circBuff_T *        buff);
+    buff->mem[buff->head] = item;
+    smp_wmb();
+    buff->free--;
+    buff->head++;
+
+    if (buff->head == buff->size) {
+        buff->head = 0;
+    }
+}
+
+static inline u8 circItemGet(
+    CIRC_BUFF *         buff) {
+
+    u8                  tmp;
+
+    smp_read_barrier_depends();
+    tmp = buff->mem[buff->tail];
+    smp_mb();
+    buff->free++;
+    buff->tail++;
+
+    if (buff->tail == buff->size) {
+        buff->tail = 0;
+    }
+
+    return (tmp);
+}
 
 size_t circRemainingFreeGet(
     const circBuff_T *  buff);

@@ -57,6 +57,9 @@ extern "C" {
 #endif
 
 /*============================================================  DATA TYPES  ==*/
+
+struct devData;
+
 /*======================================================  GLOBAL VARIABLES  ==*/
 
 /**@brief       Hardware IO memory maps
@@ -83,7 +86,7 @@ extern const u32 gPortUartNum;
  * @return      Private device data, needed to be saved somewhere for later
  *              reference
  */
-void * portInit(
+struct devData * portInit(
     u32                 id);
 
 /**@brief       Deinit and destroy kernel device driver
@@ -91,13 +94,7 @@ void * portInit(
  *              Pointer returned by portInit()
  */
 int portTerm(
-    void *              devResource);
-
-int portDMAInit(
-    struct uartCtx *    uartCtx);
-
-int portDMATerm(
-    struct uartCtx *    uartCtx);
+    struct devData *    devData);
 
 u32 portModeGet(
     u32                 baudrate);
@@ -106,7 +103,7 @@ u32 portDIVdataGet(
     u32                 baudrate);
 
 volatile u8 * portIORemapGet(
-    void *              devResource);
+    struct devData *    devData);
 
 bool_T portIsOnline(
     u32                 id);

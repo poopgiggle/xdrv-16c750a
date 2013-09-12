@@ -181,7 +181,8 @@ enum hwReg {
 #define IER_RHRIT                       (0x1U << 0)
 
 /* Interrupt Identification Register (IIR) : register bits                    */
-#define IIR_IT_TYPE_Mask                (0x1FU << 1)
+#define IIR_IT_TYPE_Mask                (0x3FU << 0)
+#define IIR_IT_TYPE_NONE                (0x01U << 0)
 #define IIR_IT_TYPE_THR                 (0x01U << 1)
 #define IIR_IT_TYPE_RHR                 (0x02U << 1)
 #define IIR_IT_TYPE_LINEST              (0x03U << 1)
@@ -204,6 +205,9 @@ enum hwReg {
 /* Supplementary Status Register (SSR) : register bits                        */
 #define SSR_TXFIFOFULL                  (0x01U << 0)
 
+/* Line Status Register (LSR) : register bits                                 */
+#define LSR_RXFIFOE                     (0x01U << 0)
+
 /** @} *//*-------------------------------------------------------------------*/
 /*============================================================  DATA TYPES  ==*/
 
@@ -224,24 +228,9 @@ enum lldMode {
     LLD_MODE_SIR        = MDR1_MODESELECT_SIR
 };
 
-enum cfgDataBits {
-    UART_CFG_DATA_BITS_8
-};
-
-enum cfgStopBits {
-    UART_CFG_STOP_BITS_1,
-    UART_CFG_STOP_BITS_1n5,
-    UART_CFG_STOP_BITS_2,
-};
-
-enum cfgParity {
-    UART_CFG_PARITY_NONE,
-    UART_CFG_PARITY_EVEN,
-    UART_CFG_PARITY_ODD
-};
-
 enum lldIntNum {
     LLD_INT_ALL         = 0xFFU,
+    LLD_INT_NONE        = IIR_IT_TYPE_NONE,
     LLD_INT_RX          = IIR_IT_TYPE_RHR,
     LLD_INT_RX_TIMEOUT  = IIR_IT_TYPE_RX_TIMEOUT,
     LLD_INT_TX          = IIR_IT_TYPE_THR,
@@ -268,24 +257,24 @@ extern const struct protocol gDefProtocol;
  *              Value to write into @c reg.
  */
 static inline void lldRegWr(
-    volatile u8 *       ioRemap,
+    volatile u8 *       io,
     enum hwReg          reg,
     u16                 val) {
 
-    LOG_DBG("write base: %p, off: 0x%x,  val: 0x%x", ioRemap, reg, val);
-    iowrite16(val, ioRemap + (u32)reg);
+    LOG_DBG("write base: %p, off: 0x%x,  val: 0x%x", io, reg, val);
+    iowrite16(val, io + (u32)reg);
 }
 
 /**@brief       Read a value from register
  */
 static inline u16 lldRegRd(
-    volatile u8 *       ioRemap,
+    volatile u8 *       io,
     enum hwReg          reg) {
 
     int                 retval;
 
-    retval = ioread16(ioRemap + (u32)reg);
-    LOG_DBG("read  base: %p, off: 0x%x,  val: 0x%x", ioRemap, reg, retval);
+    retval = ioread16(io + (u32)reg);
+    LOG_DBG("read  base: %p, off: 0x%x,  val: 0x%x", io, reg, retval);
 
     return (retval);
 }
@@ -294,17 +283,17 @@ static inline u16 lldRegRd(
  * @return      Original value of register
  */
 static inline u16 lldRegSetBits(
-    volatile u8 *       ioRemap,
+    volatile u8 *       io,
     enum hwReg          reg,
     u16                 bits) {
 
     u16                 tmp;
 
     tmp = lldRegRd(
-        ioRemap,
+        io,
         reg);
     lldRegWr(
-        ioRemap,
+        io,
         reg,
         tmp | bits);
 
@@ -315,17 +304,17 @@ static inline u16 lldRegSetBits(
  * @return      Original value of register
  */
 static inline u16 lldRegResetBits(
-    volatile u8 *       ioRemap,
+    volatile u8 *       io,
     enum hwReg          reg,
     u16                 bits) {
 
     u16                 tmp;
 
     tmp = lldRegRd(
-        ioRemap,
+        io,
         reg);
     lldRegWr(
-        ioRemap,
+        io,
         reg,
         tmp & ~bits);
 
@@ -335,13 +324,13 @@ static inline u16 lldRegResetBits(
 /**@brief       Write register bits which are bitmasked with @c bitmask
  */
 void lldRegWrBits(
-    volatile u8 *       ioRemap,
+    volatile u8 *       io,
     enum hwReg          reg,
     u16                 bitmask,
     u16                 bits);
 
 u16 lldRegRdBits(
-    volatile u8 *       ioRemap,
+    volatile u8 *       io,
     enum hwReg          reg,
     u16                 bitmask);
 
@@ -353,44 +342,57 @@ u16 lldRegRdBits(
  *  @arg        LLD_CFG_MODE_B
  */
 void lldCfgModeSet(
-    volatile u8 *       ioRemap,
+    volatile u8 *       io,
     enum lldCfgMode     cfgMode);
 
 void lldModeSet(
-    volatile u8 *       ioRemap,
+    volatile u8 *       io,
     enum lldMode        mode);
 
 u16 lldModeGet(
-    volatile u8 *       ioRemap);
+    volatile u8 *       io);
 
 void lldIntEnable(
-    volatile u8 *       ioRemap,
-    enum lldIntNum         intNum);
+    volatile u8 *       io,
+    enum lldIntNum      intNum);
 
 void lldIntDisable(
-    volatile u8 *       ioRemap,
-    enum lldIntNum         intNum);
+    volatile u8 *       io,
+    enum lldIntNum      intNum);
 
-u16 lldIntGet(
-    volatile u8 *       ioRemap);
+static inline u16 lldIntGet(
+    volatile u8 *       io) {
 
-u16 lldIsIntPending(
-    volatile u8 *       ioRemap);
+    u16                 tmp;
+
+    tmp = lldRegRd(
+        io,
+        IIR);
+    tmp &= IIR_IT_TYPE_Mask;
+
+    return (tmp);
+}
+
+struct devData * lldInit(
+    u32                 id);
+
+u32 lldTerm(
+    struct devData *    devData);
 
 int lldSoftReset(
-    volatile u8 *       ioRemap);
+    volatile u8 *       io);
 
 void lldEnhanced(
     volatile u8 *       io,
     enum lldState       state);
 
 void lldFIFOInit(
-    volatile u8 *       ioRemap);
+    volatile u8 *       io);
 
 /**@brief       Setup UART module to use FIFO and DMA
  */
 int lldDMAFIFOSetup(
-    volatile u8 *       ioRemap);
+    volatile u8 *       io);
 
 /**@brief       Setup UART protocol configuration
  * @param       ioRemap
@@ -404,7 +406,7 @@ int lldDMAFIFOSetup(
  *  @retval     EINVAL : argument value is invalied, using default value
  */
 int lldProtocolSet(
-    volatile u8 *       ioRemap,
+    volatile u8 *       io,
     const struct protocol * protocol);
 
 void lldProtocolPrint(

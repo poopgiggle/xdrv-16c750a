@@ -37,6 +37,15 @@
  * @name        Generic driver configuration
  * @{ *//*--------------------------------------------------------------------*/
 
+#define CFG_DEFAULT_BAUD_RATE           921600
+
+/**@brief       UART number as assigned by silicon manufacturer
+ * @note        The chosen driver must not be managed by Linux kernel
+ */
+#define CFG_UART_ID                     3
+
+#define CFG_LOG_DBG_ENABLE              0
+
 /** @} *//*---------------------------------------------------------------*//**
  * @name        Advanced driver settings
  * @{ *//*--------------------------------------------------------------------*/
@@ -44,8 +53,7 @@
 #define CFG_DRV_NAME                    "xuart"
 
 #define CFG_DRV_BUFF_SIZE               1024U
-#define CFG_WAIT_EXIT_MS                1000
-#define CFG_WAIT_WR_MS                  2000
+#define CFG_TIMEOUT_MS                  2000
 
 /**@brief       Trigger level of UART FIFO
  * @details     Lower value:    + less generated interrupts
@@ -53,13 +61,9 @@
  *              Higher values:  + data flow is more consistent
  *                              - interrupts are generated very often
  */
-#define CFG_FIFO_TRIG                   8
+#define CFG_FIFO_TRIG                   56
 
-/** @} *//*---------------------------------------------------------------*//**
- * @name        Default driver settings
- * @{ *//*--------------------------------------------------------------------*/
-
-#define CFG_DEFAULT_BAUD_RATE           921600
+#define CFG_DMA_ENABLE                  1
 
 /** @} *//*-------------------------------------------------------------------*/
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/

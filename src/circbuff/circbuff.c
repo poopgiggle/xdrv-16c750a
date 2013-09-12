@@ -31,6 +31,11 @@
 #include <asm/system.h>
 
 #include "circbuff/circbuff.h"
+#include "dbg/dbg.h"
+
+#if (1U == CFG_DBG_ENABLE)
+# include "log.h"
+#endif
 
 /*=========================================================  LOCAL MACRO's  ==*/
 /*======================================================  LOCAL DATA TYPES  ==*/
@@ -40,6 +45,19 @@
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
+
+#if (1U == CFG_DBG_ENABLE)
+# define DBG_VALIDATE(buff, var)                                                \
+    do {                                                                        \
+        if (var > buff->size) {                                                 \
+            uint64_t i;\
+            LOG_ERR("INVALID QUEUE POINTER: %s in %s", #var, PORT_C_FUNC);      \
+            for (i = -1; i != 0; i--);\
+        }                                                                       \
+    } while (0)
+#else
+# define DBG_VALIDATE(buff, var)
+#endif
 
 void circInit(
     circBuff_T *         buff,
@@ -53,38 +71,6 @@ void circInit(
     buff->free = buff->size;
 }
 
-void circItemPut(
-    circBuff_T *         buff,
-    uint8_t                  item) {
-
-    buff->mem[buff->head] = item;
-    smp_wmb();
-    buff->free--;
-    buff->head++;
-
-    if (buff->head == buff->size) {
-        buff->head = 0;
-    }
-}
-
-uint8_t circItemGet(
-    circBuff_T *         buff) {
-
-    uint8_t                  tmp;
-
-    smp_read_barrier_depends();
-    tmp = buff->mem[buff->tail];
-    smp_mb();
-    buff->free++;
-    buff->tail++;
-
-    if (buff->tail == buff->size) {
-        buff->tail = 0;
-    }
-
-    return (tmp);
-}
-
 size_t circRemainingFreeGet(
     const circBuff_T *   buff) {
 
@@ -94,9 +80,12 @@ size_t circRemainingFreeGet(
         tmp = buff->tail - buff->head;
     } else if (buff->tail < buff->head) {
         tmp = buff->size - buff->head;
+    } else if (0U != buff->free) {
+        tmp = buff->size - buff->head;
     } else {
         tmp = buff->free;
     }
+    DBG_VALIDATE(buff, tmp);
 
     return ((size_t)tmp);
 }
@@ -110,9 +99,12 @@ size_t circRemainingOccGet(
         tmp = buff->head - buff->tail;
     } else if (buff->tail > buff->head) {
         tmp = buff->size - buff->tail;
+    } else if (0U == buff->free) {
+        tmp = buff->size - buff->tail;
     } else {
-        tmp = buff->size - buff->free;
+        tmp = 0U;
     }
+    DBG_VALIDATE(buff, tmp);
 
     return ((size_t)tmp);
 }
@@ -126,12 +118,14 @@ uint8_t * circMemBaseGet(
 uint8_t * circMemHeadGet(
     const circBuff_T *   buff) {
 
+	DBG_VALIDATE(buff, buff->head);
     return ((uint8_t *)&buff->mem[buff->head]);
 }
 
 uint8_t * circMemTailGet(
     const circBuff_T *   buff) {
 
+    DBG_VALIDATE(buff, buff->tail);
     return ((uint8_t *)&buff->mem[buff->tail]);
 }
 
@@ -145,6 +139,8 @@ void circPosHeadSet(
     if (buff->size == buff->head) {
         buff->head = 0U;
     }
+    DBG_VALIDATE(buff, buff->head);
+    DBG_VALIDATE(buff, buff->free);
 }
 
 void circPosTailSet(
@@ -157,12 +153,16 @@ void circPosTailSet(
     if (buff->size == buff->tail) {
         buff->tail = 0U;
     }
+    DBG_VALIDATE(buff, buff->head);
+    DBG_VALIDATE(buff, buff->free);
 }
 
 bool_T circIsEmpty(
-    const circBuff_T *   buff) {
+    const circBuff_T *	buff) {
 
     bool_T              ans;
+
+    DBG_VALIDATE(buff, buff->free);
 
     if (buff->size == buff->free) {
         ans = TRUE;
@@ -174,9 +174,11 @@ bool_T circIsEmpty(
 }
 
 bool_T circIsFull(
-    const circBuff_T *   buff) {
+    const circBuff_T *	buff) {
 
     bool_T              ans;
+
+    DBG_VALIDATE(buff, buff->free);
 
     if (0U == buff->free) {
         ans = TRUE;

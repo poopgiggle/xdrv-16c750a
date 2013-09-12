@@ -31,16 +31,12 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include <linux/platform_device.h>
-
 #include <rtdm/rtdm_driver.h>
 #include <native/heap.h>
-#include <native/queue.h>
 
-#include "drv/x-16c750_ctrl.h"
+#include "drv/x-16c750_ioctl.h"
 #include "circbuff/circbuff.h"
-#include "port/compiler.h"
-#include "eds/smp.h"
+#include "arch/compiler.h"
 
 /*===============================================================  MACRO's  ==*/
 
@@ -73,48 +69,33 @@ enum uartStatus {
 /**@brief       UART channel context structure
  */
 struct uartCtx {
-    esFsm_T             fsm;
     rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
-    struct {
+    struct unit {
         RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
-        RT_QUEUE            queueHandle;                                        /**<@brief Queue for RT comms                               */
         circBuff_T          buffHandle;                                         /**<@brief Buffer handle                                    */
         nanosecs_rel_t      accTimeout;
         nanosecs_rel_t      oprTimeout;
         rtdm_event_t        opr;                                                /**<@brief Operational event                                */
         rtdm_mutex_t        acc;                                                /**<@brief Access mutex                                     */
-        void *              queue;                                              /**<@brief Buffer storage                                   */
+        u32                 pend;
         enum uartStatus     status;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
-    struct {
+    struct cache {
         volatile u8 *       io;
+        u32                 DLL;
+        u32                 DLH;
+        u32                 EFR;
         u32                 IER;
+        u32                 LSR;
+        u32                 MCR;
+        u32                 SCR;
     }                   cache;
-    struct protocol {
-        u32                 baud;
-        enum xUartParity    parity;
-        enum xUartDataBits  dataBits;
-        enum xUartStopBits  stopBits;
-    }                   proto;
-    struct hwInfo {
-        bool_T              initialized;
-        void *              resource;
-    }                   hw;
-    u32                 id;
-    char                name[UARTCTX_NAME_SIZE];
     u32                 signature;
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
-
-void drvManRegisterFSM(
-    u32                 id);
-
-void drvManUnregisterFSM(
-    u32                 id);
-
 /*--------------------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
 }

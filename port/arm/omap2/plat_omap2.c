@@ -28,8 +28,7 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include <linux/string.h>
-#include <asm-generic/errno.h>
+#include <linux/kernel.h>
 #include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
 
@@ -73,15 +72,17 @@ enum hwUart {
     LAST_UART_ENTRY
 };
 
-struct devRes {
+struct devData {
     volatile u8 *       io;
     struct platform_device * platDev;
+#if (1 == CFG_DMA_ENABLE)
+#endif
 };
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 
 static void platCleanup(
-    struct devRes *     devRes,
+    struct devData *    devData,
     enum platState      state);
 
 static u32 baudRateCfgFindIndex(
@@ -140,7 +141,7 @@ static u32 baudRateCfgFindIndex(
 }
 
 static void platCleanup(
-    struct devRes *     devRes,
+    struct devData *    devData,
     enum platState      state) {
 
     switch (state) {
@@ -148,14 +149,14 @@ static void platCleanup(
         case PLAT_STATE_ENABLE : {
             LOG_INFO("reversing action: enable device clocks");
             omap_device_disable_clocks(
-                to_omap_device(devRes->platDev));
+                to_omap_device(devData->platDev));
             /* fall down */
         }
 
         case PLAT_STATE_ECLK : {
             LOG_INFO("reversing action: build device");
             omap_device_delete(
-                to_omap_device(devRes->platDev));
+                to_omap_device(devData->platDev));
             /* fall down */
         }
 
@@ -178,10 +179,10 @@ static void platCleanup(
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
-void * portInit(
+struct devData * portInit(
     u32                 id) {
 
-    struct devRes *     devRes;
+    struct devData *     devData;
     struct omap_hwmod * hwmod;
     enum platState      state;
     int                 retval;
@@ -190,17 +191,11 @@ void * portInit(
 
     /*-- Initializaion state -------------------------------------------------*/
     state = PLAT_STATE_INIT;
-    scnprintf(
-        uartName,
-        DEF_UART_NAME_MAX_SIZE,
-        DEF_OMAP_UART_NAME "%d",
-        id);                                                                    /* NOTE: Since hwmod UART count is messed up we need the right name now */
-    LOG_INFO("OMAP UART: creating %s device", uartName);
-    devRes = kmalloc(
-        sizeof(struct devRes),
+    devData = kmalloc(
+        sizeof(struct devData),
         GFP_KERNEL);
 
-    if (NULL == devRes) {
+    if (NULL == devData) {
         LOG_ERR("OMAP UART: failed to allocate device resources struct");
 
         return (NULL);
@@ -219,7 +214,7 @@ void * portInit(
     if (NULL == hwmod) {
         LOG_ERR("OMAP UART: failed to find HWMOD %s device", uartName);
         platCleanup(
-            devRes,
+            devData,
             state);
 
         return (NULL);
@@ -227,7 +222,7 @@ void * portInit(
 
     /*-- Device build state --------------------------------------------------*/
     state = PLAT_STATE_BUILD;
-    devRes->platDev = omap_device_build(
+    devData->platDev = omap_device_build(
         uartName,
         id,
         hwmod,
@@ -237,10 +232,10 @@ void * portInit(
         0,
         0);
 
-    if (NULL == devRes->platDev) {
+    if (NULL == devData->platDev) {
         LOG_ERR("OMAP UART: failed to build device");
         platCleanup(
-            devRes,
+            devData,
             state);
 
         return (NULL);
@@ -249,12 +244,12 @@ void * portInit(
     /*-- Device enable clocks state ------------------------------------------*/
     state = PLAT_STATE_ECLK;
     retval = omap_device_enable_clocks(
-        to_omap_device(devRes->platDev));
+        to_omap_device(devData->platDev));
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("OMAP UART: failed to enable device clocks");
         platCleanup(
-            devRes,
+            devData,
             state);
 
         return (NULL);
@@ -263,37 +258,35 @@ void * portInit(
     /*-- Device enable state -------------------------------------------------*/
     state = PLAT_STATE_ENABLE;
     retval = omap_device_enable(
-        devRes->platDev);
+        devData->platDev);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("OMAP UART: failed to enable device");
         platCleanup(
-            devRes,
+            devData,
             state);
 
         return (NULL);
     }
 
     /*-- Saving references to device data ------------------------------------*/
-    devRes->io = omap_device_get_rt_va(
-        to_omap_device(devRes->platDev));
+    devData->io = omap_device_get_rt_va(
+        to_omap_device(devData->platDev));
 
     /*
      * XXX, NOTE: Board initialization code should setup MUX accordingly
      */
 
-    return (devRes);
+    return (devData);
 }
 
 volatile u8 * portIORemapGet(
-    void *              devResource) {
+    struct devData *    devData) {
 
-    struct devRes *     devRes;
     volatile u8 *       ioremap;
 
-    devRes = (struct devRes *)devResource;
     ioremap = omap_device_get_rt_va(
-        to_omap_device(devRes->platDev));
+        to_omap_device(devData->platDev));
 
     return (ioremap);
 }
@@ -307,39 +300,31 @@ volatile u8 * portIORemapGet(
  *          just fine.
  */
 int portTerm(
-    void *              devResource) {
+    struct devData *    devData) {
 
-    struct devRes *     devRes;
     int                 retval;
 
-    devRes = (struct devRes *)devResource;
     LOG_DBG("OMAP UART: destroying device");
     retval = omap_device_shutdown(
-        devRes->platDev);
+        devData->platDev);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "OMAP UART: failed to shutdown device");
     retval = omap_device_disable_clocks(
-        to_omap_device(devRes->platDev));
+        to_omap_device(devData->platDev));
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "OMAP UART: failed to disable device clocks");
     omap_device_delete(
-        to_omap_device(devRes->platDev));
+        to_omap_device(devData->platDev));
     platform_device_unregister(
-        devRes->platDev);
+        devData->platDev);
     kfree(
-        devResource);
+        devData);
 
     return (retval);
 }
 
-int portDMAInit(
-    struct uartCtx *    uartCtx) {
+void portDMAinit(
+    struct devData *    devData) {
 
-    return (RETVAL_SUCCESS);
-}
 
-int portDMATerm(
-    struct uartCtx *    uartCtx) {
-
-    return (RETVAL_SUCCESS);
 }
 
 enum lldMode portModeGet(
