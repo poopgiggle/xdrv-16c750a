@@ -37,7 +37,7 @@
 
 /*===============================================================  MACRO's  ==*/
 
-#if (1 == CFG_DBG_ENABLE)
+#if (1 == CFG_LOG_DBG_ENABLE)
 #define LOG_DBG(msg, ...)                                                       \
     printk(KERN_INFO CFG_DRV_NAME "(DBG): " msg "\n", ##__VA_ARGS__);
 #else
