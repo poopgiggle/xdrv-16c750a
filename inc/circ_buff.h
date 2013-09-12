@@ -31,7 +31,7 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include <linux/circ_buf.h>
+#include "arch/compiler.h"
 
 /*===============================================================  MACRO's  ==*/
 /*------------------------------------------------------  C++ extern begin  --*/
@@ -55,13 +55,6 @@ struct circBuff {
 };
 
 typedef struct circBuff CIRC_BUFF;
-
-enum boolean {
-    TRUE                = 1,
-    FALSE               = 0
-};
-
-typedef enum boolean BOOLEAN;
 
 /** @} *//*-------------------------------------------------------------------*/
 /*======================================================  GLOBAL VARIABLES  ==*/
@@ -132,10 +125,10 @@ void circPosTailSet(
     CIRC_BUFF *         buff,
     s32                 position);
 
-BOOLEAN circIsEmpty(
+bool_T circIsEmpty(
     const CIRC_BUFF *   buff);
 
-BOOLEAN circIsFull(
+bool_T circIsFull(
     const CIRC_BUFF *   buff);
 
 /** @} *//*-------------------------------------------------------------------*/
