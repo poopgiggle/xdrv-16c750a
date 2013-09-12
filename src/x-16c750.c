@@ -1072,7 +1072,7 @@ void __exit moduleTerm(
     LOG_INFO("removing driver for UART: %d", gUartDev.device_id);
     retval = rtdm_dev_unregister(
         &gUartDev,
-        CFG_WAIT_EXIT_MS);
+        CFG_TIMEOUT_MS);
     LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = lldTerm(
         gUartDev.device_data);
