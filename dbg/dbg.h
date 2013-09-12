@@ -226,18 +226,18 @@ struct dbgCobj {
  * @api
  */
 struct esDbgReport {
-    const PORT_C_ROM char * modName,
-    const PORT_C_ROM char * modDesc,
-    const PORT_C_ROM char * modAuthor,
-    const PORT_C_ROM char * modFile,
-    const PORT_C_ROM char * fnName,
-    const PORT_C_ROM char * expr,
-    const PORT_C_ROM char * msgText,
-    uint16_t            line,
-    enum esDbgMsg       msgNum
+    const PORT_C_ROM char * modName;
+    const PORT_C_ROM char * modDesc;
+    const PORT_C_ROM char * modAuthor;
+    const PORT_C_ROM char * modFile;
+    const PORT_C_ROM char * fnName;
+    const PORT_C_ROM char * expr;
+    const PORT_C_ROM char * msgText;
+    uint16_t            line;
+    enum esDbgMsg       msgNum;
 };
 
-/**@} *//*----------------------------------------------------------------*//**
+/**@{ *//*--------------------------------------------------------------------*/
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
