@@ -211,10 +211,8 @@ static void taskRecv(
         gTime.rxEnd = rt_timer_read();
 
         if (-EBADF == len) {
-            rt_event_delete(
-                &gPrint);
 
-            return;
+            break;
         }
         if (len != sizeof(gTestData)) {
             LOG_WARN("received string has invalid length: %d, retry: %d", len, retry);
@@ -223,7 +221,7 @@ static void taskRecv(
             if (0U == retry) {
                 LOG_ERR("failed reception");
 
-                return;
+                break;
             } else {
 
                 continue;
@@ -239,9 +237,11 @@ static void taskRecv(
         if (0 != retval) {
             LOG_ERR("event signal (err: %d)", retval);
 
-            return;
+            break;
         }
     }
+    rt_event_delete(
+        &gPrint);
 }
 
 static void taskPrint(
@@ -284,18 +284,19 @@ static void taskPrint(
             TM_INFINITE);
 
         if (-EIDRM == retval) {
+
             return;
         }
-        rt_event_clear(
-            &gPrint,
-            0x01UL,
-            NULL);
 
         if (0 != retval) {
             LOG_ERR("event wait (err: %d)", retval);
 
             return;
         }
+        rt_event_clear(
+            &gPrint,
+            0x01UL,
+            NULL);
         turnCurr = gTime.rxEnd - gTime.txBegin;
         txCurr   = gTime.txEnd - gTime.txBegin;
         calcMeas(
@@ -374,12 +375,11 @@ int main(
     char **             argv) {
 
     int                 retval;
-    uint32_t            i;
 
     (void)argc;
     (void)argv;
 
-    LOG_INFO("Real-Time UART driver latency tester");
+    printf("\nReal-Time UART driver latency tester\n");
     signal(
         SIGTERM,
         catch);
@@ -469,6 +469,9 @@ int main(
             taskPrint,
             NULL);
         LOG_ERR_IF(0 != retval, "failed to start: %s (err: %d)", TASK_PRINT_NAME, retval);
+    printf("\n-----------------------------------------------------------------\n");
+    printf("  Message length: %d\n", sizeof(gTestData));
+    printf("-----------------------------------------------------------------\n\n");
     pause();
     LOG_INFO("terminating");
     rt_task_delete(
