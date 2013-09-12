@@ -66,9 +66,9 @@
 #define RECV_RETRY_CNT                  10U
 
 #define TABLE_HEADER                                                                                \
-    "--------------------------------------------------------------------------------------\n"      \
-    " Nr. |   min   |  TURN   |   max   |   avg   |   min   |    TX   |   max   |   avg   |\n"      \
-    "--------------------------------------------------------------------------------------\n"
+    "---------------------------------------------------------------------------------------\n"     \
+    " Nr.  |   min   |  TURN   |   max   |   avg   |   min   |    TX   |   max   |   avg   |\n"     \
+    "---------------------------------------------------------------------------------------\n"
 
 #define NS_PER_US                       1000
 #define US_PER_MS                       1000
@@ -176,7 +176,7 @@ static void taskSend(
     retval = rt_task_set_periodic(
         NULL,
         TM_NOW,
-        MS_TO_NS(100));
+        MS_TO_NS(10));
     LOG_ERR_IF(0 != retval, "failed to set period (err: %d)", retval);
 
     while (true) {
@@ -306,11 +306,11 @@ static void taskPrint(
             &tx,
             txCurr);
 
-        if (0U == (cntr % 20U)) {
+        if (0U == (cntr % 40U)) {
             printf(TABLE_HEADER);
         }
         cntr++;
-        printf(" %3d | %5d.%1d | %5d.%1d | %5d.%1d | %5d.%1d | %5d.%1d | %5d.%1d | %5d.%1d | %5d.%1d |\n",
+        printf(" %4d | %5d.%1d | %5d.%1d | %5d.%1d | %5d.%1d | %5d.%1d | %5d.%1d | %5d.%1d | %5d.%1d |\n",
             cntr,
             (int32_t)turn.min / 1000,
             ((int32_t)turn.min % 1000) / 100,
