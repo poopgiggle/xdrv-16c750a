@@ -66,7 +66,7 @@ enum uartStatus {
 struct uartCtx {
     rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
-    struct {
+    struct unit {
         RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
         CIRC_BUFF           buffHandle;                                         /**<@brief Buffer handle                                    */
         nanosecs_rel_t      accTimeout;
@@ -76,10 +76,15 @@ struct uartCtx {
         u32                 pend;
         enum uartStatus     status;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
-    struct {
+    struct cache {
         volatile u8 *       io;
+        u32                 DLL;
+        u32                 DLH;
+        u32                 EFR;
         u32                 IER;
         u32                 LSR;
+        u32                 MCR;
+        u32                 SCR;
     }                   cache;
     struct xUartProto   proto;
     u32                 signature;
