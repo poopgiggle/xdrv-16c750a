@@ -67,6 +67,8 @@
 
 #define PORT_C_ROM
 
+#define PORT_C_ROM_VAR
+
 /**@brief       This attribute specifies a minimum alignment (in bytes) for
  *              variables of the specified type.
  */
