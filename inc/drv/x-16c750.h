@@ -45,10 +45,6 @@
 #define RETVAL_SUCCESS                  0
 #define RETVAL_FAILURE                  !RETVAL_SUCCESS
 
-#define UARTCTX_SIGNATURE               ((u32)0xDEADDEEEU)
-
-#define UARTCTX_NAME_SIZE               12U
-
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {

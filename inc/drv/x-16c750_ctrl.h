@@ -23,18 +23,35 @@
  *//***********************************************************************//**
  * @file
  * @author  	Nenad Radulovic
- * @brief       Control interface for 16C750 UART driver.
+ * @brief       IOCTL interface for 16C750 UART driver.
  *********************************************************************//** @{ */
 
 #if !defined(X_16C750_IOCTL_H_)
 #define X_16C750_IOCTL_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
+
+#include <linux/ioctl.h>
+#include <rtdm/rtdm.h>
+
 /*===============================================================  MACRO's  ==*/
 
-#define XUART_CMD_SIGNATURE             0xDEADBEAFU
-#define XUART_CMD_Q_NAME_SIZE           20U
+/*------------------------------------------------------------------------*//**
+ * @name        Macro group
+ * @brief       brief description
+ * @{ *//*--------------------------------------------------------------------*/
 
+#define XUART_IOCTL_VERSION             1
+
+#define XUART_IOCTL_TYPE                RTDM_CLASS_SERIAL
+
+#define XUART_PROTOCOL_GET                                                      \
+    _IOR(XUART_IOCTL_TYPE, 0x00,struct xUartProto)
+
+#define XUART_PROTOCOL_SET                                                      \
+    _IOW(XUART_IOCTL_TYPE, 0x01,struct xUartProto)
+
+/** @} *//*-------------------------------------------------------------------*/
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {
@@ -42,25 +59,10 @@ extern "C" {
 
 /*============================================================  DATA TYPES  ==*/
 
-enum xUartCmdId {
-    XUART_CMD_CHN_OPEN,
-    XUART_CMD_CHN_CLOSE,
-    XUART_CMD_CHN_SET_PROTO,
-    XUART_CMD_CHN_GET_PROTO,
-    XUART_CMD_CHN_GET_PARAM,
-    XUART_CMD_CHN_SET_PARAM
-};
-
-struct xUartCmd {
-    char                sender[XUART_CMD_Q_NAME_SIZE];
-    unsigned int        cmdId;
-    unsigned int        uartId;
-    unsigned int        signature;
-};
-
-typedef struct xUartCmd xUartCmd_T;
-
-/*-- Proto -------------------------------------------------------------------*/
+/*------------------------------------------------------------------------*//**
+ * @name        Data types group
+ * @brief       brief description
+ * @{ *//*--------------------------------------------------------------------*/
 
 enum xUartParity {
     XUART_PARITY_NONE,
@@ -79,42 +81,30 @@ enum xUartStopBits {
     XUART_STOP_2
 };
 
-struct xUartCmdProto {
-    struct xUartCmd     cmd;
-    unsigned int        baud;
+struct xUartProto {
+    u32                 baud;
     enum xUartParity    parity;
     enum xUartDataBits  dataBits;
     enum xUartStopBits  stopBits;
 };
 
-struct xUartCmdProtoReport {
-    unsigned int        baud;
-    enum xUartParity    parity;
-    enum xUartDataBits  dataBits;
-    enum xUartStopBits  stopBits;
-};
-
-typedef struct xUartCmdProto xUartCmdProto_T;
-
-/*-- Open --------------------------------------------------------------------*/
-
-enum xUartMode {
-    XUART_MODE_NOTIFY,
-    XUART_MODE_READER
-};
-
-struct xUartCmdOpen {
-    struct xUartCmd     cmd;
-    enum xUartMode      mode;
-    unsigned int        bytes;
-};
-
-struct xUartCmdOpenReport {
-    char                recv[XUART_CMD_Q_NAME_SIZE];
-};
-
+/** @} *//*-------------------------------------------------------------------*/
 /*======================================================  GLOBAL VARIABLES  ==*/
+
+/*------------------------------------------------------------------------*//**
+ * @name        Variables group
+ * @brief       brief description
+ * @{ *//*--------------------------------------------------------------------*/
+
+/** @} *//*-------------------------------------------------------------------*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
+
+/*------------------------------------------------------------------------*//**
+ * @name        Function group
+ * @brief       brief description
+ * @{ *//*--------------------------------------------------------------------*/
+
+/** @} *//*-------------------------------------------------------------------*/
 /*--------------------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
 }
