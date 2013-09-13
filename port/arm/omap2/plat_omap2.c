@@ -330,7 +330,7 @@ int portTerm(
 void portDMAinit(
     struct devData *    devData) {
 
-
+    (void)devData;
 }
 
 enum lldMode portModeGet(
