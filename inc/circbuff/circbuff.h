@@ -26,8 +26,8 @@
  * @brief       Circular buffer interface
  *********************************************************************//** @{ */
 
-#if !defined(CIRC_BUFF_H_)
-#define CIRC_BUFF_H_
+#if !defined(CIRCBUFF_H_)
+#define CIRCBUFF_H_
 
 /*=========================================================  INCLUDE FILES  ==*/
 
@@ -48,8 +48,8 @@ extern "C" {
 
 struct circBuff {
     volatile uint8_t *  mem;
-    volatile uint32_t   head;
-    volatile uint32_t   tail;
+    uint32_t   			head;
+    uint32_t   			tail;
     uint32_t            size;
     uint32_t            free;
 };
@@ -71,8 +71,8 @@ void circInit(
     size_t              size);
 
 static inline void circItemPut(
-    CIRC_BUFF *         buff,
-    u8                  item) {
+    circBuff_T *        buff,
+    uint8_t             item) {
 
     buff->mem[buff->head] = item;
     smp_wmb();
@@ -85,9 +85,9 @@ static inline void circItemPut(
 }
 
 static inline u8 circItemGet(
-    CIRC_BUFF *         buff) {
+    circBuff_T *        buff) {
 
-    u8                  tmp;
+    uint8_t             tmp;
 
     smp_read_barrier_depends();
     tmp = buff->mem[buff->tail];
@@ -138,6 +138,6 @@ bool_T circIsFull(
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
- * END of circ_buff.h
+ * END of circbuff.h
  ******************************************************************************/
-#endif /* CIRC_BUFF_H_ */
+#endif /* CIRCBUFF_H_ */
