@@ -32,23 +32,23 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include <linux/kernel.h>
+#include <rtdm/rtdm_driver.h>
 #include "log_cfg.h"
 
 /*===============================================================  MACRO's  ==*/
 
 #if (1U == CFG_LOG_DBG_ENABLE)
 #define LOG_DBG(msg, ...)                                                       \
-    printk(KERN_INFO CFG_DRV_NAME "(DBG): " msg "\n", ##__VA_ARGS__);
+    rtdm_printk(KERN_INFO CFG_DRV_NAME "(DBG): " msg "\n", ##__VA_ARGS__);
 #else
 #define LOG_DBG(msg, ...)
 #endif
 
 #define LOG_INFO(msg, ...)                                                      \
-    printk(KERN_INFO CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
+    rtdm_printk(KERN_INFO CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
 
 #define LOG_WARN(msg, ...)                                                      \
-    printk(KERN_WARNING CFG_DRV_NAME " <WARN>: line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
+    rtdm_printk(KERN_WARNING CFG_DRV_NAME " <WARN>: line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
 
 #define LOG_WARN_IF(expr, msg, ...)                                             \
     do {                                                                        \
@@ -58,7 +58,7 @@
     } while (0)
 
 #define LOG_ERR(msg, ...)                                                       \
-    printk(KERN_ERR CFG_DRV_NAME " <ERR>: line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
+    rtdm_printk(KERN_ERR CFG_DRV_NAME " <ERR>: line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
 
 #define LOG_ERR_IF(expr, msg, ...)                                              \
     do {                                                                        \
@@ -68,10 +68,10 @@
     } while (0)
 
 #define LOG_VAR(var)                                                            \
-    printk(KERN_INFO CFG_DRV_NAME " VAR " #var " : %d\n", var )
+    rtdm_printk(KERN_INFO CFG_DRV_NAME " VAR " #var " : %d\n", var )
 
 #define LOG_PVAR(var)                                                           \
-    printk(KERN_INFO CFG_DRV_NAME " PTR " #var " : %p\n", var )
+    rtdm_printk(KERN_INFO CFG_DRV_NAME " PTR " #var " : %p\n", var )
 
 /*============================================================  DATA TYPES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
