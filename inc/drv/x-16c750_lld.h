@@ -248,6 +248,10 @@ extern const struct xUartProto gDefProtocol;
 
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
+/*------------------------------------------------------------------------*//**
+ * @name        Register access functions
+ * @{ *//*--------------------------------------------------------------------*/
+
 /**@brief       Write a value into register
  * @param       ioRemap
  *              Pointer to IO remaped memory
@@ -257,24 +261,22 @@ extern const struct xUartProto gDefProtocol;
  *              Value to write into @c reg.
  */
 static inline void lldRegWr(
-    volatile u8 *       io,
+    volatile uint8_t *  io,
     enum hwReg          reg,
-    u16                 val) {
+    uint16_t            val) {
 
-    LOG_DBG("write base: %p, off: 0x%x,  val: 0x%x", io, reg, val);
-    iowrite16(val, io + (u32)reg);
+    iowrite16(val, io + (uint32_t)reg);
 }
 
 /**@brief       Read a value from register
  */
-static inline u16 lldRegRd(
-    volatile u8 *       io,
+static inline uint16_t lldRegRd(
+    volatile uint8_t *  io,
     enum hwReg          reg) {
 
-    int                 retval;
+    uint16_t            retval;
 
-    retval = ioread16(io + (u32)reg);
-    LOG_DBG("read  base: %p, off: 0x%x,  val: 0x%x", io, reg, retval);
+    retval = ioread16(io + (uint32_t)reg);
 
     return (retval);
 }
@@ -282,12 +284,12 @@ static inline u16 lldRegRd(
 /**@brief       Set register bits according to @c bits bit mask
  * @return      Original value of register
  */
-static inline u16 lldRegSetBits(
-    volatile u8 *       io,
+static inline uint16_t lldRegSetBits(
+    volatile uint8_t *  io,
     enum hwReg          reg,
-    u16                 bits) {
+    uint16_t            bits) {
 
-    u16                 tmp;
+    uint16_t            tmp;
 
     tmp = lldRegRd(
         io,
@@ -303,12 +305,12 @@ static inline u16 lldRegSetBits(
 /**@brief       Reset register bits according to @c bits bit mask
  * @return      Original value of register
  */
-static inline u16 lldRegResetBits(
-    volatile u8 *       io,
+static inline uint16_t lldRegResetBits(
+    volatile uint8_t *  io,
     enum hwReg          reg,
-    u16                 bits) {
+    uint16_t            bits) {
 
-    u16                 tmp;
+    uint16_t            tmp;
 
     tmp = lldRegRd(
         io,
@@ -324,46 +326,85 @@ static inline u16 lldRegResetBits(
 /**@brief       Write register bits which are bitmasked with @c bitmask
  */
 void lldRegWrBits(
-    volatile u8 *       io,
+    volatile uint8_t *  io,
     enum hwReg          reg,
-    u16                 bitmask,
-    u16                 bits);
+    uint16_t            bitmask,
+    uint16_t            bits);
 
-u16 lldRegRdBits(
-    volatile u8 *       io,
+/**@brief       Read register bits which are bitmasked with @c bitmask
+ */
+uint16_t lldRegRdBits(
+    volatile uint8_t *  io,
     enum hwReg          reg,
-    u16                 bitmask);
+    uint16_t            bitmask);
+
+/**@} *//*----------------------------------------------------------------*//**
+ * @name        Generic functions
+ * @{ *//*--------------------------------------------------------------------*/
+
+struct devData * lldInit(
+    uint32_t            id);
+
+uint32_t lldTerm(
+    struct devData *    devData);
+
+/**@} *//*----------------------------------------------------------------*//**
+ * @name        Configuration mode
+ * @{ *//*--------------------------------------------------------------------*/
 
 /**@brief       Set configuration mode
- * @param       ioRemap
+ * @param       io
  *              Pointer to IO mapped memory
- * @param       Configuration mode
+ * @param       cfgMode
+ *              Configuration mod, @see lldCfgMode
  *  @arg        LLD_CFG_MODE_A
  *  @arg        LLD_CFG_MODE_B
+ *  @arg        LLD_CFG_MODE_NORM
  */
 void lldCfgModeSet(
-    volatile u8 *       io,
+    volatile uint8_t *  io,
     enum lldCfgMode     cfgMode);
 
+/**@} *//*----------------------------------------------------------------*//**
+ * @name        Operational mode
+ * @{ *//*--------------------------------------------------------------------*/
+
+/**@brief       Set peripheral operation mode
+ * @param       io
+ *              Pointer to IO mapped memory
+ * @param       mode
+ *              Peripheral operation mode, @see lldMode
+ */
 void lldModeSet(
-    volatile u8 *       io,
+    volatile uint8_t *  io,
     enum lldMode        mode);
 
-u16 lldModeGet(
-    volatile u8 *       io);
+uint16_t lldModeGet(
+    volatile uint8_t *  io);
+
+int lldSoftReset(
+    volatile uint8_t *  io);
+
+void lldEnhanced(
+    volatile uint8_t *  io,
+    enum lldState       state);
+
+/**@} *//*----------------------------------------------------------------*//**
+ * @name        Interrupt actions
+ * @{ *//*--------------------------------------------------------------------*/
 
 void lldIntEnable(
-    volatile u8 *       io,
+    volatile uint8_t *  io,
     enum lldIntNum      intNum);
 
 void lldIntDisable(
-    volatile u8 *       io,
+    volatile uint8_t *  io,
     enum lldIntNum      intNum);
 
-static inline u16 lldIntGet(
-    volatile u8 *       io) {
+static inline uint16_t lldIntGet(
+    volatile uint8_t *  io) {
 
-    u16                 tmp;
+    uint16_t            tmp;
 
     tmp = lldRegRd(
         io,
@@ -373,26 +414,45 @@ static inline u16 lldIntGet(
     return (tmp);
 }
 
-struct devData * lldInit(
-    u32                 id);
-
-u32 lldTerm(
-    struct devData *    devData);
-
-int lldSoftReset(
-    volatile u8 *       io);
-
-void lldEnhanced(
-    volatile u8 *       io,
-    enum lldState       state);
+/**@} *//*----------------------------------------------------------------*//**
+ * @name        FIFO related actions
+ * @{ *//*--------------------------------------------------------------------*/
 
 void lldFIFOInit(
-    volatile u8 *       io);
+    volatile uint8_t *  io);
 
 /**@brief       Setup UART module to use FIFO and DMA
+ * @param       io
+ *              Pointer to IO mapped memory
  */
 int lldDMAFIFOSetup(
-    volatile u8 *       io);
+    volatile uint8_t *  io);
+
+/**@brief       Enable/disable finer granularity
+ * @param       io
+ *              Pointer to IO mapped memory
+ * @param       state
+ *  @arg        LLD_ENABLE
+ *  @arg        LLD_DISABLE
+ */
+void lldRxFIFOGranularityState(
+    volatile uint8_t *  io,
+    enum lldState       state);
+
+/**@brief       Set Rx FIFO notification limit
+ * @param       io
+ *              Pointer to IO mapped memory
+ * @param       bytes
+ *              Number of bytes for notification
+ */
+void lldRxFIFOGranularitySet(
+    volatile uint8_t *  io,
+    size_t              bytes);
+
+/**@} *//*----------------------------------------------------------------*//**
+ * @name        Protocol
+ * @{ *//*--------------------------------------------------------------------*/
+
 
 /**@brief       Setup UART protocol configuration
  * @param       ioRemap
@@ -406,11 +466,13 @@ int lldDMAFIFOSetup(
  *  @retval     EINVAL : argument value is invalied, using default value
  */
 int lldProtocolSet(
-    volatile u8 *       io,
+    volatile uint8_t *  io,
     const struct xUartProto * proto);
 
 void lldProtocolPrint(
     const struct xUartProto * proto);
+
+/**@} *//*--------------------------------------------------------------------*/
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************

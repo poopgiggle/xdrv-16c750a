@@ -68,60 +68,60 @@ const struct xUartProto gDefProtocol = {
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
 void lldRegWrBits(
-    volatile u8 *       ioRemap,
+    volatile uint8_t *  io,
     enum hwReg          reg,
-    u16                 bitmask,
-    u16                 bits) {
+    uint16_t            bitmask,
+    uint16_t            bits) {
 
-    u16                 tmp;
+    uint16_t            tmp;
 
-    tmp = lldRegRd(ioRemap, reg);
+    tmp = lldRegRd(io, reg);
     tmp &= ~bitmask;
     tmp |= (bits & bitmask);
-    lldRegWr(ioRemap, reg, tmp);
+    lldRegWr(io, reg, tmp);
 }
 
-u16 lldRegRdBits(
-    volatile u8 *       ioRemap,
+uint16_t lldRegRdBits(
+    volatile uint8_t *  io,
     enum hwReg          reg,
-    u16                 bitmask) {
+    uint16_t            bitmask) {
 
-    u16                 tmp;
+    uint16_t            tmp;
 
-    tmp = lldRegRd(ioRemap, reg);
+    tmp = lldRegRd(io, reg);
     tmp &= ~bitmask;
 
     return (tmp);
 }
 
 void lldCfgModeSet(
-    volatile u8 *       ioRemap,
+    volatile uint8_t *  io,
     enum lldCfgMode     cfgMode) {
 
     lldRegWr(
-        ioRemap,
+        io,
         LCR,
         cfgMode);
 }
 
 void lldModeSet(
-    volatile u8 *       ioRemap,
+    volatile uint8_t *  io,
     enum lldMode        mode) {
 
     lldRegWrBits(
-        ioRemap,
+        io,
         MDR1,
         MDR1_MODESELECT_Mask,
         mode);
 }
 
-u16 lldModeGet(
-    volatile u8 *       ioRemap) {
+uint16_t lldModeGet(
+    volatile uint8_t *  io) {
 
-    u16                 tmp;
+    uint16_t            tmp;
 
     tmp = lldRegRdBits(
-        ioRemap,
+        io,
         MDR1,
         MDR1_MODESELECT_Mask);
 
@@ -129,10 +129,10 @@ u16 lldModeGet(
 }
 
 void lldIntEnable(
-    volatile u8 *       ioRemap,
+    volatile uint8_t *  io,
     enum lldIntNum      intNum) {
 
-    u16                 tmp;
+    uint16_t            tmp;
 
     switch (intNum) {
         case LLD_INT_TX : {
@@ -165,16 +165,16 @@ void lldIntEnable(
         }
     }
     lldRegSetBits(
-        ioRemap,
+        io,
         IER,
         tmp);
 }
 
 void lldIntDisable(
-    volatile u8 *       ioRemap,
-    enum lldIntNum         intNum) {
+    volatile uint8_t *  io,
+    enum lldIntNum      intNum) {
 
-    u16                 tmp;
+    uint16_t            tmp;
 
     switch (intNum) {
         case LLD_INT_TX : {
@@ -207,25 +207,25 @@ void lldIntDisable(
         }
     }
     lldRegResetBits(
-        ioRemap,
+        io,
         IER,
         tmp);
 }
 
 void lldEnhanced(
-    volatile u8 *       ioRemap,
+    volatile uint8_t *  io,
     enum lldState       state) {
 
-    u16                 regLCR;
-    u16                 tmp;
+    uint16_t            regLCR;
+    uint16_t            tmp;
 
-    regLCR = lldRegRd(ioRemap, LCR);
-    lldRegWr(ioRemap, LCR, LLD_CFG_MODE_B);
+    regLCR = lldRegRd(io, LCR);
+    lldRegWr(io, LCR, LLD_CFG_MODE_B);
     lldCfgModeSet(
-        ioRemap,
+        io,
         LLD_CFG_MODE_B);
     tmp = lldRegRd(
-        ioRemap,
+        io,
         bEFR);
 
     switch (state) {
@@ -244,28 +244,28 @@ void lldEnhanced(
         }
     }
     lldRegWr(
-        ioRemap,
+        io,
         wbEFR,
         tmp);
     lldRegWr(
-        ioRemap,
+        io,
         LCR,
         regLCR);
 }
 
 int lldSoftReset(
-    volatile u8 *       ioRemap) {
+    volatile uint8_t *  io) {
 
     int                 retval;
-    u32                 cnt;
+    uint32_t            cnt;
 
     lldRegWr(
-        ioRemap,
+        io,
         SYSC,
         SYSC_SOFTRESET);
     cnt = 1000U;
 
-    while ((0 == (SYSS_RESETDONE & lldRegRd(ioRemap, SYSS))) && (0U != cnt)) {
+    while ((0 == (SYSS_RESETDONE & lldRegRd(io, SYSS))) && (0U != cnt)) {
         --cnt;
     }
 
@@ -279,7 +279,7 @@ int lldSoftReset(
 }
 
 struct devData * lldInit(
-    u32                 id) {
+    uint32_t            id) {
 
     struct devData *    devData;
 
@@ -287,7 +287,7 @@ struct devData * lldInit(
         id);
 
     if (NULL != devData) {
-        volatile u8 * io;
+        volatile uint8_t * io;
 
         io = portIORemapGet(
             devData);
@@ -303,10 +303,10 @@ struct devData * lldInit(
     return (devData);
 }
 
-u32 lldTerm(
+uint32_t lldTerm(
     struct devData *    devData) {
 
-    u32                 retval;
+    uint32_t            retval;
 
     retval = portTerm(
         devData);
@@ -314,15 +314,15 @@ u32 lldTerm(
     return (retval);
 }
 
-void lldRxFIFOset(
-    volatile u8 *       io,
-    size_t bytes) {
+void lldRxFIFOGranularitySet(
+    volatile uint8_t *  io,
+    size_t              bytes) {
 
 
 }
 
-void lldRxFIFOSetGranularity(
-    volatile u8 *       io,
+void lldRxFIFOGranularityState(
+    volatile uint8_t *  io,
     enum lldState       state) {
 
     if (LLD_ENABLE == state) {
@@ -331,14 +331,14 @@ void lldRxFIFOSetGranularity(
 }
 
 void lldFIFOInit(
-    volatile u8 *       io) {
+    volatile uint8_t *  io) {
 
-    u16                 tmp;
-    u16                 regLCR;
-    u16                 regEFR;
-    u16                 regMCR;
-    u16                 regDLL;
-    u16                 regDLH;
+    uint16_t                 tmp;
+    uint16_t                 regLCR;
+    uint16_t                 regEFR;
+    uint16_t                 regMCR;
+    uint16_t                 regDLL;
+    uint16_t                 regDLH;
 
     regLCR = lldRegRd(                                                          /* Switch to register configuration mode B to access the    */
         io,                                                                /* EFR register                                             */
@@ -400,64 +400,64 @@ void lldFIFOInit(
 }
 
 int lldDMAFIFOSetup(
-    volatile u8 *       ioRemap) {
+    volatile uint8_t *  io) {
 
-    u16                 tmp;
-    u16                 regLCR;
-    u16                 regEFR;
-    u16                 regMCR;
+    uint16_t                 tmp;
+    uint16_t                 regLCR;
+    uint16_t                 regEFR;
+    uint16_t                 regMCR;
 
     regLCR = lldRegRd(                                                          /* Switch to register configuration mode B to access the    */
-        ioRemap,                                                                /* EFR register                                             */
+        io,                                                                /* EFR register                                             */
         LCR);
     lldCfgModeSet(
-        ioRemap,
+        io,
         LLD_CFG_MODE_B);
     regEFR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        ioRemap,                                                                /* register (1/2)                                           */
+        io,                                                                /* register (1/2)                                           */
         bEFR,
         EFR_ENHANCEDEN);
     lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        ioRemap,                                                                /* register                                                 */
+        io,                                                                /* register                                                 */
         LLD_CFG_MODE_A);
     regMCR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        ioRemap,                                                                /* register (2/2)                                           */
+        io,                                                                /* register (2/2)                                           */
         aMCR,
         MCR_TCRTLR);
     lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
-        ioRemap,                                                                /* (1/2)                                                    */
+        io,                                                                /* (1/2)                                                    */
         waFCR,
         FCR_RX_FIFO_TRIG_56 | FCR_TX_FIFO_TRIG_56 | FCR_DMA_MODE |
             FCR_TX_FIFO_CLEAR | FCR_RX_FIFO_CLEAR | FCR_FIFO_EN);
     lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
-        ioRemap,                                                                /* register                                                 */
+        io,                                                                /* register                                                 */
         LLD_CFG_MODE_B);
     lldRegWr(                                                                   /* Load the new FIFO triggers (2/3)                         */
-        ioRemap,
+        io,
         wbTLR,
         TLR_RX_FIFO_TRIG_DMA_0 | TLR_TX_FIFO_TRIG_DMA_0);
     (void)lldRegResetBits(                                                      /* Load the new FIFO triggers (3/3) and the new DMA mode    */
-        ioRemap,                                                                /* (2/2)                                                    */
+        io,                                                                /* (2/2)                                                    */
         SCR,
         SCR_RXTRIGGRANU1 | SCR_TXTRIGGRANU1 | SCR_DMAMODE2_Mask |
             SCR_DMAMODECTL);
     tmp = regEFR & EFR_ENHANCEDEN;                                              /* Restore EFR<4> ENHANCED_EN bit                           */
-    tmp |= lldRegRd(ioRemap, bEFR) & ~EFR_ENHANCEDEN;
+    tmp |= lldRegRd(io, bEFR) & ~EFR_ENHANCEDEN;
     lldRegWr(
-        ioRemap,
+        io,
         bEFR,
         tmp);
     lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        ioRemap,                                                                /* register                                                 */
+        io,                                                                /* register                                                 */
         LLD_CFG_MODE_A);
     tmp = regMCR & MCR_TCRTLR;                                                  /* Restore MCR<6> TCRTLR bit                                */
-    tmp |= lldRegRd(ioRemap, aMCR) & ~MCR_TCRTLR;
+    tmp |= lldRegRd(io, aMCR) & ~MCR_TCRTLR;
     lldRegWr(
-        ioRemap,
+        io,
         aMCR,
         tmp);
     lldRegWr(                                                                   /* Restore LCR                                              */
-        ioRemap,
+        io,
         LCR,
         regLCR);
 
@@ -542,31 +542,31 @@ void lldProtocolPrint(
  * TODO: Break this function into a set of smaller functions
  */
 int lldProtocolSet(
-    volatile u8 *       ioRemap,
+    volatile uint8_t *  io,
     const struct xUartProto * protocol) {
 
-    u16                 tmp;
-    u16                 arg;
-    u16                 retval;
-    u16                 regEFR;
+    uint16_t            tmp;
+    uint16_t            arg;
+    uint16_t            retval;
+    uint16_t            regEFR;
 
     retval = RETVAL_SUCCESS;
     lldModeSet(                                                                 /* Disable UART to access DLL and DLH registers             */
-        ioRemap,
+        io,
         LLD_MODE_DISABLE);
     lldCfgModeSet(                                                              /* Switch to register config mode B to access EFR register  */
-        ioRemap,
+        io,
         LLD_CFG_MODE_B);
     regEFR = lldRegSetBits(                                                     /* Enable access to IER[7:4] bit field                      */
-        ioRemap,
+        io,
         bEFR,
         EFR_ENHANCEDEN);
     lldRegWr(                                                                   /* Switch to normal config mode                             */
-        ioRemap,
+        io,
         LCR,
         LLD_CFG_MODE_NORM);
     lldRegWr(
-        ioRemap,
+        io,
         IER,
         0x0000U);
     tmp = portDIVdataGet(                                                       /* Get the new divisor value                                */
@@ -577,35 +577,35 @@ int lldProtocolSet(
         retval = -EINVAL;
     } else {
         lldCfgModeSet(                                                              /* Switch to config mode B to access DLH and DLL registers  */
-            ioRemap,
+            io,
             LLD_CFG_MODE_B);
         lldRegWr(
-            ioRemap,
+            io,
             wbDLL,
             U16_LOW_BYTE(tmp));
         lldRegWr(
-            ioRemap,
+            io,
             wbDLH,
             U16_HIGH_BYTE(tmp));
         lldCfgModeSet(
-            ioRemap,
+            io,
             LLD_CFG_MODE_NORM);
     }
 
     lldIntEnable(
-        ioRemap,
+        io,
         LLD_INT_RX);
     lldCfgModeSet(
-        ioRemap,
+        io,
         LLD_CFG_MODE_B);
-    tmp = (lldRegRd(ioRemap, bEFR) & ~EFR_ENHANCEDEN);
+    tmp = (lldRegRd(io, bEFR) & ~EFR_ENHANCEDEN);
     tmp |= regEFR & EFR_ENHANCEDEN;
     lldRegWr(
-        ioRemap,
+        io,
         wbEFR,
         tmp);
     lldRegResetBits(
-        ioRemap,
+        io,
         LCR,
         LCR_BREAK_EN | LCR_DIV_EN);
 
@@ -633,7 +633,7 @@ int lldProtocolSet(
         }
     }
     lldRegWrBits(
-        ioRemap,
+        io,
         LCR,
         LCR_PARITY_EN | LCR_PARITY_TYPE1 | LCR_PARITY_TYPE2,
         arg);
@@ -652,7 +652,7 @@ int lldProtocolSet(
         }
     }
     lldRegWrBits(
-        ioRemap,
+        io,
         LCR,
         LCR_CHAR_LENGTH_Mask,
         arg);
@@ -687,17 +687,16 @@ int lldProtocolSet(
         }
     }
     lldRegWrBits(
-        ioRemap,
+        io,
         LCR,
         LCR_NB_STOP,
         arg);
-
     tmp = portModeGet(
         protocol->baud);
 
     if (RETVAL_FAILURE != tmp) {
         lldModeSet(
-            ioRemap,
+            io,
             tmp);
     }
     lldProtocolPrint(
