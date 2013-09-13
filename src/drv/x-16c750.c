@@ -108,7 +108,7 @@ static bool_T xProtoIsValid(
 
 static void xProtoSet(
     struct uartCtx *    uartCtx,
-    const struct xUartProto *  proto);
+    const struct xUartProto * proto);
 
 static struct uartCtx * uartCtxFromDevCtx(
     struct rtdm_dev_context * devCtx);
@@ -441,7 +441,7 @@ static bool_T xProtoIsValid(
 
 static void xProtoSet(
     struct uartCtx *    uartCtx,
-    const struct xUartProto *  proto) {
+    const struct xUartProto * proto) {
 
     (void)lldProtocolSet(
         uartCtx->cache.io,

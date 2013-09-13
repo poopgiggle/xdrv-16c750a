@@ -87,6 +87,7 @@ struct uartCtx {
         u32                 MCR;
         u32                 SCR;
     }                   cache;
+    struct xUartProto   proto;
     u32                 signature;
 };
 

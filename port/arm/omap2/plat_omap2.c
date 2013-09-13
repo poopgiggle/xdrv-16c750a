@@ -182,7 +182,7 @@ static void platCleanup(
 struct devData * portInit(
     u32                 id) {
 
-    struct devData *     devData;
+    struct devData *    devData;
     struct omap_hwmod * hwmod;
     enum platState      state;
     int                 retval;
@@ -200,6 +200,12 @@ struct devData * portInit(
 
         return (NULL);
     }
+    scnprintf(
+        uartName,
+        DEF_UART_NAME_MAX_SIZE,
+        DEF_OMAP_UART_NAME "%d",
+        id);                                                                    /* NOTE: Since hwmod UART count is messed up we need the right name now */
+    LOG_DBG("OMAP UART: creating %s device", uartName);
 
     /*-- HWMOD lookup state --------------------------------------------------*/
     state = PLAT_STATE_LOOKUP;

@@ -28,7 +28,7 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include "drv/x-16c750_ctrl.h"
+#include "drv/x-16c750_ioctl.h"
 #include "drv/x-16c750_lld.h"
 #include "port/port.h"
 
@@ -53,7 +53,7 @@
 
 /*======================================================  LOCAL DATA TYPES  ==*/
 
-const struct protocol gDefProtocol = {
+const struct xUartProto gDefProtocol = {
     .baud               = CFG_DEFAULT_BAUD_RATE,
     .parity             = XUART_PARITY_NONE,
     .dataBits           = XUART_DATA_8,
@@ -465,13 +465,13 @@ int lldDMAFIFOSetup(
 }
 
 void lldProtocolPrint(
-    const struct protocol * protocol) {
+    const struct xUartProto * proto) {
 
     char *              parity;
     char *              stopBits;
     char *              dataBits;
 
-    switch (protocol->parity) {
+    switch (proto->parity) {
         case XUART_PARITY_NONE : {
             parity = "none";
             break;
@@ -493,7 +493,7 @@ void lldProtocolPrint(
         }
     }
 
-    switch (protocol->stopBits) {
+    switch (proto->stopBits) {
         case XUART_STOP_1 : {
             stopBits = "1";
             break;
@@ -515,7 +515,7 @@ void lldProtocolPrint(
         }
     }
 
-    switch (protocol->dataBits) {
+    switch (proto->dataBits) {
         case XUART_DATA_8 : {
             dataBits = "8";
             break;
@@ -532,7 +532,7 @@ void lldProtocolPrint(
         }
     }
     LOG_INFO("protocol: %d, %s %s %s",
-        protocol->baud,
+        proto->baud,
         dataBits,
         parity,
         stopBits);
@@ -543,7 +543,7 @@ void lldProtocolPrint(
  */
 int lldProtocolSet(
     volatile u8 *       ioRemap,
-    const struct protocol * protocol) {
+    const struct xUartProto * protocol) {
 
     u16                 tmp;
     u16                 arg;

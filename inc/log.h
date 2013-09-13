@@ -33,11 +33,11 @@
 /*=========================================================  INCLUDE FILES  ==*/
 
 #include <linux/kernel.h>
-#include "x-16c750_cfg.h"
+#include "log_cfg.h"
 
 /*===============================================================  MACRO's  ==*/
 
-#if (1 == CFG_LOG_DBG_ENABLE)
+#if (1U == CFG_LOG_DBG_ENABLE)
 #define LOG_DBG(msg, ...)                                                       \
     printk(KERN_INFO CFG_DRV_NAME "(DBG): " msg "\n", ##__VA_ARGS__);
 #else
