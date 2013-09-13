@@ -74,21 +74,21 @@ struct uartCtx {
         nanosecs_rel_t      oprTimeout;
         rtdm_event_t        opr;                                                /**<@brief Operational event                                */
         rtdm_mutex_t        acc;                                                /**<@brief Access mutex                                     */
-        u32                 pend;
+        uint32_t            pend;
         enum uartStatus     status;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
     struct cache {
-        volatile u8 *       io;
-        u32                 DLL;
-        u32                 DLH;
-        u32                 EFR;
-        u32                 IER;
-        u32                 LSR;
-        u32                 MCR;
-        u32                 SCR;
+        volatile uint8_t *  io;
+        uint32_t            DLL;
+        uint32_t            DLH;
+        uint32_t            EFR;
+        uint32_t            IER;
+        uint32_t            LSR;
+        uint32_t            MCR;
+        uint32_t            SCR;
     }                   cache;
     struct xUartProto   proto;
-    u32                 signature;
+    uint32_t                signature;
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/

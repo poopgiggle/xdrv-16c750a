@@ -32,6 +32,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 
+#include "arch/compiler.h"
 #include "drv/x-16c750.h"
 #include "drv/x-16c750_lld.h"
 #include "drv/x-16c750_cfg.h"
@@ -95,8 +96,8 @@ static void xUartCtxCleanup(
  */
 static int xUartCtxInit(
     struct uartCtx *    uartCtx,
-    volatile u8 *       io,
-    u32                 id);
+    volatile uint8_t *  io,
+    uint32_t            id);
 
 /**@brief       Destroy UART context
  */
@@ -113,9 +114,9 @@ static void xProtoSet(
 static struct uartCtx * uartCtxFromDevCtx(
     struct rtdm_dev_context * devCtx);
 
-static inline u32 rxTransfer(
+static inline uint32_t rxTransfer(
     struct uartCtx *    uartCtx,
-    volatile u8 *       io);
+    volatile uint8_t *  io);
 
 /**@brief       Named device open handler
  */
@@ -277,8 +278,8 @@ static void xUartCtxCleanup(
 
 static int xUartCtxInit(
     struct uartCtx *    uartCtx,
-    volatile u8 *       io,
-    u32                 id) {
+    volatile uint8_t *  io,
+    uint32_t            id) {
 
     enum ctxState       state;
     int                 retval;
@@ -458,11 +459,11 @@ static struct uartCtx * uartCtxFromDevCtx(
     return ((struct uartCtx *)rtdm_context_to_private(devCtx));
 }
 
-static inline u32 rxTransfer(
+static inline uint32_t rxTransfer(
     struct uartCtx *    uartCtx,
-    volatile u8 *       io) {
+    volatile uint8_t *  io) {
 
-    u32         transfered;
+    uint32_t            transfered;
 #if 1
     transfered = 0U;
 
@@ -490,7 +491,7 @@ static inline u32 rxTransfer(
         }
     } while (0U != (LSR_RXFIFOE & lldRegRd(io, LSR)));
 #else
-    u32 transfer;
+    uint32_t transfer;
 #endif
 
 
@@ -505,8 +506,8 @@ static int handleOpen(
     int                 retval;
     struct uartCtx *    uartCtx;
     rtdm_lockctx_t      lockCtx;
-    volatile u8 *       io;
-    u32                 id;
+    volatile uint8_t *  io;
+    uint32_t            id;
 
     uartCtx = uartCtxFromDevCtx(
         devCtx);
@@ -655,8 +656,8 @@ static int handleRd(
     struct uartCtx *    uartCtx;
     rtdm_toseq_t        oprTimeSeq;
     int                 retval;
-    u8 *                src;
-    u8 *                dst;
+    uint8_t *           src;
+    uint8_t *           dst;
     size_t              read;
 
     if (NULL != usrInfo) {
@@ -683,7 +684,7 @@ static int handleRd(
         uartCtx->rx.oprTimeout);
     uartCtx->rx.pend = bytes;
     read = 0U;
-    dst = (u8 *)buff;
+    dst = (uint8_t *)buff;
     src = circMemTailGet(
         &uartCtx->rx.buffHandle);
 
@@ -783,8 +784,8 @@ static int handleWr(
     struct uartCtx *    uartCtx;
     rtdm_toseq_t        oprTimeSeq;
     int                 retval;
-    u8 *                src;
-    u8 *                dst;
+    uint8_t *           src;
+    uint8_t *           dst;
     size_t              written;
 
     if (NULL != usrInfo) {
@@ -810,7 +811,7 @@ static int handleWr(
         &oprTimeSeq,
         uartCtx->tx.oprTimeout);
     written = 0U;
-    src = (u8 *)buff;
+    src = (uint8_t *)buff;
     dst = circMemHeadGet(
         &uartCtx->tx.buffHandle);
 
@@ -912,16 +913,9 @@ static int handleIrq(
     rtdm_irq_t *        arg) {
 
     struct uartCtx *    uartCtx;
-    volatile u8 *       io;
+    volatile uint8_t *  io;
     int                 retval;
     enum lldIntNum      intNum;
-
-    RTIME begin, end;
-    u32 cnt;
-
-    begin = 0UL;
-    end = 0UL;
-    cnt = 0UL;
 
     uartCtx = rtdm_irq_get_arg(arg, struct uartCtx);
     io = uartCtx->cache.io;
@@ -930,12 +924,11 @@ static int handleIrq(
     uartCtx->rx.status = UART_STATUS_NORMAL;
 
     while (LLD_INT_NONE != (intNum = lldIntGet(io))) {                                          /* Loop until there are interrupts to process               */
-        cnt++;
 
         /*-- Receive interrupt -----------------------------------------------*/
         if (LLD_INT_RX == intNum) {
 
-            u32 transfered;
+            uint32_t transfered;
 
             transfered = rxTransfer(uartCtx, io);
 
