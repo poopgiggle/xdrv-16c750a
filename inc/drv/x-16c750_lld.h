@@ -253,7 +253,7 @@ extern const struct xUartProto gDefProtocol;
  * @{ *//*--------------------------------------------------------------------*/
 
 /**@brief       Write a value into register
- * @param       ioRemap
+ * @param       io
  *              Pointer to IO remaped memory
  * @param       reg
  *              Register from enum hwReg.
