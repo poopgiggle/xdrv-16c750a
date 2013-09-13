@@ -64,6 +64,12 @@ void circInit(
     void *              mem,
     size_t              size) {
 
+
+#if (1U == CFG_DBG_ENABLE)
+    LOG_WARN("CIRCBUFF log enabled");
+    LOG_INFO("CIRCBUFF mem: %p", mem);
+#endif
+
     buff->mem  = (uint8_t *)mem;
     buff->head = 0U;
     buff->tail = 0U;
@@ -131,7 +137,7 @@ uint8_t * circMemTailGet(
 
 void circPosHeadSet(
     circBuff_T *         buff,
-    s32                 position) {
+    int32_t              position) {
 
     buff->free -= position;
     buff->head += position;
@@ -145,7 +151,7 @@ void circPosHeadSet(
 
 void circPosTailSet(
     circBuff_T *         buff,
-    s32                 position) {
+    int32_t              position) {
 
     buff->free += position;
     buff->tail += position;
