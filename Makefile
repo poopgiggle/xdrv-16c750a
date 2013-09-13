@@ -10,7 +10,7 @@ M_PORT_INCLUDE  := $(M_PORT_ARCH)
 am335x-xuart-y  := $(M_BASE_OBJS) $(M_CIRCBUFF_OBJS) $(M_PORT_OBJS)
 obj-m           += am335x-xuart.o
 
-C_INCLUDE 		:= -I$(PWD) -I$(PWD)/inc -I$(PWD)/port/$(M_PORT_INCLUDE) -Iinclude/xenomai 
+C_INCLUDE       := -I$(PWD)/inc -I$(PWD)/port/$(M_PORT_INCLUDE) -Iinclude/xenomai 
 EXTRA_CFLAGS    += $(C_INCLUDE)
 
 all: am335x
