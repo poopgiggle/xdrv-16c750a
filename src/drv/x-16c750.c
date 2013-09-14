@@ -114,7 +114,7 @@ static void xProtoSet(
 static struct uartCtx * uartCtxFromDevCtx(
     struct rtdm_dev_context * devCtx);
 
-static inline uint32_t rxTransfer(
+static inline void rxTransfer(
     struct uartCtx *    uartCtx,
     volatile uint8_t *  io);
 
@@ -459,13 +459,9 @@ static struct uartCtx * uartCtxFromDevCtx(
     return ((struct uartCtx *)rtdm_context_to_private(devCtx));
 }
 
-static inline uint32_t rxTransfer(
+static inline void rxTransfer(
     struct uartCtx *    uartCtx,
     volatile uint8_t *  io) {
-
-    uint32_t            transfered;
-#if 1
-    transfered = 0U;
 
     do {
         u16 item;
@@ -478,7 +474,12 @@ static inline uint32_t rxTransfer(
             circItemPut(
                 &uartCtx->rx.buffHandle,
                 item);
-            transfered++;
+            uartCtx->rx.pend--;
+
+            if (0U == uartCtx->rx.pend) {
+                rtdm_event_signal(
+                    &uartCtx->rx.opr);
+            }
         } else {
             cIntDisable(
                 uartCtx,
@@ -490,12 +491,6 @@ static inline uint32_t rxTransfer(
             break;
         }
     } while (0U != (LSR_RXFIFOE & lldRegRd(io, LSR)));
-#else
-    uint32_t transfer;
-#endif
-
-
-    return (transfered);
 }
 
 static int handleOpen(
@@ -663,6 +658,7 @@ static int handleRd(
     if (NULL != usrInfo) {
 
         if (0 == rtdm_rw_user_ok(usrInfo, buff, bytes)) {
+            LOG_ERR("failed validate user (err: <unknown>)");
             uartCtx->rx.status = UART_STATUS_FAULT_USAGE;
 
             return (-EFAULT);
@@ -675,6 +671,7 @@ static int handleRd(
         NULL);
 
     if (RETVAL_SUCCESS != retval) {
+
         uartCtx->rx.status = UART_STATUS_BUSY;
 
         return (-EBUSY);
@@ -713,6 +710,7 @@ static int handleRd(
                     transfer);
 
                 if (RETVAL_SUCCESS != retval) {
+                    LOG_ERR("failed to copy to user (err: %d)", retval);
                     uartCtx->rx.status = UART_STATUS_FAULT_USAGE;
                     retval = -EFAULT;
                     rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
@@ -926,22 +924,10 @@ static int handleIrq(
     while (LLD_INT_NONE != (intNum = lldIntGet(io))) {                                          /* Loop until there are interrupts to process               */
 
         /*-- Receive interrupt -----------------------------------------------*/
-        if (LLD_INT_RX == intNum) {
-
-            uint32_t transfered;
-
-            transfered = rxTransfer(uartCtx, io);
-
-            if (transfered >= uartCtx->rx.pend) {
-                rtdm_event_signal(
-                    &uartCtx->rx.opr);
-            }
-
-        /*-- Receive timeout interrupt ---------------------------------------*/
-        } else if (LLD_INT_RX_TIMEOUT == intNum) {
-            (void)rxTransfer(uartCtx, io);
-            rtdm_event_signal(
-                &uartCtx->rx.opr);
+        if ((LLD_INT_RX == intNum) || (LLD_INT_RX_TIMEOUT == intNum)) {
+            rxTransfer(
+                uartCtx,
+                io);
 
         /*-- Transmit interrupt ----------------------------------------------*/
         } else if (LLD_INT_TX == intNum) {
