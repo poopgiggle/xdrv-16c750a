@@ -79,9 +79,9 @@
 
 
 #define TABLE_HEADER                                                                                \
-    "---------------------------------------------------------------------------------------\n"     \
-    " Nr.  |   min   |  TURN   |   max   |   avg   |   min   |    TX   |   max   |   avg   |\n"     \
-    "---------------------------------------------------------------------------------------\n"
+    "----------------------------------------------------------------------------------------\n"    \
+    " Nr.   |   min   |  TURN   |   max   |   avg   |   min   |    TX   |   max   |   avg   |\n"    \
+    "----------------------------------------------------------------------------------------\n"
 
 #define NS_PER_US                       1000
 #define US_PER_MS                       1000
@@ -94,10 +94,10 @@
 #define SEC_TO_NS(sec)                  (NS_PER_S * (sec))
 
 #define LOG_INFO(msg, ...)                                                      \
-    printf(APP_NAME " <INFO>: " msg "\n", ##__VA_ARGS__)
+    printf(APP_NAME " " msg "\n", ##__VA_ARGS__)
 
 #define LOG_WARN(msg, ...)                                                      \
-    printf(APP_NAME " <WARN>: line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
+    printf(APP_NAME " <WARN>: line %d:\t" msg "\n", __LINE__, ##__VA_ARGS__)
 
 #define LOG_WARN_IF(expr, msg, ...)                                             \
     do {                                                                        \
@@ -107,7 +107,7 @@
     } while (0)
 
 #define LOG_ERR(msg, ...)                                                       \
-    printf(APP_NAME " <ERR> : line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
+    printf(APP_NAME " <ERR> : line %d:\t" msg "\n", __LINE__, ##__VA_ARGS__)
 
 #define LOG_ERR_IF(expr, msg, ...)                                              \
     do {                                                                        \
@@ -117,10 +117,10 @@
     } while (0)
 
 #define LOG_VAR(var)                                                            \
-    printf(APP_NAME " _VAR_" #var " : %d\n", var )
+    printf(APP_NAME " _VAR_ " #var " : %d\n", var )
 
 #define LOG_PVAR(var)                                                           \
-    printf(APP_NAME " _PTR_" #var " : %p\n", var )
+    printf(APP_NAME " _PTR_ " #var " : %p\n", var )
 
 /*======================================================  LOCAL DATA TYPES  ==*/
 
@@ -182,8 +182,7 @@ static RT_TASK          taskPrintDesc;
 
 static int              gDev;
 
-static RT_EVENT         gPrint;
-static RT_EVENT         gTransmit;
+static RT_EVENT         gSync;
 
 static RT_HEAP          gTxStorage;
 static void *           gTxBuff;
@@ -194,6 +193,9 @@ static uint32_t         gInvalidChars;
 static uint32_t         gMissingChars;
 
 static volatile struct timeMeas gTime;
+
+#define EVT_ID_PRINT    0x01U
+#define EVT_ID_SEND     0x02U
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
@@ -207,7 +209,7 @@ static void taskSend(
     (void)arg;
 
     retval = rt_event_create(
-        &gTransmit,
+        &gSync,
         "evtTransmit",
         0,
         EV_PRIO);
@@ -225,8 +227,8 @@ static void taskSend(
     while (true) {
 
         retval = rt_event_wait(
-            &gTransmit,
-            0x01UL,
+            &gSync,
+            EVT_ID_SEND,
             &mask,
             EV_ANY,
             TM_INFINITE);
@@ -242,8 +244,8 @@ static void taskSend(
             return;
         }
         rt_event_clear(
-            &gTransmit,
-            0x01UL,
+            &gSync,
+            EVT_ID_SEND,
             NULL);
         gTime.txBegin = rt_timer_read();
         rt_dev_write(
@@ -268,8 +270,8 @@ static void taskRecv(
         ssize_t         len;
 
         retval = rt_event_signal(
-            &gTransmit,
-            0x01UL);
+            &gSync,
+            EVT_ID_SEND);
 
         if (0 != retval) {
             LOG_ERR("event signal (err: %d)", retval);
@@ -296,7 +298,8 @@ static void taskRecv(
         if (0U != gMissingChars) {
             LOG_WARN("received string has missing chars: %d, retry: %d", gMissingChars, retry);
         }
-        gInvalidChars = dataIsValid(&gTxBuff, &gRxBuff, DATA_SIZE);
+        gInvalidChars = dataIsValid(&gTxBuff, gRxBuff, DATA_SIZE);
+        memset(gRxBuff, 0, DATA_SIZE);
 
         if (0U != gInvalidChars) {
             LOG_WARN("received string has invalid chars: %d, retry: %d", gInvalidChars, retry);
@@ -316,8 +319,8 @@ static void taskRecv(
             }
         }
         retval = rt_event_signal(
-            &gPrint,
-            0x01UL);
+            &gSync,
+            EVT_ID_PRINT);
 
         if (0 != retval) {
             LOG_ERR("event signal (err: %d)", retval);
@@ -325,8 +328,6 @@ static void taskRecv(
             break;
         }
     }
-    rt_event_delete(
-        &gPrint);
 }
 
 static void taskPrint(
@@ -340,17 +341,6 @@ static void taskPrint(
 
     (void)arg;
 
-    retval = rt_event_create(
-        &gPrint,
-        "evtPrint",
-        0,
-        EV_PRIO);
-
-    if (0 != retval) {
-        LOG_ERR("event wait (err: %d)", retval);
-
-        return;
-    }
     cntr = 0UL;
     initMeas(
         &turn);
@@ -362,8 +352,8 @@ static void taskPrint(
         uint64_t        txCurr;
 
         retval = rt_event_wait(
-            &gPrint,
-            0x01UL,
+            &gSync,
+            EVT_ID_PRINT,
             &mask,
             EV_ANY,
             TM_INFINITE);
@@ -378,10 +368,11 @@ static void taskPrint(
             break;
         }
         rt_event_clear(
-            &gPrint,
-            0x01UL,
+            &gSync,
+            EVT_ID_PRINT,
             NULL);
-        turnCurr = gTime.rxEnd - gTime.txBegin - TRANSMISION_TIME(DATA_SIZE);
+        turnCurr = gTime.rxEnd - gTime.txBegin;
+        turnCurr = turnCurr / 1000ULL;
         txCurr   = gTime.txEnd - gTime.txBegin;
         calcMeas(
             &turn,
@@ -508,6 +499,163 @@ static uint32_t dataIsValid(
     return (cnt);
 }
 
+enum appBootState {
+    BOOT_DEV_OPEN,
+    BOOT_CREATE_TX,
+    BOOT_ALLOC_TX,
+    BOOT_CREATE_RX,
+    BOOT_ALLOC_RX
+};
+
+enum appBootState gAppBootState;
+
+uint32_t appInit(
+    void) {
+
+    uint32_t            retval;
+
+    /*-- BOOT_DEV_OPEN -------------------------------------------------------*/
+    gAppBootState = BOOT_DEV_OPEN;
+    LOG_INFO("open device: %s", DEVICE_DRIVER_NAME);
+    gDev = rt_dev_open(
+        DEVICE_DRIVER_NAME,
+        0);
+
+    if (0 > gDev) {
+        LOG_ERR("failed to open device, err: %s)", strerror(gDev));
+
+        return (gDev);
+    }
+
+    /*-- BOOT_CREATE_TX ------------------------------------------------------*/
+    gAppBootState = BOOT_CREATE_TX;
+    LOG_INFO("reserving memory");
+    retval = rt_heap_create(
+        &gTxStorage,
+        "TXbuff_",
+        HEAP_SIZE,
+        H_SINGLE);
+
+    if (0 != retval) {
+        LOG_ERR("failed to create TX buffer, err: %s)", strerror(retval));
+
+        return (retval);
+    }
+
+    /*-- BOOT_ALLOC_TX -------------------------------------------------------*/
+    gAppBootState = BOOT_ALLOC_TX;
+    retval = rt_heap_alloc(
+        &gTxStorage,
+        HEAP_SIZE,
+        TM_NONBLOCK,
+        &gTxBuff);
+
+    if (0 != retval) {
+        LOG_ERR("unable to allocate TX buffer, err: %s", strerror(retval));
+
+        return (retval);
+    }
+
+    /*-- BOOT_CREATE_RX ------------------------------------------------------*/
+    gAppBootState = BOOT_CREATE_RX;
+    retval = rt_heap_create(
+        &gRxStorage,
+        "RXbuff_",
+        HEAP_SIZE,
+        H_SINGLE);
+
+    if (0 != retval) {
+        LOG_ERR("failed to create RX buffer, err: %s", strerror(retval));
+
+        return (retval);
+    }
+
+    gAppBootState = BOOT_ALLOC_RX;
+    retval = rt_heap_alloc(
+        &gRxStorage,
+        HEAP_SIZE,
+        TM_NONBLOCK,
+        &gRxBuff);
+
+    if (0 != retval) {
+        LOG_ERR("unable to allocate buffer, err: %s)", strerror(retval));
+
+        return (retval);
+    }
+
+    LOG_INFO("create task: %s", TASK_SEND_NAME);
+    retval = rt_task_create(
+        &taskSendDesc,
+        TASK_SEND_NAME,
+        TASK_SEND_STKSZ,
+        TASK_SEND_PRIO,
+        TASK_SEND_MODE);
+
+    if (0 != retval) {
+        LOG_ERR("failed to create: %s, err: %s)", TASK_SEND_NAME, strerror(retval));
+        rt_dev_close(
+            gDev);
+
+        return (retval);
+    }
+    LOG_INFO("start task : %s", TASK_SEND_NAME);
+    retval = rt_task_start(
+        &taskSendDesc,
+        taskSend,
+        NULL);
+    LOG_ERR_IF(0 != retval, "failed to start: %s, err: %s", TASK_SEND_NAME, strerror(retval));
+
+    LOG_INFO("create task: %s", TASK_PRINT_NAME);
+    retval = rt_task_create(
+        &taskPrintDesc,
+        TASK_PRINT_NAME,
+        TASK_PRINT_STKSZ,
+        TASK_PRINT_PRIO,
+        TASK_PRINT_MODE);
+
+    if (0 != retval) {
+        LOG_ERR("failed to create: %s, err: %s", TASK_PRINT_NAME, strerror(retval));
+        rt_task_delete(
+            &taskSendDesc);
+        rt_task_delete(
+            &taskRecvDesc);
+        rt_dev_close(
+            gDev);
+
+        return (retval);
+    }
+    LOG_INFO("start task : %s", TASK_PRINT_NAME);
+    retval = rt_task_start(
+        &taskPrintDesc,
+        taskPrint,
+        NULL);
+    LOG_ERR_IF(0 != retval, "failed to start: %s, err: %s", TASK_PRINT_NAME, strerror(retval));
+
+    LOG_INFO("create task: %s", TASK_RECV_NAME);
+    retval = rt_task_create(
+        &taskRecvDesc,
+        TASK_RECV_NAME,
+        TASK_RECV_STKSZ,
+        TASK_RECV_PRIO,
+        TASK_RECV_MODE);
+
+    if (0 != retval) {
+        LOG_ERR("failed to create: %s, err: %s", TASK_RECV_NAME, strerror(retval));
+        rt_task_delete(
+            &taskSendDesc);
+        rt_dev_close(
+            gDev);
+
+        return (retval);
+    }
+    LOG_INFO("start task : %s", TASK_RECV_NAME);
+    retval = rt_task_start(
+        &taskRecvDesc,
+        taskRecv,
+        NULL);
+    LOG_ERR_IF(0 != retval, "failed to start: %s, err: %s", TASK_RECV_NAME, strerror(retval));
+}
+
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
@@ -530,159 +678,12 @@ int main(
     mlockall(
         MCL_CURRENT | MCL_FUTURE);
 
-    LOG_INFO("open device: %s", DEVICE_DRIVER_NAME);
-    gDev = rt_dev_open(
-        DEVICE_DRIVER_NAME,
-        0);
-    if (0 > gDev) {
-        LOG_ERR("failed to open device (err: %d)", gDev);
 
-        return (gDev);
-    }
-
-    LOG_INFO("create task: %s", TASK_SEND_NAME);
-    retval = rt_task_create(
-        &taskSendDesc,
-        TASK_SEND_NAME,
-        TASK_SEND_STKSZ,
-        TASK_SEND_PRIO,
-        TASK_SEND_MODE);
-
-    if (0 != retval) {
-        LOG_ERR("failed to create: %s (err: %d)", TASK_SEND_NAME, retval);
-        rt_dev_close(
-            gDev);
-
-        return (retval);
-    }
-    LOG_INFO("create task: %s", TASK_RECV_NAME);
-    retval = rt_task_create(
-        &taskRecvDesc,
-        TASK_RECV_NAME,
-        TASK_RECV_STKSZ,
-        TASK_RECV_PRIO,
-        TASK_RECV_MODE);
-
-    if (0 != retval) {
-        LOG_ERR("failed to create: %s (err: %d)", TASK_RECV_NAME, retval);
-        rt_task_delete(
-            &taskSendDesc);
-        rt_dev_close(
-            gDev);
-
-        return (retval);
-    }
-    LOG_INFO("create task: %s", TASK_PRINT_NAME);
-    retval = rt_task_create(
-        &taskPrintDesc,
-        TASK_PRINT_NAME,
-        TASK_PRINT_STKSZ,
-        TASK_PRINT_PRIO,
-        TASK_PRINT_MODE);
-
-    if (0 != retval) {
-        LOG_ERR("failed to create: %s (err: %d)", TASK_PRINT_NAME, retval);
-        rt_task_delete(
-            &taskSendDesc);
-        rt_task_delete(
-            &taskRecvDesc);
-        rt_dev_close(
-            gDev);
-
-        return (retval);
-    }
-    LOG_INFO("reserving memory");
-    retval = rt_heap_create(
-        &gTxStorage,
-        "TXbuff_",
-        HEAP_SIZE,
-        H_FIFO);
-
-    if (0 != retval) {
-        LOG_ERR("failed to create TX buffer (err: %d)", retval);
-        rt_task_delete(
-            &taskPrintDesc);
-        rt_task_delete(
-            &taskSendDesc);
-        rt_task_delete(
-            &taskRecvDesc);
-        rt_dev_close(
-            gDev);
-
-        return (retval);
-    }
-    retval = rt_heap_alloc(
-        &gTxStorage,
-        HEAP_SIZE,
-        TM_INFINITE,
-        &gTxBuff);
-    LOG_ERR_IF(0 != retval, "unable to allocate buffer (err: %d)", retval);
-    retval = rt_heap_create(
-        &gRxStorage,
-        "RXbuff_",
-        HEAP_SIZE,
-        H_FIFO);
-
-    if (0 != retval) {
-        LOG_ERR("failed to create RX buffer (err: %d)", retval);
-        rt_heap_delete(
-            &gTxStorage);
-        rt_task_delete(
-            &taskPrintDesc);
-        rt_task_delete(
-            &taskSendDesc);
-        rt_task_delete(
-            &taskRecvDesc);
-        rt_dev_close(
-            gDev);
-
-        return (retval);
-    }
-    retval = rt_heap_alloc(
-        &gRxStorage,
-        HEAP_SIZE,
-        TM_INFINITE,
-        &gRxBuff);
-    LOG_ERR_IF(0 != retval, "unable to allocate buffer (err: %d)", retval);
-
-    LOG_INFO("start task : %s", TASK_SEND_NAME);
-    retval = rt_task_start(
-        &taskSendDesc,
-        taskSend,
-        NULL);
-    LOG_ERR_IF(0 != retval, "failed to start: %s (err: %d)", TASK_SEND_NAME, retval);
-
-    LOG_INFO("start task : %s", TASK_PRINT_NAME);
-    retval = rt_task_start(
-        &taskPrintDesc,
-        taskPrint,
-        NULL);
-    LOG_ERR_IF(0 != retval, "failed to start: %s (err: %d)", TASK_PRINT_NAME, retval);
-
-    LOG_INFO("start task : %s", TASK_RECV_NAME);
-    retval = rt_task_start(
-        &taskRecvDesc,
-        taskRecv,
-        NULL);
-    LOG_ERR_IF(0 != retval, "failed to start: %s (err: %d)", TASK_RECV_NAME, retval);
 
     printf("\n-----------------------------------------------------------------\n");
     printf("  Message length: %lu\n", DATA_SIZE);
     printf("-----------------------------------------------------------------\n\n");
     pause();
-    LOG_INFO("terminating");
-    rt_heap_delete(
-        &gRxStorage);
-    rt_heap_delete(
-        &gTxStorage);
-    rt_task_delete(
-        &taskPrintDesc);
-    rt_task_delete(
-        &taskRecvDesc);
-    rt_task_delete(
-        &taskSendDesc);
-    rt_dev_close(
-        gDev);
 
     return (retval);
 }
