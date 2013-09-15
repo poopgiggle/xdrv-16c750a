@@ -475,9 +475,11 @@ int main(
     pause();
     LOG_INFO("terminating");
     rt_task_delete(
-        &taskSendDesc);
+        &taskPrintDesc);
     rt_task_delete(
         &taskSendDesc);
+    rt_task_delete(
+        &taskRecvDesc);
     rt_dev_close(
         gDev);
 
