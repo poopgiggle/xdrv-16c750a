@@ -115,6 +115,14 @@ size_t circRemainingOccGet(
     return ((size_t)tmp);
 }
 
+size_t circFreeGet(
+    const circBuff_T *   buff) {
+
+    DBG_VALIDATE(buff, buff->free);
+
+    return ((size_t)buff->free);
+}
+
 uint8_t * circMemBaseGet(
     const circBuff_T *   buff) {
 
