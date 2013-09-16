@@ -64,15 +64,15 @@ struct devData;
 
 /**@brief       Hardware IO memory maps
  */
-extern const u32 gPortIOmap[];
+extern const uint32_t PortIOmap[];
 
 /**@brief       Hardware IRQ numbers
  */
-extern const u32 gPortIRQ[];
+extern const uint32_t PortIRQ[];
 
 /**@brief       Number of supported UARTs
  */
-extern const u32 gPortUartNum;
+extern const uint32_t PortUartNum;
 
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
@@ -87,7 +87,7 @@ extern const u32 gPortUartNum;
  *              reference
  */
 struct devData * portInit(
-    u32                 id);
+    uint32_t            id);
 
 /**@brief       Deinit and destroy kernel device driver
  * @param       devResource
@@ -96,17 +96,17 @@ struct devData * portInit(
 int portTerm(
     struct devData *    devData);
 
-u32 portModeGet(
-    u32                 baudrate);
+uint32_t portModeGet(
+    uint32_t            baudrate);
 
-u32 portDIVdataGet(
-    u32                 baudrate);
+uint32_t portDIVdataGet(
+    uint32_t            baudrate);
 
-volatile u8 * portIORemapGet(
+volatile uint8_t * portIORemapGet(
     struct devData *    devData);
 
 bool_T portIsOnline(
-    u32                 id);
+    uint32_t            id);
 
 /** @} *//*-----------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus

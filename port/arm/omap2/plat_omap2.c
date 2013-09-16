@@ -73,7 +73,7 @@ enum hwUart {
 };
 
 struct devData {
-    volatile u8 *       io;
+    volatile uint8_t *       io;
     struct platform_device * platDev;
 #if (1 == CFG_DMA_ENABLE)
 #endif
@@ -85,51 +85,51 @@ static void platCleanup(
     struct devData *    devData,
     enum platState      state);
 
-static u32 baudRateCfgFindIndex(
-    u32                 baudrate);
+static uint32_t baudRateCfgFindIndex(
+    uint32_t            baudrate);
 
 /*=======================================================  LOCAL VARIABLES  ==*/
 
-static const u32 gBaudRateData[] = {
+static const uint32_t BaudRateData[] = {
     BAUD_RATE_CFG_TABLE(BAUD_RATE_CFG_EXPAND_AS_BAUD)
     0
 };
 
-static const enum lldMode gModeData[] = {
+static const enum lldMode ModeData[] = {
     BAUD_RATE_CFG_TABLE(BAUD_RATE_CFG_EXPAND_AS_MDR_DATA)
 };
 
-static const u32 gDIVdata[] = {
+static const uint32_t DIVdata[] = {
     BAUD_RATE_CFG_TABLE(BAUD_RATE_CFG_EXPAND_AS_DIV_DATA)
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 
-const u32 gPortIOmap[] = {
+const uint32_t PortIOmap[] = {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_MEM)
 };
 
-const u32 gPortIRQ[] = {
+const uint32_t PortIRQ[] = {
     UART_DATA_TABLE(UART_DATA_EXPAND_AS_IRQ)
 };
 
-const u32 gPortUartNum = LAST_UART_ENTRY;
+const uint32_t PortUartNum = LAST_UART_ENTRY;
 
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
 
-static u32 baudRateCfgFindIndex(
-    u32                 baudrate) {
+static uint32_t baudRateCfgFindIndex(
+    uint32_t                 baudrate) {
 
-    u32                 cnt;
+    uint32_t                 cnt;
 
     LOG_DBG("finding index");
     cnt = 0U;
 
-    while ((0U != gBaudRateData[cnt]) && (baudrate != gBaudRateData[cnt])) {
+    while ((0U != BaudRateData[cnt]) && (baudrate != BaudRateData[cnt])) {
         cnt++;
     }
 
-    if (0U == gBaudRateData[cnt]) {
+    if (0U == BaudRateData[cnt]) {
         LOG_DBG("index not found");
 
         return (RETVAL_FAILURE);
@@ -180,7 +180,7 @@ static void platCleanup(
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
 struct devData * portInit(
-    u32                 id) {
+    uint32_t            id) {
 
     struct devData *    devData;
     struct omap_hwmod * hwmod;
@@ -286,10 +286,10 @@ struct devData * portInit(
     return (devData);
 }
 
-volatile u8 * portIORemapGet(
+volatile uint8_t * portIORemapGet(
     struct devData *    devData) {
 
-    volatile u8 *       ioremap;
+    volatile uint8_t *  ioremap;
 
     ioremap = omap_device_get_rt_va(
         to_omap_device(devData->platDev));
@@ -334,9 +334,9 @@ void portDMAinit(
 }
 
 enum lldMode portModeGet(
-    u32                 baudrate) {
+    uint32_t            baudrate) {
 
-    u32                 indx;
+    uint32_t            indx;
 
     indx = baudRateCfgFindIndex(baudrate);
 
@@ -345,14 +345,14 @@ enum lldMode portModeGet(
         return (indx);
     } else {
 
-        return (gModeData[indx]);
+        return (ModeData[indx]);
     }
 }
 
-u32 portDIVdataGet(
-    u32                 baudrate) {
+uint32_t portDIVdataGet(
+    uint32_t            baudrate) {
 
-    u32                 indx;
+    uint32_t            indx;
 
     indx = baudRateCfgFindIndex(baudrate);
 
@@ -361,12 +361,12 @@ u32 portDIVdataGet(
         return (indx);
     } else {
 
-        return (gDIVdata[indx]);
+        return (DIVdata[indx]);
     }
 }
 
 bool_T portIsOnline(
-    u32                 id) {
+    uint32_t            id) {
 
     bool_T              ans;
 
