@@ -156,7 +156,7 @@ static int handleIrq(
 
 /*=======================================================  LOCAL VARIABLES  ==*/
 
-static struct rtdm_device gUartDev = {
+static struct rtdm_device UartDev = {
     .struct_version     = RTDM_DEVICE_STRUCT_VER,
     .device_flags       = RTDM_NAMED_DEVICE | RTDM_EXCLUSIVE,
     .context_size       = sizeof(struct uartCtx),
@@ -387,7 +387,7 @@ static int xUartCtxInit(
 
     xProtoSet(
         uartCtx,
-        &gDefProtocol);
+        &DefProtocol);
     rtdm_mutex_init(
         &uartCtx->tx.acc);
     rtdm_event_init(
@@ -495,7 +495,7 @@ static int handleOpen(
     }
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
-        gPortIRQ[id],
+        PortIRQ[id],
         handleIrq,
         RTDM_IRQTYPE_EDGE,
         devCtx->device->proc_name,
@@ -703,7 +703,7 @@ static int handleRd(
             cIntEnable(
                 uartCtx,
                 C_INT_RX | C_INT_RX_TIMEOUT);
-            uartCtx->rx.pend = min(bytes, circSizeGet(&uartCtx->rx.buffHandle));
+            uartCtx->rx.pend = min(bytes, circSizeGet(&uartCtx->rx.buffHandle) - CFG_BUFF_BACKOFF);
             rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
             retval = rtdm_event_timedwait(
                 &uartCtx->rx.opr,
@@ -1021,12 +1021,11 @@ static int handleIrq(
 
         /*-- Receive interrupt -----------------------------------------------*/
         if ((LLD_INT_RX == intNum) || (LLD_INT_RX_TIMEOUT == intNum)) {
-#if 1
             size_t      occupied;
-#define RX_FIFO_SIZE                    64U
-            uartCtx->rx.status = UART_STATUS_NORMAL;
 
-            occupied = lldRegRd(io, RXFIFO_LVL);
+            uartCtx->rx.status = UART_STATUS_NORMAL;
+            occupied = lldFIFORxOccupied(
+                io);
 
             do {
                 u16 item;
@@ -1060,47 +1059,13 @@ static int handleIrq(
                     break;
                 }
             } while (0U != occupied);
-#else
-            do {
-                u16 item;
-
-                item = lldRegRd(
-                    io,
-                    RHR);
-
-                if (FALSE == circIsFull(&uartCtx->rx.buffHandle)) {
-                    circItemPut(
-                        &uartCtx->rx.buffHandle,
-                        item);
-
-                    if (0U != uartCtx->rx.pend) {
-                        uartCtx->rx.pend--;
-
-                        if (0U == uartCtx->rx.pend) {
-                            rtdm_event_signal(
-                                &uartCtx->rx.opr);
-                        }
-                    }
-                } else {
-                    cIntDisable(
-                        uartCtx,
-                        C_INT_RX | C_INT_RX_TIMEOUT);
-                    uartCtx->rx.status = UART_STATUS_SOFT_OVERFLOW;
-                    /*
-                     * TODO: Flush FIFO here
-                     */
-                    break;
-                }
-            } while (0U != (LSR_RXFIFOE & lldRegRd(io, LSR)));
-#endif
 
         /*-- Transmit interrupt ----------------------------------------------*/
         } else if (LLD_INT_TX == intNum) {
-#if 1
             size_t      remaining;
-#define TX_FIFO_SIZE                    64U
 
-            remaining = TX_FIFO_SIZE - lldRegRd(io, TXFIFO_LVL);
+            remaining = lldFIFOTxRemaining(
+                io);
 
             do {
                 remaining--;
@@ -1131,38 +1096,6 @@ static int handleIrq(
                     break;
                 }
             } while (0U != remaining);
-
-#else
-            while (0 == (lldRegRd(io,SSR) & SSR_TXFIFOFULL)) {
-
-                if (FALSE == circIsEmpty(&uartCtx->tx.buffHandle)) {
-                    u16 item;
-
-                    item = circItemGet(
-                        &uartCtx->tx.buffHandle);
-                    lldRegWr(
-                        io,
-                        wTHR,
-                        item);
-
-                    if (0U != uartCtx->tx.pend) {
-                        uartCtx->tx.pend--;
-
-                        if (0U == uartCtx->tx.pend) {
-                            rtdm_event_pulse(
-                                &uartCtx->tx.opr);
-                        }
-                    }
-                } else {
-                    cIntDisable(
-                        uartCtx,
-                        C_INT_TX);
-
-                    break;
-                }
-            }
-#endif
-
 
         /*-- Other interrupts ------------------------------------------------*/
         } else {
@@ -1198,15 +1131,15 @@ int __init moduleInit(
     LOG_INFO(DEF_DRV_DESCRIPTION);
     LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
 
-    gUartDev.device_id = CFG_UART_ID;
-    memcpy(&gUartDev.device_name, CFG_DRV_NAME, sizeof(CFG_DRV_NAME));
+    UartDev.device_id = CFG_UART_ID;
+    memcpy(&UartDev.device_name, CFG_DRV_NAME, sizeof(CFG_DRV_NAME));
 
     /*-- STATE: Port initialization ------------------------------------------*/
     state = MOD_STATE_PORT;
-    gUartDev.device_data = lldInit(
-        gUartDev.device_id);                                                    /* Initialize Linux device driver                           */
+    UartDev.device_data = lldInit(
+        UartDev.device_id);                                                    /* Initialize Linux device driver                           */
 
-    if (NULL == gUartDev.device_data) {
+    if (NULL == UartDev.device_data) {
         LOG_ERR("failed to initialize port driver");
 
         return (-ENOTSUPP);
@@ -1214,14 +1147,14 @@ int __init moduleInit(
 
     /*-- STATE: Xenomai device registration ----------------------------------*/
     state  = MOD_STATE_DEV_REG;
-    LOG_INFO("registering device: %s, id: %d", (char *)&gUartDev.device_name, gUartDev.device_id);
+    LOG_INFO("registering device: %s, id: %d", (char *)&UartDev.device_name, UartDev.device_id);
     retval = rtdm_dev_register(
-        &gUartDev);
+        &UartDev);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to register to Real-Time DM");
         lldTerm(
-            gUartDev.device_data);
+            UartDev.device_data);
     }
 
     return (retval);
@@ -1231,13 +1164,13 @@ void __exit moduleTerm(
     void) {
     int             retval;
 
-    LOG_INFO("removing driver for UART: %d", gUartDev.device_id);
+    LOG_INFO("removing driver for UART: %d", UartDev.device_id);
     retval = rtdm_dev_unregister(
-        &gUartDev,
+        &UartDev,
         CFG_TIMEOUT_MS);
     LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
     retval = lldTerm(
-        gUartDev.device_data);
+        UartDev.device_data);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed terminate platform device driver");
 }
 
