@@ -244,7 +244,7 @@ enum lldState {
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 
-extern const struct xUartProto gDefProtocol;
+extern const struct xUartProto DefProtocol;
 
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
@@ -448,6 +448,12 @@ void lldRxFIFOGranularityState(
 void lldRxFIFOGranularitySet(
     volatile uint8_t *  io,
     size_t              bytes);
+
+size_t lldFIFORxOccupied(
+    volatile uint8_t *  io);
+
+size_t lldFIFOTxRemaining(
+    volatile uint8_t *  io);
 
 /**@} *//*----------------------------------------------------------------*//**
  * @name        Protocol

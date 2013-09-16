@@ -51,9 +51,11 @@
 # define FIFO_TX_LVL                    FCR_TX_FIFO_TRIG_56
 #endif
 
+#define TX_FIFO_SIZE                    64U
+
 /*======================================================  LOCAL DATA TYPES  ==*/
 
-const struct xUartProto gDefProtocol = {
+const struct xUartProto DefProtocol = {
     .baud               = CFG_DEFAULT_BAUD_RATE,
     .parity             = XUART_PARITY_NONE,
     .dataBits           = XUART_DATA_8,
@@ -328,6 +330,18 @@ void lldRxFIFOGranularityState(
     if (LLD_ENABLE == state) {
 
     }
+}
+
+size_t lldFIFORxOccupied(
+    volatile uint8_t *  io) {
+
+    return (lldRegRd(io, RXFIFO_LVL));
+}
+
+size_t lldFIFOTxRemaining(
+    volatile uint8_t *  io) {
+
+    return (TX_FIFO_SIZE - lldRegRd(io, TXFIFO_LVL));
 }
 
 void lldFIFOInit(
