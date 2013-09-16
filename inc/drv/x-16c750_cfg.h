@@ -50,7 +50,7 @@
 
 #define CFG_DRV_NAME                    "xuart"
 
-#define CFG_DRV_BUFF_SIZE               1024U
+#define CFG_DRV_BUFF_SIZE               204800U
 #define CFG_TIMEOUT_MS                  2000
 
 /**@brief       Trigger level of UART FIFO
@@ -60,6 +60,8 @@
  *                              - interrupts are generated very often
  */
 #define CFG_FIFO_TRIG                   56
+
+#define CFG_BUFF_BACKOFF                56
 
 #define CFG_DMA_ENABLE                  1
 
