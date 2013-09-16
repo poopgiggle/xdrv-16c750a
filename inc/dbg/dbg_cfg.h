@@ -44,7 +44,7 @@
  *              - 1U - Debug is enabled
  */
 #if !defined(CFG_DBG_ENABLE)
-# define CFG_DBG_ENABLE                 1U
+# define CFG_DBG_ENABLE                 0U
 #endif
 
 /**@brief       Enable/disable API arguments validation
