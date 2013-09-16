@@ -114,10 +114,6 @@ static void xProtoSet(
 static struct uartCtx * uartCtxFromDevCtx(
     struct rtdm_dev_context * devCtx);
 
-static inline void rxTransfer(
-    struct uartCtx *    uartCtx,
-    volatile uint8_t *  io);
-
 /**@brief       Named device open handler
  */
 static int handleOpen(
@@ -137,7 +133,7 @@ static int handleIOctl(
     struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo,
     unsigned int        req,
-    void __user *       arg);
+    void __user *       mem);
 
 /**@brief       Read device handler
  */
@@ -157,9 +153,6 @@ static int handleWr(
 
 static int handleIrq(
     rtdm_irq_t *        arg);
-
-static void moduleCleanup(
-    enum moduleState    state);
 
 /*=======================================================  LOCAL VARIABLES  ==*/
 
@@ -214,28 +207,34 @@ static void cIntEnable(
     struct uartCtx *    uartCtx,
     enum cIntNum        cIntNum) {
 
-    uartCtx->cache.IER |= cIntNum;
-    lldRegWr(
-        uartCtx->cache.io,
-        wIER,
-        uartCtx->cache.IER);
+    uint32_t            tmp;
+
+    tmp = uartCtx->cache.IER | cIntNum;
+
+    if (uartCtx->cache.IER != tmp) {
+        uartCtx->cache.IER |= cIntNum;
+        lldRegWr(
+            uartCtx->cache.io,
+            wIER,
+            tmp);
+    }
 }
 
 static void cIntDisable(
     struct uartCtx *    uartCtx,
     enum cIntNum        cIntNum) {
 
-    uartCtx->cache.IER &= ~cIntNum;
-    lldRegWr(
-        uartCtx->cache.io,
-        wIER,
-        uartCtx->cache.IER);
-}
+    uint32_t            tmp;
 
-static enum cIntNum cIntEnabledGet(
-    struct uartCtx *    uartCtx) {
+    tmp = uartCtx->cache.IER & ~cIntNum;
 
-    return (uartCtx->cache.IER);
+    if (uartCtx->cache.IER != tmp) {
+        uartCtx->cache.IER &= ~cIntNum;
+        lldRegWr(
+            uartCtx->cache.io,
+            wIER,
+            uartCtx->cache.IER);
+    }
 }
 
 static void xUartCtxCleanup(
@@ -373,11 +372,16 @@ static int xUartCtxInit(
     /*-- Prepare UART data ---------------------------------------------------*/
     uartCtx->cache.io       = io;
     uartCtx->cache.IER      = lldRegRd(io, IER);
+    uartCtx->cache.LSR      = lldRegRd(io, LSR);
+    uartCtx->cache.MCR      = lldRegRd(io, MCR);
+    uartCtx->cache.SCR      = lldRegRd(io, SCR);
     uartCtx->tx.accTimeout  = MS_TO_NS(CFG_TIMEOUT_MS);
     uartCtx->tx.oprTimeout  = MS_TO_NS(CFG_TIMEOUT_MS);
+    uartCtx->tx.pend        = 0U;
     uartCtx->tx.status      = UART_STATUS_NORMAL;
     uartCtx->rx.accTimeout  = MS_TO_NS(CFG_TIMEOUT_MS);
     uartCtx->rx.oprTimeout  = MS_TO_NS(CFG_TIMEOUT_MS);
+    uartCtx->rx.pend        = 0U;
     uartCtx->rx.status      = UART_STATUS_NORMAL;
     uartCtx->signature      = UART_CTX_SIGNATURE;
 
@@ -457,40 +461,6 @@ static struct uartCtx * uartCtxFromDevCtx(
     struct rtdm_dev_context * devCtx) {
 
     return ((struct uartCtx *)rtdm_context_to_private(devCtx));
-}
-
-static inline void rxTransfer(
-    struct uartCtx *    uartCtx,
-    volatile uint8_t *  io) {
-
-    do {
-        u16 item;
-
-        item = lldRegRd(
-            io,
-            RHR);
-
-        if (FALSE == circIsFull(&uartCtx->rx.buffHandle)) {
-            circItemPut(
-                &uartCtx->rx.buffHandle,
-                item);
-            uartCtx->rx.pend--;
-
-            if (0U == uartCtx->rx.pend) {
-                rtdm_event_signal(
-                    &uartCtx->rx.opr);
-            }
-        } else {
-            cIntDisable(
-                uartCtx,
-                C_INT_RX | C_INT_RX_TIMEOUT);
-            uartCtx->rx.status = UART_STATUS_SOFT_OVERFLOW;
-            /*
-             * TODO: Flush FIFO here
-             */
-            break;
-        }
-    } while (0U != (LSR_RXFIFOE & lldRegRd(io, LSR)));
 }
 
 static int handleOpen(
@@ -579,7 +549,7 @@ static int handleIOctl(
     struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo,
     unsigned int        req,
-    void __user *       arg) {
+    void __user *       mem) {
 
     struct uartCtx *    uartCtx;
     int                 retval;
@@ -593,12 +563,12 @@ static int handleIOctl(
             if (NULL != usrInfo) {
                 retval = rtdm_safe_copy_to_user(
                     usrInfo,
-                    arg,
+                    mem,
                     &uartCtx->proto,
                     sizeof(struct xUartProto));
             } else {
                 memcpy(
-                    arg,
+                    mem,
                     &uartCtx->proto,
                     sizeof(struct xUartProto));
             }
@@ -612,12 +582,12 @@ static int handleIOctl(
                 retval = rtdm_safe_copy_from_user(
                     usrInfo,
                     &proto,
-                    arg,
+                    mem,
                     sizeof(struct xUartProto));
             } else {
                 memcpy(
                     &proto,
-                    arg,
+                    mem,
                     sizeof(struct xUartProto));
             }
 
@@ -658,7 +628,6 @@ static int handleRd(
     if (NULL != usrInfo) {
 
         if (0 == rtdm_rw_user_ok(usrInfo, buff, bytes)) {
-            LOG_ERR("failed validate user (err: <unknown>)");
             uartCtx->rx.status = UART_STATUS_FAULT_USAGE;
 
             return (-EFAULT);
@@ -671,7 +640,6 @@ static int handleRd(
         NULL);
 
     if (RETVAL_SUCCESS != retval) {
-
         uartCtx->rx.status = UART_STATUS_BUSY;
 
         return (-EBUSY);
@@ -679,12 +647,76 @@ static int handleRd(
     rtdm_toseq_init(
         &oprTimeSeq,
         uartCtx->rx.oprTimeout);
-    uartCtx->rx.pend = bytes;
     read = 0U;
     dst = (uint8_t *)buff;
     src = circMemTailGet(
         &uartCtx->rx.buffHandle);
 
+#if 1
+    do {
+        size_t          occupied;
+        rtdm_lockctx_t  lockCtx;
+
+
+        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        occupied = circRemainingOccGet(
+            &uartCtx->rx.buffHandle);
+
+        if (0U != occupied) {
+            size_t      transfer;
+
+            transfer = min(bytes, occupied);
+
+            if (NULL != usrInfo) {
+                retval = rtdm_copy_to_user(
+                    usrInfo,
+                    dst,
+                    src,
+                    transfer);
+
+                if (RETVAL_SUCCESS != retval) {
+                    uartCtx->rx.status = UART_STATUS_FAULT_USAGE;
+                    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+
+                    break;
+                }
+            } else {
+                memcpy(
+                    dst,
+                    src,
+                    transfer);
+            }
+            read  += transfer;
+            bytes -= transfer;
+            dst   += transfer;
+            circPosTailSet(
+                &uartCtx->rx.buffHandle,
+                transfer);
+            src = circMemTailGet(
+                &uartCtx->rx.buffHandle);
+            cIntEnable(
+                uartCtx,
+                C_INT_RX | C_INT_RX_TIMEOUT);
+            uartCtx->rx.pend = 0U;
+            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+        } else {
+            cIntEnable(
+                uartCtx,
+                C_INT_RX | C_INT_RX_TIMEOUT);
+            uartCtx->rx.pend = min(bytes, circSizeGet(&uartCtx->rx.buffHandle));
+            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+            retval = rtdm_event_timedwait(
+                &uartCtx->rx.opr,
+                uartCtx->rx.oprTimeout,
+                &oprTimeSeq);
+
+            if (RETVAL_SUCCESS != retval) {
+
+                break;
+            }
+        }
+    } while (0U < bytes);
+#else
     while (TRUE) {
         size_t          remaining;
         size_t          transfer;
@@ -763,6 +795,7 @@ static int handleRd(
             break;
         }
     }
+#endif
     rtdm_mutex_unlock(
         &uartCtx->rx.acc);
 
@@ -813,6 +846,69 @@ static int handleWr(
     dst = circMemHeadGet(
         &uartCtx->tx.buffHandle);
 
+#if 1
+    do {
+        size_t          remaining;
+        rtdm_lockctx_t  lockCtx;
+
+        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        remaining = circRemainingFreeGet(&uartCtx->tx.buffHandle);
+
+        if (0U != remaining) {
+            size_t      transfer;
+
+            transfer = min(bytes, remaining);
+
+            if (NULL != usrInfo) {
+                retval = rtdm_copy_from_user(
+                    usrInfo,
+                    dst,
+                    src,
+                    transfer);
+
+                if (RETVAL_SUCCESS != retval) {
+                    uartCtx->tx.status = UART_STATUS_FAULT_USAGE;
+                    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+
+                    break;                                                      /* Exit from loop                                           */
+                }
+            } else {
+                memcpy(
+                    dst,
+                    src,
+                    transfer);
+            }
+            written += transfer;
+            bytes   -= transfer;
+            src     += transfer;
+            circPosHeadSet(
+                &uartCtx->tx.buffHandle,
+                transfer);
+            dst = circMemHeadGet(
+                &uartCtx->tx.buffHandle);
+            cIntEnable(
+                uartCtx,
+                C_INT_TX);
+            uartCtx->tx.pend = 0U;
+            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+        } else {
+            cIntEnable(
+                uartCtx,
+                C_INT_TX);
+            uartCtx->tx.pend = min(bytes, circSizeGet(&uartCtx->tx.buffHandle));
+            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+            retval = rtdm_event_timedwait(
+                &uartCtx->tx.opr,
+                uartCtx->tx.oprTimeout,
+                &oprTimeSeq);
+
+            if (RETVAL_SUCCESS != retval) {
+
+                break;
+            }
+        }
+    } while (0U < bytes);
+#else
     while (0U < bytes) {
         size_t          remaining;
         size_t          transfer;
@@ -897,6 +993,7 @@ static int handleWr(
             }
         }
     }
+#endif
     rtdm_mutex_unlock(
         &uartCtx->tx.acc);
 
@@ -919,18 +1016,123 @@ static int handleIrq(
     io = uartCtx->cache.io;
     retval = RTDM_IRQ_HANDLED;
     rtdm_lock_get(&uartCtx->lock);
-    uartCtx->rx.status = UART_STATUS_NORMAL;
 
     while (LLD_INT_NONE != (intNum = lldIntGet(io))) {                                          /* Loop until there are interrupts to process               */
 
         /*-- Receive interrupt -----------------------------------------------*/
         if ((LLD_INT_RX == intNum) || (LLD_INT_RX_TIMEOUT == intNum)) {
-            rxTransfer(
-                uartCtx,
-                io);
+#if 1
+            size_t      occupied;
+#define RX_FIFO_SIZE                    64U
+            uartCtx->rx.status = UART_STATUS_NORMAL;
+
+            occupied = lldRegRd(io, RXFIFO_LVL);
+
+            do {
+                u16 item;
+
+                occupied--;
+                item = lldRegRd(
+                    io,
+                    RHR);
+
+                if (FALSE == circIsFull(&uartCtx->rx.buffHandle)) {
+                    circItemPut(
+                        &uartCtx->rx.buffHandle,
+                        item);
+
+                    if (0U != uartCtx->rx.pend) {
+                        uartCtx->rx.pend--;
+
+                        if (0U == uartCtx->rx.pend) {
+                            rtdm_event_pulse(
+                                &uartCtx->rx.opr);
+                        }
+                    }
+                } else {
+                    cIntDisable(
+                        uartCtx,
+                        C_INT_RX | C_INT_RX_TIMEOUT);
+                    uartCtx->rx.status = UART_STATUS_SOFT_OVERFLOW;
+                    /*
+                     * TODO: Flush FIFO here
+                     */
+                    break;
+                }
+            } while (0U != occupied);
+#else
+            do {
+                u16 item;
+
+                item = lldRegRd(
+                    io,
+                    RHR);
+
+                if (FALSE == circIsFull(&uartCtx->rx.buffHandle)) {
+                    circItemPut(
+                        &uartCtx->rx.buffHandle,
+                        item);
+
+                    if (0U != uartCtx->rx.pend) {
+                        uartCtx->rx.pend--;
+
+                        if (0U == uartCtx->rx.pend) {
+                            rtdm_event_signal(
+                                &uartCtx->rx.opr);
+                        }
+                    }
+                } else {
+                    cIntDisable(
+                        uartCtx,
+                        C_INT_RX | C_INT_RX_TIMEOUT);
+                    uartCtx->rx.status = UART_STATUS_SOFT_OVERFLOW;
+                    /*
+                     * TODO: Flush FIFO here
+                     */
+                    break;
+                }
+            } while (0U != (LSR_RXFIFOE & lldRegRd(io, LSR)));
+#endif
 
         /*-- Transmit interrupt ----------------------------------------------*/
         } else if (LLD_INT_TX == intNum) {
+#if 1
+            size_t      remaining;
+#define TX_FIFO_SIZE                    64U
+
+            remaining = TX_FIFO_SIZE - lldRegRd(io, TXFIFO_LVL);
+
+            do {
+                remaining--;
+
+                if (FALSE == circIsEmpty(&uartCtx->tx.buffHandle)) {
+                    u16 item;
+
+                    item = circItemGet(
+                        &uartCtx->tx.buffHandle);
+                    lldRegWr(
+                        io,
+                        wTHR,
+                        item);
+
+                    if (0U != uartCtx->tx.pend) {
+                        uartCtx->tx.pend--;
+
+                        if (0U == uartCtx->tx.pend) {
+                            rtdm_event_pulse(
+                                &uartCtx->tx.opr);
+                        }
+                    }
+                } else {
+                    cIntDisable(
+                        uartCtx,
+                        C_INT_TX);
+
+                    break;
+                }
+            } while (0U != remaining);
+
+#else
             while (0 == (lldRegRd(io,SSR) & SSR_TXFIFOFULL)) {
 
                 if (FALSE == circIsEmpty(&uartCtx->tx.buffHandle)) {
@@ -942,20 +1144,25 @@ static int handleIrq(
                         io,
                         wTHR,
                         item);
+
+                    if (0U != uartCtx->tx.pend) {
+                        uartCtx->tx.pend--;
+
+                        if (0U == uartCtx->tx.pend) {
+                            rtdm_event_pulse(
+                                &uartCtx->tx.opr);
+                        }
+                    }
                 } else {
                     cIntDisable(
                         uartCtx,
                         C_INT_TX);
 
-                    if (TRUE == uartCtx->tx.pend) {
-                        uartCtx->tx.pend = FALSE;
-                        rtdm_event_signal(
-                            &uartCtx->tx.opr);
-                    }
-
                     break;
                 }
             }
+#endif
+
 
         /*-- Other interrupts ------------------------------------------------*/
         } else {
@@ -979,27 +1186,6 @@ static int handleIrq(
     return (retval);
 }
 
-static void moduleCleanup(
-    enum moduleState    state) {
-
-    switch (state) {
-        case MOD_STATE_DEV_REG : {
-            lldTerm(
-                gUartDev.device_data);
-            /* fall down */
-        }
-
-        case MOD_STATE_PORT : {
-            /* nothing */
-            break;
-        }
-
-        default : {
-            /* nothing */
-        }
-    }
-}
-
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
@@ -1009,20 +1195,19 @@ int __init moduleInit(
     int                 retval;
     enum moduleState    state;
 
+    LOG_INFO(DEF_DRV_DESCRIPTION);
+    LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
+
     gUartDev.device_id = CFG_UART_ID;
     memcpy(&gUartDev.device_name, CFG_DRV_NAME, sizeof(CFG_DRV_NAME));
 
     /*-- STATE: Port initialization ------------------------------------------*/
     state = MOD_STATE_PORT;
-    LOG_INFO(DEF_DRV_DESCRIPTION);
-    LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
     gUartDev.device_data = lldInit(
         gUartDev.device_id);                                                    /* Initialize Linux device driver                           */
 
     if (NULL == gUartDev.device_data) {
         LOG_ERR("failed to initialize port driver");
-        moduleCleanup(
-            state);
 
         return (-ENOTSUPP);
     }
@@ -1035,8 +1220,8 @@ int __init moduleInit(
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to register to Real-Time DM");
-        moduleCleanup(
-            state);
+        lldTerm(
+            gUartDev.device_data);
     }
 
     return (retval);
