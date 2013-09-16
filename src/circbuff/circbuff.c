@@ -123,6 +123,12 @@ size_t circFreeGet(
     return ((size_t)buff->free);
 }
 
+size_t circSizeGet(
+    const circBuff_T *  buff) {
+
+    return ((size_t)buff->size);
+}
+
 uint8_t * circMemBaseGet(
     const circBuff_T *   buff) {
 

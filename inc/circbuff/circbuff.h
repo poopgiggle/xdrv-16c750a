@@ -109,7 +109,10 @@ size_t circRemainingOccGet(
     const circBuff_T *  buff);
 
 size_t circFreeGet(
-    const circBuff_T *   buff);
+    const circBuff_T *  buff);
+
+size_t circSizeGet(
+    const circBuff_T *  buff);
 
 uint8_t * circMemBaseGet(
     const circBuff_T *  buff);
