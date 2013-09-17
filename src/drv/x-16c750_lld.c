@@ -316,14 +316,14 @@ uint32_t lldTerm(
     return (retval);
 }
 
-void lldRxFIFOGranularitySet(
+void lldFIFORxGranularitySet(
     volatile uint8_t *  io,
     size_t              bytes) {
 
 
 }
 
-void lldRxFIFOGranularityState(
+void lldFIFORxGranularityState(
     volatile uint8_t *  io,
     enum lldState       state) {
 
@@ -342,6 +342,24 @@ size_t lldFIFOTxRemaining(
     volatile uint8_t *  io) {
 
     return (TX_FIFO_SIZE - lldRegRd(io, TXFIFO_LVL));
+}
+
+void lldFIFORxFlush(
+    volatile uint8_t *  io) {
+
+    lldRegSetBits(
+        io,
+        wFCR,
+        FCR_RX_FIFO_CLEAR);
+}
+
+void lldFIFOTxFlush(
+    volatile uint8_t *  io) {
+
+    lldRegSetBits(
+        io,
+        wFCR,
+        FCR_TX_FIFO_CLEAR);
 }
 
 void lldFIFOInit(
@@ -713,8 +731,6 @@ int lldProtocolSet(
             io,
             tmp);
     }
-    lldProtocolPrint(
-        protocol);
 
     return (retval);
 }

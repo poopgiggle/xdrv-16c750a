@@ -435,7 +435,7 @@ int lldDMAFIFOSetup(
  *  @arg        LLD_ENABLE
  *  @arg        LLD_DISABLE
  */
-void lldRxFIFOGranularityState(
+void lldFIFORxGranularityState(
     volatile uint8_t *  io,
     enum lldState       state);
 
@@ -445,7 +445,7 @@ void lldRxFIFOGranularityState(
  * @param       bytes
  *              Number of bytes for notification
  */
-void lldRxFIFOGranularitySet(
+void lldFIFORxGranularitySet(
     volatile uint8_t *  io,
     size_t              bytes);
 
@@ -453,6 +453,12 @@ size_t lldFIFORxOccupied(
     volatile uint8_t *  io);
 
 size_t lldFIFOTxRemaining(
+    volatile uint8_t *  io);
+
+void lldFIFORxFlush(
+    volatile uint8_t *  io);
+
+void lldFIFOTxFlush(
     volatile uint8_t *  io);
 
 /**@} *//*----------------------------------------------------------------*//**
