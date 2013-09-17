@@ -377,6 +377,8 @@ static int xUartCtxInit(
     uartCtx->rx.oprTimeout  = MS_TO_NS(CFG_TIMEOUT_MS);
     uartCtx->rx.pend        = 0U;
     uartCtx->rx.status      = UART_STATUS_NORMAL;
+    uartCtx->config.flushRx = TRUE;
+    uartCtx->config.flushTx = FALSE;
     uartCtx->signature      = UART_CTX_SIGNATURE;
 
     xProtoSet(
@@ -428,6 +430,13 @@ static int xUartCtxTerm(
     return (retval);
 }
 
+
+static struct uartCtx * uartCtxFromDevCtx(
+    struct rtdm_dev_context * devCtx) {
+
+    return ((struct uartCtx *)rtdm_context_to_private(devCtx));
+}
+
 static bool_T xProtoIsValid(
     const struct xUartProto * proto) {
 
@@ -448,12 +457,6 @@ static void xProtoSet(
         &uartCtx->proto,
         proto,
         sizeof(struct xUartProto));
-}
-
-static struct uartCtx * uartCtxFromDevCtx(
-    struct rtdm_dev_context * devCtx) {
-
-    return ((struct uartCtx *)rtdm_context_to_private(devCtx));
 }
 
 static int handleOpen(
@@ -638,6 +641,17 @@ static int handleRd(
     rtdm_toseq_init(
         &oprTimeSeq,
         uartCtx->rx.oprTimeout);
+
+    if (TRUE == uartCtx->config.flushRx) {
+        rtdm_lockctx_t  lockCtx;
+
+        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        circFlush(
+            &uartCtx->rx.buffHandle);
+        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+        lldFIFORxFlush(
+            uartCtx->cache.io);
+    }
     read = 0U;
     dst = (uint8_t *)buff;
     src = circMemTailGet(
@@ -701,6 +715,7 @@ static int handleRd(
                 &oprTimeSeq);
 
             if (RETVAL_SUCCESS != retval) {
+                LOG_VAR(retval);
 
                 break;
             }
@@ -751,6 +766,17 @@ static int handleWr(
     rtdm_toseq_init(
         &oprTimeSeq,
         uartCtx->tx.oprTimeout);
+
+    if (TRUE == uartCtx->config.flushTx) {
+        rtdm_lockctx_t  lockCtx;
+
+        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        circFlush(
+            &uartCtx->tx.buffHandle);
+        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+        lldFIFOTxFlush(
+            uartCtx->cache.io);
+    }
     written = 0U;
     src = (uint8_t *)buff;
     dst = circMemHeadGet(

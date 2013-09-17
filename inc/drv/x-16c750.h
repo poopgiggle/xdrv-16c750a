@@ -87,6 +87,10 @@ struct uartCtx {
         uint32_t            MCR;
         uint32_t            SCR;
     }                   cache;
+    struct config {
+        bool_T              flushTx;
+        bool_T              flushRx;
+    }                   config;
     struct xUartProto   proto;
     uint32_t                signature;
 };
