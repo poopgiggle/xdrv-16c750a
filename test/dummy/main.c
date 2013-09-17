@@ -39,7 +39,7 @@
 
 /*=========================================================  LOCAL MACRO's  ==*/
 
-#define DEVICE_DRIVER_NAME              "xuart"
+#define CFG_DEVICE_DRIVER_NAME              "xuart"
 #define TASK_SEND_NAME                  "UART_tester_send"
 #define TASK_RECV_NAME                  "UART_tester_recv"
 #define TASK_SEND_STKSZ                      0
@@ -184,10 +184,10 @@ int main(
     printf("Real-Time UART tester\n");
     mlockall(MCL_CURRENT | MCL_FUTURE);
 
-    device = rt_dev_open(DEVICE_DRIVER_NAME, 0);
+    device = rt_dev_open(CFG_DEVICE_DRIVER_NAME, 0);
 
     if (0 > device) {
-        printf("ERROR: failed to open device: %s (%d)\n", DEVICE_DRIVER_NAME, -device);
+        printf("ERROR: failed to open device: %s (%d)\n", CFG_DEVICE_DRIVER_NAME, -device);
         fflush(stdout);
     }
     printf("Create: SEND task\n");
@@ -236,7 +236,7 @@ int main(
         device);
 
     if (0 != retval) {
-        printf("ERROR: failed to close device: %s (%d)\n", DEVICE_DRIVER_NAME, -retval);
+        printf("ERROR: failed to close device: %s (%d)\n", CFG_DEVICE_DRIVER_NAME, -retval);
     }
 
     return (retval);

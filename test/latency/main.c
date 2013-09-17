@@ -42,7 +42,7 @@
 
 /*=========================================================  LOCAL MACRO's  ==*/
 
-#define DEVICE_DRIVER_NAME              "xuart"
+#define CFG_DEVICE_DRIVER_NAME              "xuart"
 
 #define APP_NAME                        "UART_latency"
 
@@ -63,7 +63,7 @@
 
 #define TEST_DATA                       {'0','1','2','3','4','5','6','7','8','9'}
 
-#define RECV_RETRY_CNT                  10U
+#define DEF_RECV_RETRY_CNT                  10U
 
 #define TABLE_HEADER                                                                                \
     "---------------------------------------------------------------------------------------\n"     \
@@ -197,7 +197,7 @@ static void taskRecv(
 
     (void)arg;
 
-    retry = RECV_RETRY_CNT;
+    retry = DEF_RECV_RETRY_CNT;
 
     while (true) {
         int             retval;
@@ -227,7 +227,7 @@ static void taskRecv(
                 continue;
             }
         } else {
-            retry = RECV_RETRY_CNT;
+            retry = DEF_RECV_RETRY_CNT;
         }
 
         retval = rt_event_signal(
@@ -389,9 +389,9 @@ int main(
     mlockall(
         MCL_CURRENT | MCL_FUTURE);
 
-    LOG_INFO("open device: %s", DEVICE_DRIVER_NAME);
+    LOG_INFO("open device: %s", CFG_DEVICE_DRIVER_NAME);
     gDev = rt_dev_open(
-        DEVICE_DRIVER_NAME,
+        CFG_DEVICE_DRIVER_NAME,
         0);
     if (0 > gDev) {
         LOG_ERR("failed to open device (err: %d)", gDev);
