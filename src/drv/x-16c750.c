@@ -715,7 +715,6 @@ static int handleRd(
                 &oprTimeSeq);
 
             if (RETVAL_SUCCESS != retval) {
-                LOG_VAR(retval);
 
                 break;
             }
