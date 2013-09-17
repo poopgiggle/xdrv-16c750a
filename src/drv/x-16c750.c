@@ -44,7 +44,7 @@
 
 #define DEF_DRV_VERSION_MAJOR           1
 #define DEF_DRV_VERSION_MINOR           0
-#define DEF_DRV_VERSION_PATCH           2
+#define DEF_DRV_VERSION_PATCH           3
 #define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
 #define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
@@ -71,11 +71,6 @@ enum ctxState {
     CTX_STATE_TX_BUFF_ALLOC,
     CTX_STATE_RX_BUFF,
     CTX_STATE_RX_BUFF_ALLOC,
-};
-
-enum moduleState {
-    MOD_STATE_PORT,
-    MOD_STATE_DEV_REG
 };
 
 enum cIntNum {
@@ -291,7 +286,6 @@ static int xUartCtxInit(
     }
     /*-- STATE: init ---------------------------------------------------------*/
     state = CTX_STATE_INIT;
-    LOG_DBG("creating device context");
 
     /*-- STATE: Create TX buffer ---------------------------------------------*/
     state  = CTX_STATE_TX_BUFF;
@@ -407,7 +401,6 @@ static int xUartCtxTerm(
 
     int                 retval;
 
-    LOG_DBG("destroying device context");
     uartCtx->signature = ~UART_CTX_SIGNATURE;
     rtdm_event_destroy(
         &uartCtx->rx.opr);
@@ -479,7 +472,6 @@ static int handleOpen(
 
     io = portIORemapGet(devCtx->device->device_data);
     id = devCtx->device->device_id;
-    LOG_INFO("open UART: %d", devCtx->device->device_id);
     rtdm_lock_init(&uartCtx->lock);
     rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
     retval = xUartCtxInit(
@@ -523,7 +515,6 @@ static int handleClose(
                                                                                 /* already closed devices.                                  */
         rtdm_lockctx_t  lockCtx;
 
-        LOG_INFO("close UART: %d", devCtx->device->device_id);
         /*
          * TODO: Here should be some sync mechanism to wait for driver shutdown
          */
@@ -652,7 +643,6 @@ static int handleRd(
     src = circMemTailGet(
         &uartCtx->rx.buffHandle);
 
-#if 1
     do {
         size_t          occupied;
         rtdm_lockctx_t  lockCtx;
@@ -716,86 +706,6 @@ static int handleRd(
             }
         }
     } while (0U < bytes);
-#else
-    while (TRUE) {
-        size_t          remaining;
-        size_t          transfer;
-        rtdm_lockctx_t  lockCtx;
-
-        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-        remaining = circRemainingOccGet(
-            &uartCtx->rx.buffHandle);
-
-        if (0 != remaining) {
-
-            if (remaining > bytes) {
-                transfer = bytes;
-            } else {
-                transfer = remaining;
-            }
-
-            if (NULL != usrInfo) {
-                retval = rtdm_copy_to_user(
-                    usrInfo,
-                    dst,
-                    src,
-                    transfer);
-
-                if (RETVAL_SUCCESS != retval) {
-                    LOG_ERR("failed to copy to user (err: %d)", retval);
-                    uartCtx->rx.status = UART_STATUS_FAULT_USAGE;
-                    retval = -EFAULT;
-                    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-                    break;
-                }
-            } else {
-                memcpy(
-                    dst,
-                    src,
-                    transfer);
-            }
-            read  += transfer;
-            bytes -= transfer;
-            dst   += transfer;
-            circPosTailSet(
-                &uartCtx->rx.buffHandle,
-                transfer);
-            src = circMemTailGet(
-                &uartCtx->rx.buffHandle);
-
-            if (0U == bytes) {
-                rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-
-                break;
-            }
-        }
-
-        if (0U == (cIntEnabledGet(uartCtx) & (C_INT_RX | C_INT_RX_TIMEOUT))) {
-            cIntEnable(
-                uartCtx,
-                C_INT_RX | C_INT_RX_TIMEOUT);
-        }
-        uartCtx->rx.pend = bytes;
-        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-        retval = rtdm_event_timedwait(
-            &uartCtx->rx.opr,
-            uartCtx->rx.oprTimeout,
-            &oprTimeSeq);
-
-        if (RETVAL_SUCCESS != retval) {
-
-            if (-EIDRM == retval) {
-                uartCtx->rx.status = UART_STATUS_BAD_FILE_NUMBER;
-                retval = -EBADF;
-            } else {
-                uartCtx->rx.status = UART_STATUS_TIMEOUT;
-                retval = RETVAL_SUCCESS;
-            }
-
-            break;
-        }
-    }
-#endif
     rtdm_mutex_unlock(
         &uartCtx->rx.acc);
 
@@ -846,7 +756,6 @@ static int handleWr(
     dst = circMemHeadGet(
         &uartCtx->tx.buffHandle);
 
-#if 1
     do {
         size_t          remaining;
         rtdm_lockctx_t  lockCtx;
@@ -908,92 +817,6 @@ static int handleWr(
             }
         }
     } while (0U < bytes);
-#else
-    while (0U < bytes) {
-        size_t          remaining;
-        size_t          transfer;
-        rtdm_lockctx_t  lockCtx;
-
-
-        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-        remaining = circRemainingFreeGet(
-            &uartCtx->tx.buffHandle);
-
-
-        if (0U != remaining) {
-
-            if (remaining < bytes) {
-                transfer = remaining;
-            } else {
-                transfer = bytes;
-            }
-
-            if (NULL != usrInfo) {
-                retval = rtdm_copy_from_user(
-                    usrInfo,
-                    dst,
-                    src,
-                    transfer);
-
-                if (RETVAL_SUCCESS != retval) {
-                    uartCtx->tx.status = UART_STATUS_FAULT_USAGE;
-                    retval = -EFAULT;
-                    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-
-                    break;                                                      /* Exit from loop                                           */
-                }
-            } else {
-                memcpy(
-                    dst,
-                    src,
-                    transfer);
-            }
-            written += transfer;
-            bytes   -= transfer;
-            src     += transfer;
-            circPosHeadSet(
-                &uartCtx->tx.buffHandle,
-                transfer);
-            dst = circMemHeadGet(
-                &uartCtx->tx.buffHandle);
-
-
-            if (0U == (cIntEnabledGet(uartCtx) & C_INT_TX)) {
-                cIntEnable(
-                    uartCtx,
-                    C_INT_TX);
-            }
-            uartCtx->tx.pend = FALSE;
-            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-        } else {
-
-            if (0U == (cIntEnabledGet(uartCtx) & C_INT_TX)) {
-                cIntEnable(
-                    uartCtx,
-                    C_INT_TX);
-            }
-            uartCtx->tx.pend = TRUE;
-            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-            retval = rtdm_event_timedwait(
-                &uartCtx->tx.opr,
-                uartCtx->tx.oprTimeout,
-                &oprTimeSeq);
-
-            if (RETVAL_SUCCESS != retval) {
-
-                if (-EIDRM == retval) {
-                    uartCtx->rx.status = UART_STATUS_BAD_FILE_NUMBER;
-                    retval = -EBADF;
-                } else {
-                    uartCtx->rx.status = UART_STATUS_TIMEOUT;
-                    retval = RETVAL_SUCCESS;
-                }
-
-                break;
-            }
-        }
-    }
-#endif
     rtdm_mutex_unlock(
         &uartCtx->tx.acc);
 
@@ -1126,7 +949,6 @@ int __init moduleInit(
     void) {
 
     int                 retval;
-    enum moduleState    state;
 
     LOG_INFO(DEF_DRV_DESCRIPTION);
     LOG_INFO("version: %d.%d.%d", DEF_DRV_VERSION_MAJOR, DEF_DRV_VERSION_MINOR, DEF_DRV_VERSION_PATCH);
@@ -1135,7 +957,6 @@ int __init moduleInit(
     memcpy(&UartDev.device_name, CFG_DRV_NAME, sizeof(CFG_DRV_NAME));
 
     /*-- STATE: Port initialization ------------------------------------------*/
-    state = MOD_STATE_PORT;
     UartDev.device_data = lldInit(
         UartDev.device_id);                                                    /* Initialize Linux device driver                           */
 
@@ -1146,7 +967,6 @@ int __init moduleInit(
     }
 
     /*-- STATE: Xenomai device registration ----------------------------------*/
-    state  = MOD_STATE_DEV_REG;
     LOG_INFO("registering device: %s, id: %d", (char *)&UartDev.device_name, UartDev.device_id);
     retval = rtdm_dev_register(
         &UartDev);
