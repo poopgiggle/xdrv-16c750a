@@ -209,6 +209,14 @@ bool_T circIsFull(
     return (ans);
 }
 
+void circFlush(
+    circBuff_T *        buff) {
+
+    buff->head = 0U;
+    buff->tail = 0U;
+    buff->free = buff->size;
+}
+
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
 /** @endcond *//** @} *//******************************************************
  * END of circ_buff.c

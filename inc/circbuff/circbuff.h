@@ -137,6 +137,9 @@ bool_T circIsEmpty(
 bool_T circIsFull(
     const circBuff_T *  buff);
 
+void circFlush(
+    circBuff_T *        buff);
+
 /** @} *//*-----------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
 }
