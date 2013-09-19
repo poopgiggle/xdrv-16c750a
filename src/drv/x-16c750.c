@@ -716,6 +716,10 @@ static int handleRd(
 
             if (RETVAL_SUCCESS != retval) {
 
+                if (-ETIMEDOUT == retval) {
+                    retval = RETVAL_SUCCESS;
+                }
+
                 break;
             }
         }
