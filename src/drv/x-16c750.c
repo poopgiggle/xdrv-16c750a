@@ -715,7 +715,6 @@ static int handleRd(
 
                 if (RETVAL_SUCCESS != retval) {
                     uartCtx->rx.status = UART_STATUS_FAULT_USAGE;
-                    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
 
                     break;
                 }
