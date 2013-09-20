@@ -93,13 +93,14 @@ static void xUartCtxCleanup(
  */
 static int xUartCtxInit(
     struct uartCtx *    uartCtx,
-    volatile uint8_t *  io,
-    uint32_t            id);
+    struct devData *    devData,
+    volatile uint8_t *  io);
 
 /**@brief       Destroy UART context
  */
 static int xUartCtxTerm(
-    struct uartCtx *    uartCtx);
+    struct uartCtx *    uartCtx,
+    struct devData *    devData);
 
 static bool_T xProtoIsValid(
     const struct xUartProto * proto);
@@ -274,8 +275,8 @@ static void xUartCtxCleanup(
 
 static int xUartCtxInit(
     struct uartCtx *    uartCtx,
-    volatile uint8_t *  io,
-    uint32_t            id) {
+    struct devData *    devData,
+    volatile uint8_t *  io) {
 
     enum ctxState       state;
     int                 retval;
@@ -288,17 +289,34 @@ static int xUartCtxInit(
     }
     /*-- STATE: init ---------------------------------------------------------*/
     state = CTX_STATE_INIT;
+    rtdm_mutex_init(
+        &uartCtx->tx.acc);
+    rtdm_event_init(
+        &uartCtx->tx.opr,
+        0);
+    rtdm_mutex_init(
+        &uartCtx->rx.acc);
+    rtdm_event_init(
+        &uartCtx->rx.opr,
+        0);
 
     /*-- STATE: Create TX buffer ---------------------------------------------*/
     state  = CTX_STATE_TX_BUFF;
+#if (0 == CFG_DMA_ENABLE)
     retval = rt_heap_create(
         &uartCtx->tx.heapHandle,
         NULL,
         CFG_DRV_BUFF_SIZE,
         H_SINGLE);
-
+#else
+    retval = portDMATxInit(
+        devData,
+        &buff,
+        CFG_DRV_BUFF_SIZE,
+        &uartCtx->tx.opr);
+#endif
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to create internal TX buffer");
+        LOG_ERR("failed to create internal TX buffer, err: %d", retval);
         xUartCtxCleanup(
             uartCtx,
             state);
@@ -308,6 +326,7 @@ static int xUartCtxInit(
 
     /*-- STATE: Alloc TX buffer ----------------------------------------------*/
     state  = CTX_STATE_TX_BUFF_ALLOC;
+#if (0 == CFG_DMA_ENABLE)
     retval = rt_heap_alloc(
         &uartCtx->tx.heapHandle,
         0U,
@@ -315,13 +334,14 @@ static int xUartCtxInit(
         &buff);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to allocate internal TX buffer");
+        LOG_ERR("failed to allocate internal TX buffer, err: %d", retval);
         xUartCtxCleanup(
             uartCtx,
             state);
 
         return (retval);
     }
+#endif
     circInit(
         &uartCtx->tx.buffHandle,
         buff,
@@ -329,14 +349,22 @@ static int xUartCtxInit(
 
     /*-- STATE: Create RX buffer ---------------------------------------------*/
     state  = CTX_STATE_RX_BUFF;
+#if (0 == CFG_DMA_ENABLE)
     retval = rt_heap_create(
         &uartCtx->rx.heapHandle,
         NULL,
         CFG_DRV_BUFF_SIZE,
         H_SINGLE);
+#else
+    retval = portDMARxInit(
+        devData,
+        &buff,
+        CFG_DRV_BUFF_SIZE,
+        &uartCtx->rx.opr);
+#endif
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to create internal RX buffer");
+        LOG_ERR("failed to create internal RX buffer, err: %d", retval);
         xUartCtxCleanup(
             uartCtx,
             state);
@@ -346,14 +374,16 @@ static int xUartCtxInit(
 
     /*-- STATE: Alloc RX buffer ----------------------------------------------*/
     state  = CTX_STATE_RX_BUFF_ALLOC;
+#if (0 == CFG_DMA_ENABLE)
     retval = rt_heap_alloc(
         &uartCtx->rx.heapHandle,
         0U,
         TM_INFINITE,
         &buff);
+#endif
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to allocate internal RX buffer");
+        LOG_ERR("failed to allocate internal RX buffer, err: %d", retval);
         xUartCtxCleanup(
             uartCtx,
             state);
@@ -386,26 +416,46 @@ static int xUartCtxInit(
     xProtoSet(
         uartCtx,
         &DefProtocol);
-    rtdm_mutex_init(
-        &uartCtx->tx.acc);
-    rtdm_event_init(
-        &uartCtx->tx.opr,
-        0);
-    rtdm_mutex_init(
-        &uartCtx->rx.acc);
-    rtdm_event_init(
-        &uartCtx->rx.opr,
-        0);
 
     return (retval);
 }
 
 static int xUartCtxTerm(
-    struct uartCtx *    uartCtx) {
+    struct uartCtx *    uartCtx,
+    struct devData *    devData) {
 
     int                 retval;
 
     uartCtx->signature = ~UART_CTX_SIGNATURE;
+#if (0 == CFG_DMA_ENABLE)
+    retval = rt_heap_free(
+        &uartCtx->rx.heapHandle,
+        circMemBaseGet(&uartCtx->rx.buffHandle));
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to free internal RX buffer, err: %d", retval);
+    retval = rt_heap_delete(
+        &uartCtx->rx.heapHandle);
+#else
+    retval = portDMARxTerm(
+        devData,
+        circMemBaseGet(&uartCtx->rx.buffHandle),
+        circSizeGet(&uartCtx->rx.buffHandle));
+#endif
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal RX buffer, err: %d", retval);
+#if (0 == CFG_DMA_ENABLE)
+    retval = rt_heap_free(
+        &uartCtx->tx.heapHandle,
+        circMemBaseGet(&uartCtx->tx.buffHandle));
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to free internal TX buffer, err: %d", retval);
+    retval = rt_heap_delete(
+        &uartCtx->tx.heapHandle);
+#else
+    retval = portDMATxTerm(
+        devData,
+        circMemBaseGet(&uartCtx->tx.buffHandle),
+        circSizeGet(&uartCtx->tx.buffHandle));
+#endif
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal TX buffer, err: %d", retval);
+
     rtdm_event_destroy(
         &uartCtx->rx.opr);
     rtdm_mutex_destroy(
@@ -414,20 +464,6 @@ static int xUartCtxTerm(
         &uartCtx->tx.opr);
     rtdm_mutex_destroy(
         &uartCtx->tx.acc);
-    retval = rt_heap_free(
-        &uartCtx->rx.heapHandle,
-        circMemBaseGet(&uartCtx->rx.buffHandle));
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to free internal RX buffer");
-    retval = rt_heap_delete(
-        &uartCtx->rx.heapHandle);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal RX buffer");
-    retval = rt_heap_free(
-        &uartCtx->tx.heapHandle,
-        circMemBaseGet(&uartCtx->tx.buffHandle));
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to free internal TX buffer");
-    retval = rt_heap_delete(
-        &uartCtx->tx.heapHandle);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal TX buffer");
 
     return (retval);
 }
@@ -469,20 +505,15 @@ static int handleOpen(
     int                 retval;
     struct uartCtx *    uartCtx;
     rtdm_lockctx_t      lockCtx;
-    volatile uint8_t *  io;
-    uint32_t            id;
 
     uartCtx = uartCtxFromDevCtx(
         devCtx);
-
-    io = portIORemapGet(devCtx->device->device_data);
-    id = devCtx->device->device_id;
     rtdm_lock_init(&uartCtx->lock);
     rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
     retval = xUartCtxInit(
         uartCtx,
-        io,
-        id);
+        devCtx->device->device_data,
+        portIORemapGet(devCtx->device->device_data));
 
     if (RETVAL_SUCCESS != retval) {
         rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
@@ -492,7 +523,7 @@ static int handleOpen(
     }
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
-        PortIRQ[id],
+        PortIRQ[devCtx->device->device_id],
         handleIrq,
         RTDM_IRQTYPE_EDGE,
         devCtx->device->proc_name,
@@ -531,7 +562,8 @@ static int handleClose(
             &uartCtx->irqHandle);
         LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to unregister interrupt");
         retval = xUartCtxTerm(
-            uartCtx);
+            uartCtx,
+            devCtx->device->device_data);
         rtdm_lock_put_irqrestore(
             &uartCtx->lock,
             lockCtx);
@@ -671,6 +703,7 @@ static int handleRd(
         if (0U != occupied) {
             size_t      transfer;
 
+            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
             transfer = min(bytes, occupied);
 
             if (NULL != usrInfo) {
@@ -695,6 +728,7 @@ static int handleRd(
             read  += transfer;
             bytes -= transfer;
             dst   += transfer;
+            rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
             circPosTailSet(
                 &uartCtx->rx.buffHandle,
                 transfer);
@@ -797,6 +831,7 @@ static int handleWr(
         if (0U != remaining) {
             size_t      transfer;
 
+            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
             transfer = min(bytes, remaining);
 
             if (NULL != usrInfo) {
@@ -808,7 +843,6 @@ static int handleWr(
 
                 if (RETVAL_SUCCESS != retval) {
                     uartCtx->tx.status = UART_STATUS_FAULT_USAGE;
-                    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
 
                     break;                                                      /* Exit from loop                                           */
                 }
@@ -821,6 +855,7 @@ static int handleWr(
             written += transfer;
             bytes   -= transfer;
             src     += transfer;
+            rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
             circPosHeadSet(
                 &uartCtx->tx.buffHandle,
                 transfer);
@@ -898,7 +933,7 @@ static int handleIrq(
                         uartCtx->rx.pend--;
 
                         if (0U == uartCtx->rx.pend) {
-                            rtdm_event_pulse(
+                            rtdm_event_signal(
                                 &uartCtx->rx.opr);
                         }
                     }
@@ -938,7 +973,7 @@ static int handleIrq(
                         uartCtx->tx.pend--;
 
                         if (0U == uartCtx->tx.pend) {
-                            rtdm_event_pulse(
+                            rtdm_event_signal(
                                 &uartCtx->tx.opr);
                         }
                     }
