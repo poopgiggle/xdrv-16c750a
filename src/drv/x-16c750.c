@@ -32,6 +32,8 @@
 #include <linux/module.h>
 #include <linux/init.h>
 
+#include <plat/dma.h>
+
 #include "arch/compiler.h"
 #include "drv/x-16c750.h"
 #include "drv/x-16c750_lld.h"
