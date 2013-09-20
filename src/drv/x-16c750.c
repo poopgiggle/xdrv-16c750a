@@ -46,7 +46,7 @@
 
 #define DEF_DRV_VERSION_MAJOR           1
 #define DEF_DRV_VERSION_MINOR           0
-#define DEF_DRV_VERSION_PATCH           4
+#define DEF_DRV_VERSION_PATCH           5
 #define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
 #define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
