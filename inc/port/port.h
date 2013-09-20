@@ -123,6 +123,10 @@ bool_T portIsOnline(
  * @param       evt
  *              Pointer to event object which will be signaled when a transfer
  *              is done.
+ * @return      Operation status
+ *  @retval     0 - success
+ *              -ENOMEM - no abailable DMA memory
+ *              -EINVAL - invalid resource
  */
 int portDMARxInit(
     struct devData *    devData,
@@ -134,6 +138,15 @@ int portDMARxStart(
     struct devData *    devData,
     void *              buff,
     size_t              size);
+
+/**@brief       Stop RX DMA activity
+ * @param       devData
+ *              Device data structure
+ * @return      Operation status
+ *  @retval     0 - success
+ */
+int portDMARxStopI(
+    struct devData *    devData);
 
 /**@brief       Request and create DMA coherent buffer segment and return
  *              virtual address to that buffer
@@ -158,7 +171,14 @@ int portDMATxStart(
     const void *        buff,
     size_t              size);
 
-void portDMATxStop(
+/**@brief       Stop TX DMA activity
+ * @param       devData
+ *              Device data structure
+ * @return      Operation status
+ *  @retval     0 - success
+ *  @retval     -EBUSY - DMA channel is still active
+ */
+int portDMATxStopI(
     struct devData *    devData);
 
 /** @} *//*-----------------------------------------------  C++ extern end  --*/
