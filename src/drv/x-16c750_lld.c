@@ -276,44 +276,44 @@ int lldSoftReset(
     if (0U != cnt) {
         retval = RETVAL_SUCCESS;
     } else {
-        retval = RETVAL_FAILURE;
+        retval = -EAGAIN;
     }
 
     return (retval);
 }
 
-struct devData * lldInit(
-    uint32_t            id) {
+int lldInit(
+    volatile uint8_t *  io) {
 
-    struct devData *    devData;
+    int                 retval;
 
-    devData = portInit(
-        id);
-
-    if (NULL != devData) {
-        volatile uint8_t * io;
-
-        io = portIORemapGet(
-            devData);
-        lldSoftReset(
+    retval = lldSoftReset(
             io);
-        lldFIFOInit(
-            io);
-        lldEnhanced(
-            io,
-            LLD_ENABLE);
+
+    if (0 != retval) {
+
+        return (retval);
     }
+#if (1U == CFG_DMA_ENABLE)
+    lldDMAFIFOInit(
+        io);
+#else
+    lldFIFOInit(
+        io);
+#endif
+    lldEnhanced(
+        io,
+        LLD_ENABLE);
 
-    return (devData);
+    return (RETVAL_SUCCESS);
 }
 
-uint32_t lldTerm(
-    struct devData *    devData) {
+int lldTerm(
+    volatile uint8_t *  io) {
 
     uint32_t            retval;
 
-    retval = portTerm(
-        devData);
+    retval = RETVAL_SUCCESS;
 
     return (retval);
 }
@@ -433,7 +433,7 @@ void lldFIFOInit(
         regLCR);
 }
 
-int lldDMAFIFOSetup(
+int lldDMAFIFOInit(
     volatile uint8_t *  io) {
 
     uint16_t                 tmp;
