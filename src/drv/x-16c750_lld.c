@@ -28,6 +28,8 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
+#include "plat/dma.h"
+
 #include "drv/x-16c750_ioctl.h"
 #include "drv/x-16c750_lld.h"
 #include "port/port.h"
