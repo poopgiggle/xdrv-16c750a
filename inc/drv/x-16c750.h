@@ -68,13 +68,15 @@ struct uartCtx {
     rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
     struct unit {
+        rtdm_lock_t         lock;
+        rtdm_event_t        opr;                                                /**<@brief Operational event                                */
+        rtdm_mutex_t        acc;                                                /**<@brief Access mutex                                     */
         RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
         circBuff_T          buffHandle;                                         /**<@brief Buffer handle                                    */
         nanosecs_rel_t      accTimeout;
         nanosecs_rel_t      oprTimeout;
-        rtdm_event_t        opr;                                                /**<@brief Operational event                                */
-        rtdm_mutex_t        acc;                                                /**<@brief Access mutex                                     */
         size_t              pend;
+        bool                event;
         enum uartStatus     status;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
     struct cache {
