@@ -342,11 +342,11 @@ uint16_t lldRegRdBits(
  * @name        Generic functions
  * @{ *//*--------------------------------------------------------------------*/
 
-struct devData * lldInit(
-    uint32_t            id);
+int lldInit(
+    volatile uint8_t *  io);
 
-uint32_t lldTerm(
-    struct devData *    devData);
+int lldTerm(
+    volatile uint8_t *  io);
 
 /**@} *//*----------------------------------------------------------------*//**
  * @name        Configuration mode
@@ -425,7 +425,7 @@ void lldFIFOInit(
  * @param       io
  *              Pointer to IO mapped memory
  */
-int lldDMAFIFOSetup(
+int lldDMAFIFOInit(
     volatile uint8_t *  io);
 
 /**@brief       Enable/disable finer granularity

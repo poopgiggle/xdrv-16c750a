@@ -32,6 +32,8 @@
 #include <linux/module.h>
 #include <linux/init.h>
 
+#include <plat/dma.h>
+
 #include "arch/compiler.h"
 #include "drv/x-16c750.h"
 #include "drv/x-16c750_lld.h"
@@ -44,7 +46,7 @@
 
 #define DEF_DRV_VERSION_MAJOR           1
 #define DEF_DRV_VERSION_MINOR           0
-#define DEF_DRV_VERSION_PATCH           4
+#define DEF_DRV_VERSION_PATCH           5
 #define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
 #define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
@@ -986,13 +988,25 @@ int __init moduleInit(
     memcpy(&UartDev.device_name, CFG_DRV_NAME, sizeof(CFG_DRV_NAME));
 
     /*-- STATE: Port initialization ------------------------------------------*/
-    UartDev.device_data = lldInit(
-        UartDev.device_id);                                                    /* Initialize Linux device driver                           */
+    UartDev.device_data = portInit(
+        UartDev.device_id);
 
     if (NULL == UartDev.device_data) {
-        LOG_ERR("failed to initialize port driver");
+        LOG_ERR("failed to initialize port driver, err: %d", -ENOTSUPP);
 
         return (-ENOTSUPP);
+    }
+
+    /*-- STATE: Low-level driver initialization ------------------------------*/
+    retval = lldInit(
+        portIORemapGet(UartDev.device_data));                                   /* Initialize Linux device driver                           */
+
+    if (0 != retval) {
+        LOG_ERR("failed to initialize low-level driver, err: %d", retval);
+        portTerm(
+            UartDev.device_data);
+
+        return (retval);
     }
 
     /*-- STATE: Xenomai device registration ----------------------------------*/
@@ -1001,8 +1015,10 @@ int __init moduleInit(
         &UartDev);
 
     if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to register to Real-Time DM");
+        LOG_ERR("failed to register to Real-Time DM, err: %d", retval);
         lldTerm(
+            UartDev.device_data);
+        portTerm(
             UartDev.device_data);
     }
 
@@ -1017,10 +1033,13 @@ void __exit moduleTerm(
     retval = rtdm_dev_unregister(
         &UartDev,
         CFG_TIMEOUT_MS);
-    LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances");
+    LOG_WARN_IF(-EAGAIN == retval, "the device is busy with open instances, err: %d", retval);
     retval = lldTerm(
+        portIORemapGet(UartDev.device_data));
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed terminate platform device driver, err: %d", retval);
+    retval = portTerm(
         UartDev.device_data);
-    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed terminate platform device driver");
+    LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed terminate low-level device driver, err: %d", retval);
 }
 
 module_init(moduleInit);

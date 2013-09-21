@@ -50,7 +50,9 @@
 
 #define CFG_DRV_NAME                    "xuart"
 
-#define CFG_DRV_BUFF_SIZE               204800U
+/**@brief       Internal buffer sizes - MUST be of size of power of 2!
+ */
+#define CFG_DRV_BUFF_SIZE               4096U
 #define CFG_TIMEOUT_MS                  2000
 
 /**@brief       Trigger level of UART FIFO

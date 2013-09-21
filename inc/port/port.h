@@ -77,7 +77,7 @@ extern const uint32_t PortUartNum;
 /*===================================================  FUNCTION PROTOTYPES  ==*/
 
 /*------------------------------------------------------------------------*//**
- * @name        Port functions
+ * @name        Generic functions
  * @{ *//*--------------------------------------------------------------------*/
 
 /**@brief       Create and init kernel device driver
@@ -107,6 +107,79 @@ volatile uint8_t * portIORemapGet(
 
 bool_T portIsOnline(
     uint32_t            id);
+
+/**@} *//*----------------------------------------------------------------*//**
+ * @name        DMA functions
+ * @{ *//*--------------------------------------------------------------------*/
+
+/**@brief       Request and create DMA coherent buffer segment and return
+ *              virtual address to that buffer
+ * @param       devData
+ *              Device data structure
+ * @param       buff
+ *              Pointer to buffer pointer which is accessible from Linux domain
+ * @param       size
+ *              The size of requested buffer in bytes
+ * @param       evt
+ *              Pointer to event object which will be signaled when a transfer
+ *              is done.
+ * @return      Operation status
+ *  @retval     0 - success
+ *              -ENOMEM - no abailable DMA memory
+ *              -EINVAL - invalid resource
+ */
+int portDMARxInit(
+    struct devData *    devData,
+    void **             buff,
+    size_t              size,
+    rtdm_event_t *      evt);
+
+int portDMARxStart(
+    struct devData *    devData,
+    void *              buff,
+    size_t              size);
+
+/**@brief       Stop RX DMA activity
+ * @param       devData
+ *              Device data structure
+ * @return      Operation status
+ *  @retval     0 - success
+ */
+int portDMARxStopI(
+    struct devData *    devData);
+
+/**@brief       Request and create DMA coherent buffer segment and return
+ *              virtual address to that buffer
+ * @param       devData
+ *              Device data structure
+ * @param       buff
+ *              Pointer to buffer pointer which is accessible from Linux domain
+ * @param       size
+ *              The size of requested buffer in bytes
+ * @param       evt
+ *              Pointer to event object which will be signaled when a transfer
+ *              is done.
+ */
+int portDMATxInit(
+    struct devData *    devData,
+    void **             buff,
+    size_t              size,
+    rtdm_event_t *      evt);
+
+int portDMATxStart(
+    struct devData *    devData,
+    const void *        buff,
+    size_t              size);
+
+/**@brief       Stop TX DMA activity
+ * @param       devData
+ *              Device data structure
+ * @return      Operation status
+ *  @retval     0 - success
+ *  @retval     -EBUSY - DMA channel is still active
+ */
+int portDMATxStopI(
+    struct devData *    devData);
 
 /** @} *//*-----------------------------------------------  C++ extern end  --*/
 #ifdef __cplusplus
