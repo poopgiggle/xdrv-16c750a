@@ -39,6 +39,7 @@
 #include "drv/x-16c750_lld.h"
 #include "drv/x-16c750_cfg.h"
 #include "drv/x-16c750_ioctl.h"
+#include "dbg/dbg.h"
 #include "port/port.h"
 #include "log.h"
 
@@ -46,7 +47,7 @@
 
 #define DEF_DRV_VERSION_MAJOR           1
 #define DEF_DRV_VERSION_MINOR           0
-#define DEF_DRV_VERSION_PATCH           6
+#define DEF_DRV_VERSION_PATCH           7
 #define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
 #define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
@@ -82,6 +83,44 @@ enum cIntNum {
 };
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
+
+static int buffCopyFromUser(
+    rtdm_user_info_t *  usrInfo,
+    uint8_t *           dst,
+    const uint8_t *     src,
+    size_t              size);
+
+static int buffCopyToUser(
+    rtdm_user_info_t *  usrInfo,
+    uint8_t *           dst,
+    const uint8_t *     src,
+    size_t              size);
+
+static ssize_t buffRxStartI(
+    struct uartCtx *    uartCtx,
+    uint8_t *           dst,
+    size_t              size);
+
+static int buffRxWait(
+    struct uartCtx *    uartCtx,
+    rtdm_toseq_t *      tmSeq);
+
+static void buffRxFlushI(
+    struct uartCtx *    uartCtx);
+
+static ssize_t buffRxCopyI(
+    struct uartCtx *    uartCtx,
+    rtdm_lockctx_t *    lockCtx,
+    uint8_t *           dst,
+    size_t              bytes);
+
+static void cIntEnable(
+    struct uartCtx *    uartCtx,
+    enum cIntNum        cIntNum);
+
+static void cIntDisable(
+    struct uartCtx *    uartCtx,
+    enum cIntNum        cIntNum);
 
 /**@brief       Cleanup all work done by xUartCtxCreate() in case it failed
  */
@@ -200,6 +239,167 @@ MODULE_DESCRIPTION(DEF_DRV_DESCRIPTION);
 MODULE_SUPPORTED_DEVICE(DEF_DRV_SUPP_DEVICE);
 
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
+
+
+static int buffCopyToUser(
+    rtdm_user_info_t *  usrInfo,
+    uint8_t *           dst,
+    const uint8_t *     src,
+    size_t              size) {
+
+    int                 retval;
+
+    if (NULL != usrInfo) {
+        retval = rtdm_copy_to_user(
+            usrInfo,
+            dst,
+            src,
+            size);
+    } else {
+        retval = RETVAL_SUCCESS;
+        memcpy(
+            dst,
+            src,
+            size);
+    }
+
+    return (retval);
+}
+
+static int buffCopyFromUser(
+    rtdm_user_info_t *  usrInfo,
+    uint8_t *           dst,
+    const uint8_t *     src,
+    size_t              size) {
+
+    int                 retval;
+
+    if (NULL != usrInfo) {
+        retval = rtdm_copy_from_user(
+            usrInfo,
+            dst,
+            src,
+            size);
+    } else {
+        retval = RETVAL_SUCCESS;
+        memcpy(
+            dst,
+            src,
+            size);
+    }
+
+    return (retval);
+}
+
+static ssize_t buffRxStartI(
+    struct uartCtx *    uartCtx,
+    uint8_t *           dst,
+    size_t              size) {
+
+    uartCtx->rx.pend = min(size, circSizeGet(&uartCtx->rx.buffHandle) - CFG_BUFF_BACKOFF);
+    cIntEnable(
+        uartCtx,
+        C_INT_RX | C_INT_RX_TIMEOUT);
+
+    return (uartCtx->rx.pend);
+}
+
+static void buffRxStop(
+    struct uartCtx *    uartCtx) {
+
+    uartCtx->rx.pend = 0U;
+    cIntDisable(
+        uartCtx,
+        C_INT_RX | C_INT_RX_TIMEOUT);
+}
+
+static int buffRxWait(
+    struct uartCtx *    uartCtx,
+    rtdm_toseq_t *      tmSeq) {
+
+    int                 retval;
+
+    retval = rtdm_event_timedwait(
+        &uartCtx->rx.opr,
+        uartCtx->rx.oprTimeout,
+        tmSeq);
+
+    return (retval);
+}
+
+static void buffRxFlushI(
+    struct uartCtx *    uartCtx) {
+
+    uartCtx->rx.pend = 0U;
+    uartCtx->rx.done = 0U;
+    circFlush(
+        &uartCtx->rx.buffHandle);
+    lldFIFORxFlush(
+        uartCtx->cache.io);
+}
+
+
+static ssize_t buffRxCopyI(
+    struct uartCtx *    uartCtx,
+    rtdm_lockctx_t *    lockCtx,
+    uint8_t *           dst,
+    size_t              bytes) {
+
+    size_t              transfer;
+    size_t              cpd;
+    size_t              occ;
+
+    transfer = 0U;
+    cpd = 0U;
+    occ = circRemainingOccGet(
+        &uartCtx->rx.buffHandle);
+
+    if (0 == occ) {
+
+        return (cpd);
+    }
+
+    do {
+        uint8_t *       src;
+
+        rtdm_lock_put_irqrestore(&uartCtx->lock, *lockCtx);
+        dst += transfer;
+        src = circMemTailGet(
+            &uartCtx->rx.buffHandle);
+        transfer = min(bytes, occ);
+
+        if (NULL != uartCtx->rx.user) {
+            int         retval;
+
+            retval = rtdm_copy_from_user(
+                uartCtx->rx.user,
+                dst,
+                src,
+                transfer);
+
+            if (RETVAL_SUCCESS != retval) {
+                rtdm_lock_get_irqsave(&uartCtx->lock, *lockCtx);
+
+                return (retval);
+            }
+        } else {
+            memcpy(
+                dst,
+                src,
+                transfer);
+        }
+        bytes -= transfer;
+        cpd   += transfer;
+        rtdm_lock_get_irqsave(&uartCtx->lock, *lockCtx);
+        circPosTailSet(
+            &uartCtx->rx.buffHandle,
+            transfer);
+        occ = circRemainingOccGet(
+            &uartCtx->rx.buffHandle);
+    } while ((0 != occ) && (0 != bytes));
+
+    return (cpd);
+}
 
 static void cIntEnable(
     struct uartCtx *    uartCtx,
@@ -642,31 +842,6 @@ static int handleIOctl(
     return (retval);
 }
 
-static int buffCopyToUser(
-    rtdm_user_info_t *  usrInfo,
-    uint8_t *           dst,
-    const uint8_t *     src,
-    size_t              size) {
-
-    int                 retval;
-
-    if (NULL != usrInfo) {
-        retval = rtdm_copy_to_user(
-            usrInfo,
-            dst,
-            src,
-            size);
-    } else {
-        retval = RETVAL_SUCCESS;
-        memcpy(
-            dst,
-            src,
-            size);
-    }
-
-    return (retval);
-}
-
 static int handleRd(
     struct rtdm_dev_context * devCtx,
     rtdm_user_info_t *  usrInfo,
@@ -676,10 +851,8 @@ static int handleRd(
     rtdm_lockctx_t      lockCtx;
     rtdm_toseq_t        oprTimeSeq;
     struct uartCtx *    uartCtx;
-    uint8_t *           src;
     uint8_t *           dst;
     size_t              read;
-    size_t              occupied;
     int                 retval;
 
     if (NULL != usrInfo) {
@@ -691,6 +864,7 @@ static int handleRd(
         }
     }
     uartCtx = uartCtxFromDevCtx(devCtx);
+    uartCtx->rx.user = usrInfo;
     retval = rtdm_mutex_timedlock(
         &uartCtx->rx.acc,
         uartCtx->rx.accTimeout,
@@ -708,60 +882,43 @@ static int handleRd(
     dst = (uint8_t *)buff;
     rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
 
-    if (TRUE == circIsEmpty(&uartCtx->rx.buffHandle)) {
-        circFlush(
-            &uartCtx->rx.buffHandle);
-        src = circMemTailGet(
-            &uartCtx->rx.buffHandle);
-        occupied = 0U;
-    } else if (TRUE == uartCtx->rx.cfg.flush) {
-        circFlush(
-            &uartCtx->rx.buffHandle);
-        lldFIFORxFlush(
-            uartCtx->cache.io);
-        occupied = 0U;
-        uartCtx->rx.done = 0U;
-        src = circMemTailGet(
-            &uartCtx->rx.buffHandle);
+    if ((TRUE == circIsEmpty(&uartCtx->rx.buffHandle)) || (TRUE == uartCtx->rx.cfg.flush)) {
+        buffRxFlushI(
+            uartCtx);
     } else {
-        size_t          transfer;
+        ssize_t     transfer;
 
-        occupied = circRemainingOccGet(
-            &uartCtx->rx.buffHandle);
-        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-        src = circMemTailGet(
-            &uartCtx->rx.buffHandle);
-        transfer = min(bytes, occupied);
-        buffCopyToUser(
-            usrInfo,
+        transfer = buffRxCopyI(
+            uartCtx,
+            &lockCtx,
             dst,
-            src,
-            transfer);
+            bytes);
 
-        if (RETVAL_SUCCESS != retval) {
+        if (0 > transfer) {
+            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
             rtdm_mutex_unlock(
                 &uartCtx->rx.acc);
 
-            return (retval);
+            return (transfer);
         }
-        read  = transfer;
+        dst   += transfer;
         bytes -= transfer;
-        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-        circPosTailSet(
-            &uartCtx->rx.buffHandle,
-            transfer);
+        read  += transfer;
     }
-    uartCtx->rx.pend = min(bytes, circSizeGet(&uartCtx->rx.buffHandle) - CFG_BUFF_BACKOFF);
-    cIntEnable(
-        uartCtx,
-        C_INT_RX | C_INT_RX_TIMEOUT);
-    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
 
     while (0 < bytes) {
-        retval = rtdm_event_timedwait(
-             &uartCtx->rx.opr,
-             uartCtx->rx.oprTimeout,
-             &oprTimeSeq);
+        size_t          transfer;
+        int             retval;
+
+        transfer -= buffRxStartI(
+            uartCtx,
+            dst,
+            bytes);
+        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+
+        retval = buffRxWait(
+            uartCtx,
+            &oprTimeSeq);
 
         if (RETVAL_SUCCESS != retval) {
 
@@ -772,73 +929,26 @@ static int handleRd(
              break;
         }
         rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-        occupied = circRemainingOccGet(
-            &uartCtx->rx.buffHandle);
-
-        do {
-            size_t      transfer;
-
-            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-            src  = circMemTailGet(
-                &uartCtx->rx.buffHandle);
-            transfer = min(bytes, occupied);
-            retval = buffCopyToUser(
-                usrInfo,
-                &dst[read],
-                src,
-                transfer);
-
-            if (RETVAL_SUCCESS != retval) {
-                LOG_ERR("copy err: %d", retval);
-
-                break;
-            }
-            read  += transfer;
-            bytes -= transfer;
-            rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-            circPosTailSet(
-                &uartCtx->rx.buffHandle,
-                transfer);
-            occupied = circRemainingOccGet(
-                &uartCtx->rx.buffHandle);
-        } while ((0 != occupied) && (0 != bytes));
-
-        uartCtx->rx.pend = min(bytes, circSizeGet(&uartCtx->rx.buffHandle) - CFG_BUFF_BACKOFF);
-        cIntEnable(
+        transfer = buffRxCopyI(
             uartCtx,
-            C_INT_RX | C_INT_RX_TIMEOUT);
-        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+            &lockCtx,
+            dst,
+            bytes);
+
+        if (0 > transfer) {
+
+            break;
+        }
+        dst   += transfer;
+        bytes -= transfer;
+        read  += transfer;
     }
+    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
     rtdm_mutex_unlock(
         &uartCtx->rx.acc);
 
     if (RETVAL_SUCCESS == retval) {
         retval = read;
-    }
-
-    return (retval);
-}
-
-static int buffCopyFromUser(
-    rtdm_user_info_t *  usrInfo,
-    void *              dst,
-    const void *        src,
-    size_t              size) {
-
-    int                 retval;
-
-    if (NULL != usrInfo) {
-        retval = rtdm_copy_from_user(
-            usrInfo,
-            dst,
-            src,
-            size);
-    } else {
-        retval = RETVAL_SUCCESS;
-        memcpy(
-            dst,
-            src,
-            size);
     }
 
     return (retval);
