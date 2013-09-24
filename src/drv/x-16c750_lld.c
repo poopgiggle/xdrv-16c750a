@@ -349,10 +349,23 @@ size_t lldFIFOTxRemaining(
 void lldFIFORxFlush(
     volatile uint8_t *  io) {
 
+    enum lldIntNum      intNum;
+
     lldRegSetBits(
         io,
         wFCR,
         FCR_RX_FIFO_CLEAR);
+
+    intNum = lldIntGet(
+        io);
+
+    while ((LLD_INT_RX == intNum) || (LLD_INT_RX_TIMEOUT == intNum)) {          /* Loop until there are interrupts to process               */
+        lldRegRd(
+            io,
+            RHR);
+        intNum = lldIntGet(
+            io);
+    }
 }
 
 void lldFIFOTxFlush(
@@ -375,38 +388,38 @@ void lldFIFOInit(
     uint16_t                 regDLH;
 
     regLCR = lldRegRd(                                                          /* Switch to register configuration mode B to access the    */
-        io,                                                                /* EFR register                                             */
+        io,                                                                     /* EFR register                                             */
         LCR);
     lldCfgModeSet(
         io,
         LLD_CFG_MODE_B);
     regEFR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        io,                                                                /* register (1/2)                                           */
+        io,                                                                     /* register (1/2)                                           */
         bEFR,
         EFR_ENHANCEDEN);
     lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        io,                                                                /* register                                                 */
+        io,                                                                     /* register                                                 */
         LLD_CFG_MODE_A);
     regDLL = lldRegRd(io, aDLL);
     lldRegWr(io, waDLL, 0);
     regDLH = lldRegRd(io, aDLH);
     lldRegWr(io, waDLH, 0);
     regMCR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        io,                                                                /* register (2/2)                                           */
+        io,                                                                     /* register (2/2)                                           */
         aMCR,
         MCR_TCRTLR);
     (void)lldRegResetBits(                                                      /* Load the new FIFO triggers (3/3) and the new DMA mode    */
-        io,                                                                /* (2/2)                                                    */
+        io,                                                                     /* (2/2)                                                    */
         SCR,
         SCR_RXTRIGGRANU1 | SCR_TXTRIGGRANU1 | SCR_DMAMODE2_Mask |
             SCR_DMAMODECTL);
     lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
-        io,                                                                /* (1/2)                                                    */
+        io,                                                                     /* (1/2)                                                    */
         waFCR,
         FIFO_RX_LVL | FIFO_TX_LVL |
             FCR_TX_FIFO_CLEAR | FCR_RX_FIFO_CLEAR | FCR_FIFO_EN);
     lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
-        io,                                                                /* register                                                 */
+        io,                                                                     /* register                                                 */
         LLD_CFG_MODE_B);
     lldRegWr(                                                                   /* Load the new FIFO triggers (2/3)                         */
         io,
@@ -419,7 +432,7 @@ void lldFIFOInit(
         bEFR,
         tmp);
     lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        io,                                                                /* register                                                 */
+        io,                                                                     /* register                                                 */
         LLD_CFG_MODE_A);
     tmp = regMCR & MCR_TCRTLR;                                                  /* Restore MCR<6> TCRTLR bit                                */
     tmp |= lldRegRd(io, aMCR) & ~MCR_TCRTLR;
@@ -442,36 +455,36 @@ int lldDMAFIFOInit(
     uint16_t                 regMCR;
 
     regLCR = lldRegRd(                                                          /* Switch to register configuration mode B to access the    */
-        io,                                                                /* EFR register                                             */
+        io,                                                                     /* EFR register                                             */
         LCR);
     lldCfgModeSet(
         io,
         LLD_CFG_MODE_B);
     regEFR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        io,                                                                /* register (1/2)                                           */
+        io,                                                                     /* register (1/2)                                           */
         bEFR,
         EFR_ENHANCEDEN);
     lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        io,                                                                /* register                                                 */
+        io,                                                                     /* register                                                 */
         LLD_CFG_MODE_A);
     regMCR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        io,                                                                /* register (2/2)                                           */
+        io,                                                                     /* register (2/2)                                           */
         aMCR,
         MCR_TCRTLR);
     lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
-        io,                                                                /* (1/2)                                                    */
+        io,                                                                     /* (1/2)                                                    */
         waFCR,
         FCR_RX_FIFO_TRIG_56 | FCR_TX_FIFO_TRIG_56 | FCR_DMA_MODE |
             FCR_TX_FIFO_CLEAR | FCR_RX_FIFO_CLEAR | FCR_FIFO_EN);
     lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
-        io,                                                                /* register                                                 */
+        io,                                                                     /* register                                                 */
         LLD_CFG_MODE_B);
     lldRegWr(                                                                   /* Load the new FIFO triggers (2/3)                         */
         io,
         wbTLR,
         TLR_RX_FIFO_TRIG_DMA_0 | TLR_TX_FIFO_TRIG_DMA_0);
     (void)lldRegResetBits(                                                      /* Load the new FIFO triggers (3/3) and the new DMA mode    */
-        io,                                                                /* (2/2)                                                    */
+        io,                                                                     /* (2/2)                                                    */
         SCR,
         SCR_RXTRIGGRANU1 | SCR_TXTRIGGRANU1 | SCR_DMAMODE2_Mask |
             SCR_DMAMODECTL);
@@ -482,7 +495,7 @@ int lldDMAFIFOInit(
         bEFR,
         tmp);
     lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        io,                                                                /* register                                                 */
+        io,                                                                     /* register                                                 */
         LLD_CFG_MODE_A);
     tmp = regMCR & MCR_TCRTLR;                                                  /* Restore MCR<6> TCRTLR bit                                */
     tmp |= lldRegRd(io, aMCR) & ~MCR_TCRTLR;
