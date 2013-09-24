@@ -51,6 +51,7 @@
 #define CFG_TX_PERIOD_NS                MS_TO_NS(100)
 #define CFG_NUM_OF_TESTS                0UL
 #define CFG_LINES_PER_HEADER            20UL
+#define CFG_ALGORITHM                   0
 
 #define APP_VER_MAJOR                   1U
 #define APP_VER_MINOR                   0U
@@ -121,6 +122,11 @@
 #define NS_TO_MS(ns)                    ((ns) / NS_PER_MS)
 #define SEC_TO_NS(sec)                  (NS_PER_S * (sec))
 
+#define COLOR_BLUE                      "\e[1;34m"
+#define COLOR_WHITE                     "\e[0m"
+#define COLOR_RED                       "\e[1;31m"
+#define COLOR_GREEN                     "\e[1;32m"
+
 #define LOG_INFO(msg, ...)                                                      \
     printf(APP_NAME " " msg "\n", ##__VA_ARGS__)
 
@@ -159,7 +165,10 @@
 /*======================================================  LOCAL DATA TYPES  ==*/
 
 enum dataType {
-    DATA_LINEAR
+    DATA_LINEAR         = 0,
+    DATA_ZERO           = 1,
+    DATA_ONE            = 2,
+    DATA_LAST_ALGO
 };
 
 struct timeMeas {
@@ -183,6 +192,8 @@ struct appConfig {
     uint32_t            numOfTests;
     uint32_t            linesPerHeader;
     uint32_t            taskStats;
+    uint32_t            algo;
+    bool                dumpBuff;
 };
 
 enum appBootState {
@@ -270,43 +281,13 @@ static struct appConfig AppConfig = {
     .txPeriod           = CFG_TX_PERIOD_NS,
     .numOfTests         = CFG_NUM_OF_TESTS,
     .linesPerHeader     = CFG_LINES_PER_HEADER,
-    .taskStats          = 0
+    .taskStats          = 0,
+    .algo               = CFG_ALGORITHM,
+    .dumpBuff           = false
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
-
-static void taskValidatePrio(
-    void) {
-
-    RT_TASK_INFO thisTask;
-
-    rt_task_inquire(
-        rt_task_self(),
-        &thisTask);
-
-    if (thisTask.cprio > thisTask.bprio) {
-        LOG_ERR("task %s, has raised prio from %d to %d",
-            thisTask.name,
-            thisTask.bprio,
-            thisTask.cprio);
-    }
-}
-
-static void taskPrintInfo(
-    void) {
-
-    RT_TASK_INFO thisTask;
-
-    rt_task_inquire(
-        rt_task_self(),
-        &thisTask);
-
-    LOG_INFO("task %s, has bprio %d, cprio %d",
-        thisTask.name,
-        thisTask.bprio,
-        thisTask.cprio);
-}
 
 static void taskManager(
     void *              arg) {
@@ -333,9 +314,6 @@ static void taskManager(
     appTerm();
 }
 
-#define EVT_SEND_MASK                   0x01UL
-#define EVT_PRINT_MASK                  0x01UL
-
 static void taskSend(
     void *              arg) {
 
@@ -343,13 +321,13 @@ static void taskSend(
 
     (void)arg;
 
-    taskPrintInfo();
     dataGen(
-        DATA_LINEAR,
+        AppConfig.algo,
         TxBuff,
         AppConfig.testDataSize);
 
     while (true) {
+        ssize_t len;
         retval = rt_sem_p(
             &SemSend,
             TM_INFINITE);
@@ -363,11 +341,15 @@ static void taskSend(
             return;
         }
         Time.txBegin = rt_timer_read();
-        rt_dev_write(
+        len = rt_dev_write(
             UARTDevice,
             TxBuff,
             AppConfig.testDataSize);
         Time.txEnd = rt_timer_read();
+
+        if ((0 > len) || (len != (ssize_t)AppConfig.testDataSize)) {
+            LOG_ERR("failed transmission, err: %s", strerror(len));
+        }
     }
 }
 
@@ -379,7 +361,6 @@ static void taskRecv(
 
     (void)arg;
 
-    taskPrintInfo();
 #if (1u == RECV_PERIODIC)
     retval = rt_task_set_periodic(
         NULL,
@@ -440,14 +421,41 @@ static void taskRecv(
             TxBuff,
             RxBuff,
             AppConfig.testDataSize);
+
+        if (0U != differentChars) {
+            LOG_WARN("received string has different chars: %u, retry: %u", differentChars, retry);
+
+            if (true == AppConfig.dumpBuff) {
+                size_t cnt;
+                uint8_t * src;
+                uint8_t * dst;
+
+                src = (uint8_t *)RxBuff;
+                dst = (uint8_t *)TxBuff;
+
+                printf("\n\n Dumping invalid buffer content: \n");
+
+                for (cnt = 0; cnt < AppConfig.testDataSize; cnt++) {
+
+                    if (0 == (cnt % 16)) {
+                        printf("\n 0x%x\t", cnt);
+                    }
+
+                    if (src[cnt] != dst[cnt]) {
+                        printf(COLOR_RED);
+                        printf(" %4x", src[cnt]);
+                        printf(COLOR_WHITE);
+                    } else {
+                        printf(" %4x", src[cnt]);
+                    }
+                }
+                printf("\n\n done\n");
+            }
+        }
         memset(
             RxBuff,
             0,
             AppConfig.testDataSize);
-
-        if (0U != differentChars) {
-            LOG_WARN("received string has different chars: %u, retry: %u", differentChars, retry);
-        }
 
         if ((0U == invalidNum) && (0U == differentChars)) {
             retry = DEF_RECV_RETRY_CNT;
@@ -638,11 +646,20 @@ static void dataGen(
             }
             break;
         }
-
-        default : {
-            memset(src, 0xFFU, size);
-
+        case DATA_ZERO :
+            memset(
+                src,
+                0x00U,
+                size);
             break;
+        case DATA_ONE :
+            memset(
+                src,
+                0xFFU,
+                size);
+            break;
+        default : {
+
         }
     }
 }
@@ -882,6 +899,8 @@ static void appTerm(
         &SemPrint);
     rt_sem_delete(
         &SemSend);
+    rt_sem_delete(
+        &SemRecv);
     rt_dev_close(
         UARTDevice);
     switch (AppBootState) {
@@ -944,7 +963,8 @@ static void appPrintConfig(
     printf(" - transmission period : %llu ms\n", NS_TO_MS(AppConfig.txPeriod));
     printf(" - lines per header    : %u\n", AppConfig.linesPerHeader);
     printf(" - num of tests        : %u\n", AppConfig.numOfTests);
-    printf(" - tasks statistics    : %u\n\n", AppConfig.taskStats);
+    printf(" - tasks statistics    : %u\n", AppConfig.taskStats);
+    printf(" - algorithm           : %u\n\n", AppConfig.algo);
 }
 
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
@@ -961,9 +981,21 @@ int main(
 
     printf("\n" APP_DESC "\n");
 
-    while (EOF != (cmd = getopt(argc, argv, "s:p:l:n:t:v"))) {
+    while (EOF != (cmd = getopt(argc, argv, "a:s:p:l:n:t:vd"))) {
 
         switch (cmd) {
+            case 'a' :
+                AppConfig.algo = (uint32_t)atoi(optarg);
+
+                if (DATA_LAST_ALGO <= AppConfig.algo) {
+                    printf(" Invalid algorithm number %d\n", AppConfig.algo);
+                    printf(" Valid range: 0 - %d\n", DATA_LAST_ALGO - 1);
+                    exit(2);
+                }
+                break;
+            case 'd' :
+                AppConfig.dumpBuff = true;
+                break;
             case 's' :
                 AppConfig.testDataSize = (size_t)atoi(optarg);
 
@@ -1007,6 +1039,8 @@ int main(
                     "  -l <lines_per_header>    - default %u, 0 to supress headers              \n"
                     "  -n <num_of_tests>        - default infinite                              \n"
                     "  -t <lines_per_info>      - default %u, 0 to supress task statistics      \n"
+                    "  -a <algorithm>           - default lin, available const and lin          \n"
+                    "  -d                       - dump received buffer in case it is not valid  \n"
                     "  -v                       - show version information                      \n"
                     "                                                                           \n",
                     AppConfig.testDataSize,
