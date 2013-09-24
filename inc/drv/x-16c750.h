@@ -70,6 +70,7 @@ struct uartCtx {
     struct unit {
         rtdm_event_t        opr;                                                /**<@brief Operational event                                */
         rtdm_mutex_t        acc;                                                /**<@brief Access mutex                                     */
+        rtdm_user_info_t *  user;
         RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
         circBuff_T          buffHandle;                                         /**<@brief Buffer handle                                    */
         nanosecs_rel_t      accTimeout;
