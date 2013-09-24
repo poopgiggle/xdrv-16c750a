@@ -68,7 +68,6 @@ struct uartCtx {
     rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
     struct unit {
-        rtdm_lock_t         lock;
         rtdm_event_t        opr;                                                /**<@brief Operational event                                */
         rtdm_mutex_t        acc;                                                /**<@brief Access mutex                                     */
         RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
@@ -76,8 +75,11 @@ struct uartCtx {
         nanosecs_rel_t      accTimeout;
         nanosecs_rel_t      oprTimeout;
         size_t              pend;
-        bool                event;
+        size_t              done;
         enum uartStatus     status;
+        struct config {
+            bool_T              flush;
+        }                   cfg;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
     struct cache {
         volatile uint8_t *  io;
@@ -89,10 +91,6 @@ struct uartCtx {
         uint32_t            MCR;
         uint32_t            SCR;
     }                   cache;
-    struct config {
-        bool_T              flushTx;
-        bool_T              flushRx;
-    }                   config;
     struct xUartProto   proto;
     uint32_t                signature;
 };
