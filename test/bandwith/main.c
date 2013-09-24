@@ -27,6 +27,7 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
+#include <time.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -168,6 +169,7 @@ enum dataType {
     DATA_LINEAR         = 0,
     DATA_ZERO           = 1,
     DATA_ONE            = 2,
+    DATA_RANDOM         = 3,
     DATA_LAST_ALGO
 };
 
@@ -639,7 +641,7 @@ static void dataGen(
 
     switch (type) {
         case DATA_LINEAR : {
-            uint32_t i;
+            uint32_t    i;
 
             for (i = 0U; i < size; i++) {
                 src[i] = (uint8_t)(0xFFU & i);
@@ -658,6 +660,16 @@ static void dataGen(
                 0xFFU,
                 size);
             break;
+        case DATA_RANDOM : {
+            uint32_t    i;
+
+            srand((unsigned int)time(NULL));
+
+            for (i = 0U; i < size; i++) {
+                src[i] = (uint8_t)(rand() % 255);
+            }
+            break;
+        }
         default : {
 
         }
