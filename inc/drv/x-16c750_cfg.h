@@ -65,7 +65,7 @@
 
 #define CFG_BUFF_BACKOFF                56
 
-#define CFG_DMA_ENABLE                  0
+#define CFG_DMA_ENABLE                  1
 
 /** @} *//*-------------------------------------------------------------------*/
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/
