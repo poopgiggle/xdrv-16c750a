@@ -40,6 +40,7 @@
 #include "drv/x-16c750_cfg.h"
 #include "drv/x-16c750_lld.h"
 #include "port/port.h"
+#include "dbg/dbg.h"
 #include "plat_omap2.h"
 #include "log.h"
 
@@ -59,6 +60,8 @@
 #define BAUD_RATE_CFG_EXPAND_AS_DIV_DATA(a, b, c)                               \
     c,
 
+#define DEVDATA_SIGNATURE               0xdead0bee
+
 /*======================================================  LOCAL DATA TYPES  ==*/
 
 /**@brief       Platform setup states
@@ -77,20 +80,25 @@ enum hwUart {
 };
 
 struct devData {
-    volatile uint8_t *  io;
+    volatile uint8_t *  ioRemap;
+    volatile uint8_t *  ioPhy;
     struct platform_device * platDev;
 
 #if (1 == CFG_DMA_ENABLE)
     struct {
         struct {
-            rtdm_lock_t             lock;
-            rtdm_event_t *          evt;
-            struct resource *       res;
-            dma_addr_t              phyAddr;
-            int                     chn;
-            bool                    actv;
+            rtdm_lock_t         lock;
+            struct resource *   res;
+            uint8_t *           buffRemap;
+            volatile uint8_t *  buffPhy;
+            size_t              buffSize;
+            int                 chn;
+            bool                actv;
+            void (* callback)(void *);
+            void *              data;
         }                   dma;
     }                   rx, tx;
+    uint32_t            signature;
 #endif
 };
 
@@ -129,6 +137,8 @@ static const enum lldMode ModeData[] = {
 static const uint32_t DIVdata[] = {
     BAUD_RATE_CFG_TABLE(BAUD_RATE_CFG_EXPAND_AS_DIV_DATA)
 };
+
+DECL_MODULE_INFO("plat_omap2", "Platform OMAP2", "Nenad Radulovic");
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 
@@ -209,17 +219,20 @@ static void portDMATxCallback(
     unsigned short int  status,
     void *              data) {
 
-    rtdm_lockctx_t      lockCtx;
     struct devData *    devData;
+    void (* callback)(void *);
+    void *              cbData;
 
+    LOG_INFO("tx callback");
     devData = (struct devData *)data;
-    rtdm_lock_get_irqsave(&devData->tx.dma.lock, lockCtx);
-    devData->tx.dma.actv = false;
     (void)portDMATxStopI(
         devData);
-    rtdm_lock_put_irqrestore(&devData->tx.dma.lock, lockCtx);
-    rtdm_event_pulse(
-        devData->tx.dma.evt);
+    callback = devData->rx.dma.callback;
+    cbData   = devData->rx.dma.data;
+
+    if (NULL != callback) {
+        callback(cbData);
+    }
 }
 
 static void portDMARxCallback(
@@ -227,16 +240,20 @@ static void portDMARxCallback(
     unsigned short int  status,
     void *              data) {
 
-    rtdm_lockctx_t      lockCtx;
     struct devData *    devData;
+    void (* callback)(void *);
+    void *              cbData;
 
+    LOG_INFO("rx callback");
     devData = (struct devData *)data;
-    rtdm_lock_get_irqsave(&devData->rx.dma.lock, lockCtx);
-    devData->rx.dma.actv = false;
     (void)portDMARxStopI(
         devData);
-    rtdm_lock_put_irqrestore(&devData->rx.dma.lock, lockCtx);
-    rtdm_event_pulse(devData->rx.dma.evt);
+    callback = devData->rx.dma.callback;
+    cbData   = devData->rx.dma.data;
+
+    if (NULL != callback) {
+        callback(cbData);
+    }
 }
 #endif
 
@@ -340,11 +357,13 @@ struct devData * portInit(
     }
 
     /*-- Saving references to device data ------------------------------------*/
-    devData->io = omap_device_get_rt_va(
+    devData->ioRemap = omap_device_get_rt_va(
         to_omap_device(devData->platDev));
+    devData->ioPhy = (volatile uint8_t *)PortIOmap[id];
 
+    ES_DBG_API_OBLIGATION(devData->signature = DEVDATA_SIGNATURE);
     /*
-     * XXX, NOTE: Board initialization code should setup MUX accordingly
+     * NOTE: Board initialization code should setup MUX accordingly
      */
 
     return (devData);
@@ -444,14 +463,16 @@ bool_T portIsOnline(
 
 int portDMARxInit(
     struct devData *    devData,
-    void **             buff,
-    size_t              size,
-    rtdm_event_t *      evt) {
+    uint8_t **          buff,
+    size_t              size) {
 
     struct platform_device * platDev;
 
+    ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, devData->signature == DEVDATA_SIGNATURE);
+
     platDev = devData->platDev;
 
+    LOG_INFO("rx init");
     devData->rx.dma.res = platform_get_resource_byname(
         platDev,
         IORESOURCE_DMA,
@@ -462,35 +483,58 @@ int portDMARxInit(
 
         return (-EINVAL);
     }
+
     rtdm_lock_init(&devData->rx.dma.lock);
-    devData->rx.dma.evt = evt;
     devData->rx.dma.chn = -1;
     devData->rx.dma.actv = false;
 
     /* Mozda prvi argument treba da bude NULL:
      * @dev: valid struct device pointer, or NULL for ISA and EISA-like devices
      */
-    *buff = dma_alloc_coherent(
-        &platDev->dev,
+    devData->rx.dma.buffRemap = dma_alloc_coherent(
+        NULL,
         size,
-        &devData->rx.dma.phyAddr,
+        (dma_addr_t *)&devData->rx.dma.buffPhy,
         0);
 
-    if ((NULL == *buff) || (0U == devData->rx.dma.phyAddr)) {
+    if ((NULL == devData->rx.dma.buffRemap) || (NULL == devData->rx.dma.buffPhy)) {
 
         return (-ENOMEM);
     }
+    *buff = devData->rx.dma.buffRemap;
+    devData->rx.dma.buffSize = size;
+
+    LOG_INFO("rx init: res name : %s", devData->rx.dma.res->name);
+    LOG_INFO("rx init: res start: %x", devData->rx.dma.res->start);
+    LOG_INFO("rx init: res stop : %x", devData->rx.dma.res->end);
+
+    if (devData->rx.dma.res->parent) {
+        LOG_INFO("rx init: res parent");
+        LOG_INFO("rx init: res name : %s", devData->rx.dma.res->parent->name);
+        LOG_INFO("rx init: res start: %x", devData->rx.dma.res->parent->start);
+        LOG_INFO("rx init: res stop : %x", devData->rx.dma.res->parent->end);
+    }
+
+    if (devData->rx.dma.res->sibling) {
+        LOG_INFO("rx init: res parent");
+        LOG_INFO("rx init: res name : %s", devData->rx.dma.res->sibling->name);
+        LOG_INFO("rx init: res start: %x", devData->rx.dma.res->sibling->start);
+        LOG_INFO("rx init: res stop : %x", devData->rx.dma.res->sibling->end);
+    }
+    LOG_INFO("rx init: BUFF remap: %p", devData->rx.dma.buffRemap);
+    LOG_INFO("rx init: BUFF phy  : %p", devData->rx.dma.buffPhy);
+    LOG_INFO("rx init: BUFF size : %d", devData->rx.dma.buffSize);
 
     return (RETVAL_SUCCESS);
 }
 
 int portDMARxTerm(
-    struct devData *    devData,
-    void *              buff,
-    size_t              size) {
+    struct devData *    devData) {
 
     rtdm_lockctx_t      lockCtx;
     struct platform_device * platDev;
+
+    ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, devData->signature == DEVDATA_SIGNATURE);
 
     platDev = devData->platDev;
 
@@ -499,56 +543,66 @@ int portDMARxTerm(
         devData);
     rtdm_lock_put_irqrestore(&devData->rx.dma.lock, lockCtx);
     dma_free_coherent(
-        &platDev->dev,
-        size,
-        buff,
-        devData->rx.dma.phyAddr);
-    rtdm_event_signal(
-        devData->rx.dma.evt);
+        NULL,
+        devData->rx.dma.buffSize,
+        devData->rx.dma.buffRemap,
+        (dma_addr_t)devData->rx.dma.buffPhy);
 
     return (RETVAL_SUCCESS);
 }
 
 int portDMARxStart(
     struct devData *    devData,
-    void *              buff,
-    size_t              size) {
+    uint8_t *           buff,
+    size_t              size,
+    void (* callback)(void *),
+    void *              data) {
 
-    rtdm_lockctx_t      lockCtx;
+    ptrdiff_t           pos;
 
-    rtdm_lock_get_irqsave(&devData->rx.dma.lock, lockCtx);
+    LOG_INFO("rx start: buff: %p", buff);
+    LOG_INFO("rx start: size: %d", size);
+
+    ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, devData->signature == DEVDATA_SIGNATURE);
 
     if (false == devData->rx.dma.actv) {
         int             retval;
 
         devData->rx.dma.actv = true;
-        rtdm_lock_put_irqrestore(&devData->rx.dma.lock, lockCtx);
+        LOG_INFO("rx start: req start: %x", devData->rx.dma.res->start);
         retval = omap_request_dma(
-            devData->rx.dma.res->start,
+            71,
             CFG_DRV_NAME " Rx DMA",
             portDMARxCallback,
             devData,
             &devData->rx.dma.chn);
+        LOG_INFO("rx start: req retval %d", retval);
+        LOG_INFO("rx start: req chn    %d", devData->rx.dma.chn);
 
         if (0 != retval) {
+            LOG_ERR("Rx DMA request failed, err: %d", retval);
 
             return (retval);
         }
-    } else {
-        rtdm_lock_put_irqrestore(&devData->rx.dma.lock, lockCtx);
+        LOG_INFO("rx start: set src    %p", devData->ioPhy);
+        omap_set_dma_src_params(
+            devData->rx.dma.chn,
+            0,
+            OMAP_DMA_AMODE_CONSTANT,
+            (unsigned long int)(devData->ioPhy + RHR),
+            0,
+            0);
     }
-    omap_set_dma_src_params(
-        devData->rx.dma.chn,
-        0,
-        OMAP_DMA_AMODE_CONSTANT,
-        (unsigned long int)(devData->io + RHR),
-        0,
-        0);
+    devData->rx.dma.callback = callback;
+    devData->rx.dma.data = data;
+    pos = buff - devData->rx.dma.buffRemap;
+    LOG_INFO("rx start: pos        %d", pos);
+    LOG_INFO("rx start: set dst    %p", devData->rx.dma.buffPhy + pos);
     omap_set_dma_dest_params(
         devData->rx.dma.chn,
         0,
         OMAP_DMA_AMODE_POST_INC,
-        (unsigned long int)buff,
+        (unsigned long int)(devData->rx.dma.buffPhy + pos),
         0,
         0);
     omap_set_dma_transfer_params(
@@ -568,6 +622,9 @@ int portDMARxStart(
 int portDMARxStopI(
     struct devData *    devData) {
 
+    LOG_INFO("rx stop");
+    ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, devData->signature == DEVDATA_SIGNATURE);
+
     if (true == devData->rx.dma.actv) {
         devData->rx.dma.actv = false;
         omap_stop_dma(
@@ -581,14 +638,14 @@ int portDMARxStopI(
 
 int portDMATxInit(
     struct devData *    devData,
-    void **             buff,
-    size_t              size,
-    rtdm_event_t *      evt) {
+    uint8_t **          buff,
+    size_t              size) {
 
     struct platform_device * platDev;
 
     platDev = devData->platDev;
 
+    LOG_INFO("DMA Tx init");
     devData->tx.dma.res = platform_get_resource_byname(
         platDev,
         IORESOURCE_DMA,
@@ -600,31 +657,52 @@ int portDMATxInit(
         return (-EINVAL);
     }
     rtdm_lock_init(&devData->tx.dma.lock);
-    devData->tx.dma.evt = evt;
     devData->tx.dma.chn = -1;
     devData->tx.dma.actv = false;
 
     /* Mozda prvi argument treba da bude NULL:
      * @dev: valid struct device pointer, or NULL for ISA and EISA-like devices
      */
-    *buff = dma_alloc_coherent(
-        &platDev->dev,
+    devData->tx.dma.buffRemap = dma_alloc_coherent(
+        NULL,
         size,
-        &devData->tx.dma.phyAddr,
+        (dma_addr_t *)&devData->tx.dma.buffPhy,
         0);
 
-    if ((NULL == *buff) || (0U == devData->rx.dma.phyAddr)) {
+    if ((NULL == devData->tx.dma.buffRemap) || (NULL == devData->tx.dma.buffPhy)) {
+        LOG_ERR("DMA Tx failed to alloc memory");
 
         return (-ENOMEM);
     }
+    *buff = devData->tx.dma.buffRemap;
+    devData->tx.dma.buffSize = size;
+
+    LOG_INFO("tx init: res name : %s", devData->tx.dma.res->name);
+    LOG_INFO("tx init: res start: %x", devData->tx.dma.res->start);
+    LOG_INFO("tx init: res stop : %x", devData->tx.dma.res->end);
+
+    if (devData->tx.dma.res->parent) {
+        LOG_INFO("tx init: res parent");
+        LOG_INFO("tx init: res name : %s", devData->tx.dma.res->parent->name);
+        LOG_INFO("tx init: res start: %x", devData->tx.dma.res->parent->start);
+        LOG_INFO("tx init: res stop : %x", devData->tx.dma.res->parent->end);
+    }
+
+    if (devData->tx.dma.res->sibling) {
+        LOG_INFO("tx init: res parent");
+        LOG_INFO("tx init: res name : %s", devData->tx.dma.res->sibling->name);
+        LOG_INFO("tx init: res start: %x", devData->tx.dma.res->sibling->start);
+        LOG_INFO("tx init: res stop : %x", devData->tx.dma.res->sibling->end);
+    }
+    LOG_INFO("tx init: BUFF remap: %p", devData->tx.dma.buffRemap);
+    LOG_INFO("tx init: BUFF phy  : %p", devData->tx.dma.buffPhy);
+    LOG_INFO("tx init: BUFF size : %d", devData->tx.dma.buffSize);
 
     return (RETVAL_SUCCESS);
 }
 
 int portDMATxTerm(
-    struct devData *    devData,
-    void *              buff,
-    size_t              size) {
+    struct devData *    devData) {
 
     rtdm_lockctx_t      lockCtx;
     struct platform_device * platDev;
@@ -636,57 +714,66 @@ int portDMATxTerm(
         devData);
     rtdm_lock_put_irqrestore(&devData->tx.dma.lock, lockCtx);
     dma_free_coherent(
-        &platDev->dev,
-        size,
-        buff,
-        devData->tx.dma.phyAddr);
-    rtdm_event_signal(
-        devData->tx.dma.evt);
+        NULL,
+        devData->tx.dma.buffSize,
+        devData->tx.dma.buffRemap,
+        (dma_addr_t)devData->tx.dma.buffPhy);
 
     return (RETVAL_SUCCESS);
 }
 
 int portDMATxStart(
     struct devData *    devData,
-    const void *        buff,
-    size_t              size) {
+    const uint8_t *     buff,
+    size_t              size,
+    void (* callback)(void *),
+    void *              data) {
 
-    rtdm_lockctx_t      lockCtx;
+    ptrdiff_t           pos;
 
-    rtdm_lock_get_irqsave(&devData->tx.dma.lock, lockCtx);
+    LOG_INFO("tx start: buff: %p", buff);
+    LOG_INFO("tx start: size: %d", size);
+
+    ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, devData->signature == DEVDATA_SIGNATURE);
 
     if (false == devData->tx.dma.actv) {
         int             retval;
 
         devData->tx.dma.actv = true;
-        rtdm_lock_put_irqrestore(&devData->tx.dma.lock, lockCtx);
-
+        LOG_INFO("tx start: req start: %x", devData->tx.dma.res->start);
         retval = omap_request_dma(
-            devData->tx.dma.res->start,
+            70,
             CFG_DRV_NAME " Tx DMA",
             portDMATxCallback,
             devData,
             &devData->tx.dma.chn);
+        LOG_INFO("rx start: req retval %d", retval);
+        LOG_INFO("rx start: req chn    %d", devData->tx.dma.chn);
 
         if (0 != retval) {
+            LOG_ERR("Tx DMA request failed, err: %d", retval);
 
             return (retval);
         }
-    } else {
-        rtdm_lock_put_irqrestore(&devData->tx.dma.lock, lockCtx);
+        LOG_INFO("tx start: set dst    %p", devData->ioPhy);
+        omap_set_dma_dest_params(
+            devData->tx.dma.chn,
+            0,
+            OMAP_DMA_AMODE_CONSTANT,
+            (unsigned long int)(devData->ioPhy + wTHR),
+            0,
+            0);
     }
-    omap_set_dma_dest_params(
-        devData->tx.dma.chn,
-        0,
-        OMAP_DMA_AMODE_CONSTANT,
-        (unsigned long int)(devData->io + wTHR),
-        0,
-        0);
+    devData->tx.dma.callback = callback;
+    devData->tx.dma.data = data;
+    pos = buff - devData->tx.dma.buffRemap;
+    LOG_INFO("tx start: pos        %d", pos);
+    LOG_INFO("tx start: set src    %p", devData->tx.dma.buffPhy + pos);
     omap_set_dma_src_params(
         devData->tx.dma.chn,
         0,
         OMAP_DMA_AMODE_POST_INC,
-        (unsigned long int)buff,
+        (unsigned long int)(devData->tx.dma.buffPhy + pos),
         0,
         0);
     omap_set_dma_transfer_params(

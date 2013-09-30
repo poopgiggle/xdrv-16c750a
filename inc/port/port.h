@@ -120,9 +120,6 @@ bool_T portIsOnline(
  *              Pointer to buffer pointer which is accessible from Linux domain
  * @param       size
  *              The size of requested buffer in bytes
- * @param       evt
- *              Pointer to event object which will be signaled when a transfer
- *              is done.
  * @return      Operation status
  *  @retval     0 - success
  *              -ENOMEM - no abailable DMA memory
@@ -130,19 +127,18 @@ bool_T portIsOnline(
  */
 int portDMARxInit(
     struct devData *    devData,
-    void **             buff,
-    size_t              size,
-    rtdm_event_t *      evt);
+    uint8_t **          buff,
+    size_t              size);
 
 int portDMARxTerm(
-    struct devData *    devData,
-    void *              buff,
-    size_t              size);
+    struct devData *    devData);
 
 int portDMARxStart(
     struct devData *    devData,
-    void *              buff,
-    size_t              size);
+    uint8_t *           buff,
+    size_t              size,
+    void (* callback)(void *),
+    void *              data);
 
 /**@brief       Stop RX DMA activity
  * @param       devData
@@ -161,25 +157,21 @@ int portDMARxStopI(
  *              Pointer to buffer pointer which is accessible from Linux domain
  * @param       size
  *              The size of requested buffer in bytes
- * @param       evt
- *              Pointer to event object which will be signaled when a transfer
- *              is done.
  */
 int portDMATxInit(
     struct devData *    devData,
-    void **             buff,
-    size_t              size,
-    rtdm_event_t *      evt);
+    uint8_t **          buff,
+    size_t              size);
 
 int portDMATxTerm(
-    struct devData *    devData,
-    void *              buff,
-    size_t              size);
+    struct devData *    devData);
 
 int portDMATxStart(
     struct devData *    devData,
-    const void *        buff,
-    size_t              size);
+    const uint8_t *     buff,
+    size_t              size,
+    void (* callback)(void *),
+    void *              data);
 
 /**@brief       Stop TX DMA activity
  * @param       devData
