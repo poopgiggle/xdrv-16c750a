@@ -47,7 +47,7 @@
 
 #define DEF_DRV_VERSION_MAJOR           1
 #define DEF_DRV_VERSION_MINOR           0
-#define DEF_DRV_VERSION_PATCH           7
+#define DEF_DRV_VERSION_PATCH           8
 #define DEF_DRV_AUTHOR                  "Nenad Radulovic <nenad.radulovic@netico-group.com>"
 #define DEF_DRV_DESCRIPTION             "Real-time 16C750 device driver"
 #define DEF_DRV_SUPP_DEVICE             "UART 16C750A"
@@ -86,24 +86,75 @@ enum cIntNum {
 
 static void buffRxStartI(
     struct uartCtx *    uartCtx,
-    size_t              size);
+    size_t              bytes);
+
+static void buffRxStopI(
+    struct uartCtx *    uartCtx);
+
+static void buffRxPendI(
+    struct uartCtx *    uartCtx,
+    size_t              pending);
+
+#if (1 == CFG_DMA_ENABLE)
+static void buffRxContinue(
+    void *              data);
+
+static void buffRxFinish(
+    void *              data);
+#endif
 
 static int buffRxWait(
     struct uartCtx *    uartCtx,
     rtdm_toseq_t *      tmSeq);
 
-static void buffRxFlushI(
-    struct uartCtx *    uartCtx);
-
 static ssize_t buffRxCopyI(
     struct uartCtx *    uartCtx,
     rtdm_lockctx_t *    lockCtx,
     uint8_t *           dst,
+    size_t              pending);
+
+static void buffRxFlush(
+    struct uartCtx *    uartCtx);
+
+static void buffTxStartI(
+    struct uartCtx *    uartCtx,
+    size_t              pending);
+
+static void buffTxStopI(
+    struct uartCtx *    uartCtx);
+
+static void buffTxPendI(
+    struct uartCtx *    uartCtx,
+    size_t              pending);
+
+#if (1 == CFG_DMA_ENABLE)
+static void buffTxContinueI(
+    void *              data);
+
+static void buffTxFinishI(
+    void *              data);
+#endif
+
+static int buffTxWait(
+    struct uartCtx *    uartCtx,
+    rtdm_toseq_t *      tmSeq);
+
+static ssize_t buffTxCopyI(
+    struct uartCtx *    uartCtx,
+    rtdm_lockctx_t *    lockCtx,
+    const uint8_t *     src,
     size_t              bytes);
 
+#if (0 == CFG_DMA_ENABLE)
+static void buffTxFlushI(
+    struct uartCtx *    uartCtx);
+#endif
+
+#if (0 == CFG_DMA_ENABLE)
 static void cIntEnable(
     struct uartCtx *    uartCtx,
     enum cIntNum        cIntNum);
+#endif
 
 static void cIntDisable(
     struct uartCtx *    uartCtx,
@@ -113,6 +164,7 @@ static void cIntDisable(
  */
 static void uartCtxCleanup(
     struct uartCtx *    uartCtx,
+    struct devData *    devData,
     enum ctxState       state);
 
 /**@brief       Create UART context
@@ -229,31 +281,111 @@ MODULE_SUPPORTED_DEVICE(DEF_DRV_SUPP_DEVICE);
 
 static void buffRxStartI(
     struct uartCtx *    uartCtx,
-    size_t              size) {
+    size_t              bytes) {
 
+#if (0 == CFG_DMA_ENABLE)
+    uartCtx->rx.pend = 0U;
     cIntEnable(
         uartCtx,
         C_INT_RX | C_INT_RX_TIMEOUT);
-}
-
-static void buffRxPendOccI(
-    struct uartCtx *    uartCtx,
-    size_t              size) {
-
-    uartCtx->rx.pend = min(size, circSizeGet(&uartCtx->rx.buffHandle) - CFG_BUFF_BACKOFF);
-    cIntEnable(
+#else
+    uartCtx->rx.done = 0U;
+    buffRxPendI(
         uartCtx,
-        C_INT_RX | C_INT_RX_TIMEOUT);
+        bytes);
+#endif
 }
 
 static void buffRxStopI(
     struct uartCtx *    uartCtx) {
 
+#if (0 == CFG_DMA_ENABLE)
     uartCtx->rx.pend = 0U;
     cIntDisable(
         uartCtx,
         C_INT_RX | C_INT_RX_TIMEOUT);
+#else
+    uartCtx->rx.pend = 0U;
+    uartCtx->rx.done = 0U;
+    portDMARxStopI(
+        uartCtx->devData);
+#endif
 }
+
+static void buffRxPendI(
+    struct uartCtx *    uartCtx,
+    size_t              pending) {
+
+#if (0 == CFG_DMA_ENABLE)
+    uartCtx->rx.pend = min(pending, circSizeGet(&uartCtx->rx.buffHandle) - CFG_BUFF_BACKOFF);
+    rtdm_event_clear(
+        &uartCtx->rx.opr);
+#else
+    uint8_t *           dst;
+    size_t              free;
+
+    uartCtx->rx.pend = pending;
+    dst = circMemHeadGet(
+        &uartCtx->rx.buffHandle);
+    free = circRemainingFreeGet(
+        &uartCtx->rx.buffHandle);
+
+    if (free >= pending) {
+        /* single DMA transfer */
+        uartCtx->rx.done += pending;
+        uartCtx->rx.chunk = pending;
+        portDMARxStart(
+            uartCtx->devData,
+            dst,
+            pending,
+            buffRxFinish,
+            uartCtx);
+    } else {
+        /* multiple DMA transfers */
+        uartCtx->rx.done += free;
+        uartCtx->rx.chunk = free;
+        portDMARxStart(
+            uartCtx->devData,
+            dst,
+            free,
+            buffRxContinue,
+            uartCtx);
+    }
+#endif
+}
+
+#if (1 == CFG_DMA_ENABLE)
+static void buffRxContinue(
+    void *              data) {
+
+    struct uartCtx *    uartCtx;
+    size_t              rem;
+
+    uartCtx = (struct uartCtx *)data;
+    rem = uartCtx->rx.pend - uartCtx->rx.done;
+    circPosHeadSet(
+        &uartCtx->rx.buffHandle,
+        uartCtx->rx.chunk);
+    buffRxPendI(
+        uartCtx,
+        rem);
+    rtdm_event_signal(
+        &uartCtx->rx.opr);
+}
+
+static void buffRxFinish(
+    void *              data) {
+
+    struct uartCtx *    uartCtx;
+
+    uartCtx = (struct uartCtx *)data;
+    circPosHeadSet(
+        &uartCtx->rx.buffHandle,
+        uartCtx->rx.chunk);
+    rtdm_event_signal(
+        &uartCtx->rx.opr);
+}
+#endif
 
 static int buffRxWait(
     struct uartCtx *    uartCtx,
@@ -269,23 +401,11 @@ static int buffRxWait(
     return (retval);
 }
 
-static void buffRxFlushI(
-    struct uartCtx *    uartCtx) {
-
-    uartCtx->rx.pend = 0U;
-    uartCtx->rx.done = 0U;
-    circFlush(
-        &uartCtx->rx.buffHandle);
-    lldFIFORxFlush(
-        uartCtx->cache.io);
-}
-
-
 static ssize_t buffRxCopyI(
     struct uartCtx *    uartCtx,
     rtdm_lockctx_t *    lockCtx,
     uint8_t *           dst,
-    size_t              bytes) {
+    size_t              pending) {
 
     size_t              transfer;
     size_t              cpd;
@@ -308,7 +428,7 @@ static ssize_t buffRxCopyI(
         dst += transfer;
         src = circMemTailGet(
             &uartCtx->rx.buffHandle);
-        transfer = min(bytes, occ);
+        transfer = min(pending, occ);
 
         if (NULL != uartCtx->rx.user) {
             int         retval;
@@ -330,7 +450,7 @@ static ssize_t buffRxCopyI(
                 src,
                 transfer);
         }
-        bytes -= transfer;
+        pending -= transfer;
         cpd   += transfer;
         rtdm_lock_get_irqsave(&uartCtx->lock, *lockCtx);
         circPosTailSet(
@@ -338,38 +458,125 @@ static ssize_t buffRxCopyI(
             transfer);
         occ = circRemainingOccGet(
             &uartCtx->rx.buffHandle);
-    } while ((0 != occ) && (0 != bytes));
+    } while ((0 != occ) && (0 != pending));
 
     return (cpd);
 }
 
+static void buffRxFlush(
+    struct uartCtx *    uartCtx) {
+
+    uartCtx->rx.pend = 0U;
+    uartCtx->rx.done = 0U;
+    circFlush(
+        &uartCtx->rx.buffHandle);
+    lldFIFORxFlush(
+        uartCtx->cache.io);
+}
+
 static void buffTxStartI(
     struct uartCtx *    uartCtx,
-    size_t              size) {
+    size_t              pending) {
 
+#if (0 == CFG_DMA_ENABLE)
     cIntEnable(
         uartCtx,
         C_INT_TX);
+#else
+    uartCtx->tx.done = 0U;
+    buffTxPendI(
+        uartCtx,
+        pending);
+#endif
 }
 
 static void buffTxStopI(
     struct uartCtx *    uartCtx) {
 
+#if (0 == CFG_DMA_ENABLE)
     uartCtx->tx.pend = 0U;
     cIntDisable(
         uartCtx,
         C_INT_TX);
+#else
+    uartCtx->tx.pend = 0U;
+    uartCtx->tx.done = 0U;
+    portDMATxStopI(
+        uartCtx->devData);
+#endif
 }
 
-static void buffTxPendFreeI(
+static void buffTxPendI(
     struct uartCtx *    uartCtx,
-    size_t              size) {
+    size_t              pending) {
 
-    uartCtx->tx.pend = min(size, circSizeGet(&uartCtx->tx.buffHandle));
+#if (0 == CFG_DMA_ENABLE)
+    uartCtx->tx.pend = min(pending, circSizeGet(&uartCtx->tx.buffHandle));
     cIntEnable(
         uartCtx,
         C_INT_TX);
+#else
+    uint8_t *           src;
+    size_t              occ;
+
+    uartCtx->tx.pend = pending;
+    src = circMemTailGet(
+        &uartCtx->tx.buffHandle);
+    occ = circRemainingOccGet(
+        &uartCtx->tx.buffHandle);
+
+    if (occ >= pending) {
+        /* single DMA transfer */
+        LOG_INFO("single Tx DMA transfer");
+        uartCtx->tx.done += pending;
+        portDMATxStart(
+            uartCtx->devData,
+            src,
+            pending,
+            buffTxFinishI,
+            uartCtx);
+    } else {
+        /* multiple DMA transfers*/
+        LOG_INFO("multiple Tx DMA transfers");
+        uartCtx->tx.done += occ;
+        portDMATxStart(
+            uartCtx->devData,
+            src,
+            occ,
+            buffTxContinueI,
+            uartCtx);
+    }
+#endif
 }
+
+#if (1 == CFG_DMA_ENABLE)
+static void buffTxContinueI(
+    void *              data) {
+
+    struct uartCtx *    uartCtx;
+    size_t              rem;
+
+    uartCtx = (struct uartCtx *)data;
+    rem = uartCtx->tx.pend - uartCtx->tx.done;
+    buffTxPendI(
+        uartCtx,
+        rem);
+    rtdm_event_signal(
+        &uartCtx->tx.opr);
+}
+
+static void buffTxFinishI(
+    void *              data) {
+
+    struct uartCtx *    uartCtx;
+
+    uartCtx = (struct uartCtx *)data;
+    buffTxStopI(
+        uartCtx);
+    rtdm_sem_up(
+        &uartCtx->tx.acc); /* must be signaled in case other user is waiting to transmitt */
+}
+#endif
 
 static int buffTxWait(
     struct uartCtx *    uartCtx,
@@ -447,6 +654,7 @@ static ssize_t buffTxCopyI(
     return (cpd);
 }
 
+#if (0 == CFG_DMA_ENABLE)
 static void buffTxFlushI(
     struct uartCtx *    uartCtx) {
 
@@ -457,7 +665,9 @@ static void buffTxFlushI(
     lldFIFOTxFlush(
         uartCtx->cache.io);
 }
+#endif
 
+#if (0 == CFG_DMA_ENABLE)
 static void cIntEnable(
     struct uartCtx *    uartCtx,
     enum cIntNum        cIntNum) {
@@ -474,6 +684,7 @@ static void cIntEnable(
             uartCtx->cache.IER);
     }
 }
+#endif
 
 static void cIntDisable(
     struct uartCtx *    uartCtx,
@@ -494,28 +705,42 @@ static void cIntDisable(
 
 static void uartCtxCleanup(
     struct uartCtx *    uartCtx,
+    struct devData *    devData,
     enum ctxState       state) {
 
     switch (state) {
 
         case CTX_STATE_RX_BUFF_ALLOC: {
             LOG_INFO("reversing action: create internal RX buffer");
+#if (0 == CFG_DMA_ENABLE)
             (void)rt_heap_delete(
                 &uartCtx->rx.heapHandle);
+#else
+            portDMARxTerm(
+                devData);
+#endif
+            /* fall through */
         }
 
         case CTX_STATE_RX_BUFF: {
+#if (0 == CFG_DMA_ENABLE)
             LOG_INFO("reversing action: allocate internal TX buffer");
             (void)rt_heap_free(
                 &uartCtx->tx.heapHandle,
                 circMemBaseGet(&uartCtx->tx.buffHandle));
+#endif
             /* fall through */
         }
 
         case CTX_STATE_TX_BUFF_ALLOC: {
             LOG_INFO("reversing action: create internal TX buffer");
+#if (0 == CFG_DMA_ENABLE)
             (void)rt_heap_delete(
                 &uartCtx->tx.heapHandle);
+#else
+            portDMATxTerm(
+                devData);
+#endif
             /* fall through */
         }
 
@@ -537,7 +762,7 @@ static int uartCtxInit(
 
     enum ctxState       state;
     int                 retval;
-    void *              buff;
+    uint8_t *           buff;
 
     if (UART_CTX_SIGNATURE == uartCtx->signature) {
         LOG_ERR("UART context already initialized");
@@ -546,16 +771,18 @@ static int uartCtxInit(
     }
     /*-- STATE: init ---------------------------------------------------------*/
     state = CTX_STATE_INIT;
-    rtdm_mutex_init(
-        &uartCtx->tx.acc);
+    rtdm_sem_init(
+        &uartCtx->tx.acc,
+        1U);
     rtdm_event_init(
         &uartCtx->tx.opr,
-        0);
-    rtdm_mutex_init(
-        &uartCtx->rx.acc);
+        0U);
+    rtdm_sem_init(
+        &uartCtx->rx.acc,
+        1U);
     rtdm_event_init(
         &uartCtx->rx.opr,
-        0);
+        0U);
 
     /*-- STATE: Create TX buffer ---------------------------------------------*/
     state  = CTX_STATE_TX_BUFF;
@@ -566,16 +793,17 @@ static int uartCtxInit(
         CFG_DRV_BUFF_SIZE,
         H_SINGLE);
 #else
+    LOG_INFO("tx dma init");
     retval = portDMATxInit(
         devData,
         &buff,
-        CFG_DRV_BUFF_SIZE,
-        &uartCtx->tx.opr);
+        CFG_DRV_BUFF_SIZE);
 #endif
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to create internal TX buffer, err: %d", retval);
         uartCtxCleanup(
             uartCtx,
+            devData,
             state);
 
         return (retval);
@@ -594,6 +822,7 @@ static int uartCtxInit(
         LOG_ERR("failed to allocate internal TX buffer, err: %d", retval);
         uartCtxCleanup(
             uartCtx,
+            devData,
             state);
 
         return (retval);
@@ -613,17 +842,18 @@ static int uartCtxInit(
         CFG_DRV_BUFF_SIZE,
         H_SINGLE);
 #else
+    LOG_INFO("rx dma init");
     retval = portDMARxInit(
         devData,
         &buff,
-        CFG_DRV_BUFF_SIZE,
-        &uartCtx->rx.opr);
+        CFG_DRV_BUFF_SIZE);
 #endif
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to create internal RX buffer, err: %d", retval);
         uartCtxCleanup(
             uartCtx,
+            devData,
             state);
 
         return (retval);
@@ -637,16 +867,17 @@ static int uartCtxInit(
         0U,
         TM_INFINITE,
         &buff);
-#endif
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to allocate internal RX buffer, err: %d", retval);
         uartCtxCleanup(
             uartCtx,
+            devData,
             state);
 
         return (retval);
     }
+#endif
     circInit(
         &uartCtx->rx.buffHandle,
         buff,
@@ -670,6 +901,7 @@ static int uartCtxInit(
     uartCtx->rx.done        = 0U;
     uartCtx->rx.status      = UART_STATUS_NORMAL; /* not used */
     uartCtx->rx.cfg.flush   = TRUE;
+    uartCtx->devData        = devData;
     uartCtx->signature      = UART_CTX_SIGNATURE;
 
     xProtoSet(
@@ -695,9 +927,7 @@ static int uartCtxTerm(
         &uartCtx->rx.heapHandle);
 #else
     retval = portDMARxTerm(
-        devData,
-        circMemBaseGet(&uartCtx->rx.buffHandle),
-        circSizeGet(&uartCtx->rx.buffHandle));
+        devData);
 #endif
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal RX buffer, err: %d", retval);
 #if (0 == CFG_DMA_ENABLE)
@@ -709,19 +939,17 @@ static int uartCtxTerm(
         &uartCtx->tx.heapHandle);
 #else
     retval = portDMATxTerm(
-        devData,
-        circMemBaseGet(&uartCtx->tx.buffHandle),
-        circSizeGet(&uartCtx->tx.buffHandle));
+        devData);
 #endif
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed to delete internal TX buffer, err: %d", retval);
 
     rtdm_event_destroy(
         &uartCtx->rx.opr);
-    rtdm_mutex_destroy(
+    rtdm_sem_destroy(
         &uartCtx->rx.acc);
     rtdm_event_destroy(
         &uartCtx->tx.opr);
-    rtdm_mutex_destroy(
+    rtdm_sem_destroy(
         &uartCtx->tx.acc);
 
     return (retval);
@@ -768,11 +996,11 @@ static int handleOpen(
     uartCtx = uartCtxFromDevCtx(
         devCtx);
     rtdm_lock_init(&uartCtx->lock);
-    rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
     retval = uartCtxInit(
         uartCtx,
         devCtx->device->device_data,
         portIORemapGet(devCtx->device->device_data));
+    rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
 
     if (RETVAL_SUCCESS != retval) {
         rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
@@ -787,9 +1015,6 @@ static int handleOpen(
         RTDM_IRQTYPE_EDGE,
         devCtx->device->proc_name,
         uartCtx);
-    cIntEnable(
-        uartCtx,
-        C_INT_RX | C_INT_RX_TIMEOUT);
     rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
     LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to register interrupt handler");
 
@@ -922,7 +1147,7 @@ static int handleRd(
     }
     uartCtx = uartCtxFromDevCtx(devCtx);
     uartCtx->rx.user = usrInfo;
-    retval = rtdm_mutex_timedlock(
+    retval = rtdm_sem_timeddown(
         &uartCtx->rx.acc,
         uartCtx->rx.accTimeout,
         NULL);
@@ -937,43 +1162,27 @@ static int handleRd(
         uartCtx->rx.oprTimeout);
     read = 0U;
     dst = (uint8_t *)buff;
+
+    buffRxFlush(
+        uartCtx);
     rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+    rtdm_event_clear(
+        &uartCtx->rx.opr);
+    buffRxStartI(
+        uartCtx,
+        bytes);
 
-    if ((TRUE == circIsEmpty(&uartCtx->rx.buffHandle)) || (TRUE == uartCtx->rx.cfg.flush)) {
-        buffRxFlushI(
-            uartCtx);
-    } else {
-        ssize_t     transfer;
-
-        transfer = buffRxCopyI(
-            uartCtx,
-            &lockCtx,
-            dst,
-            bytes);
-
-        if (0 > transfer) {
-            buffRxStopI(
-                uartCtx);                                                       /* We don't know what happened here so just disable RX      */
-            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-            rtdm_mutex_unlock(
-                &uartCtx->rx.acc);
-
-            return (transfer);
-        }
-        dst   += transfer;
-        bytes -= transfer;
-        read  += transfer;
-    }
-
-    while (0 < bytes) {
+    do {
         size_t          transfer;
         int             retval;
 
-        buffRxPendOccI(
+#if (0 == CFG_DMA_ENABLE)
+        buffRxPendI(
             uartCtx,
             bytes);
+#endif
         rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-
+        LOG_INFO("rd block");
         retval = buffRxWait(
             uartCtx,
             &tmSeq);
@@ -997,17 +1206,16 @@ static int handleRd(
 
             break;
         }
+        LOG_INFO("rd transfer %d", transfer);
         dst   += transfer;
         bytes -= transfer;
         read  += transfer;
-    }
+    } while (0 < bytes);
 
-    if (TRUE == uartCtx->rx.cfg.flush) {
-        buffRxStopI(
-            uartCtx);
-    }
+    buffRxStopI(
+        uartCtx);
     rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-    rtdm_mutex_unlock(
+    rtdm_sem_up(
         &uartCtx->rx.acc);
 
     if (RETVAL_SUCCESS == retval) {
@@ -1023,13 +1231,13 @@ static int handleWr(
     const void *        buff,
     size_t              bytes) {
 
-    rtdm_toseq_t        tmSeq;
     rtdm_lockctx_t      lockCtx;
+    rtdm_toseq_t        tmSeq;
     struct uartCtx *    uartCtx;
     const uint8_t *     src;
-    ssize_t             transfer;
     size_t              written;
     int                 retval;
+    ssize_t             transfer;
 
     if (NULL != usrInfo) {
 
@@ -1040,7 +1248,8 @@ static int handleWr(
         }
     }
     uartCtx = uartCtxFromDevCtx(devCtx);
-    retval = rtdm_mutex_timedlock(
+    uartCtx->rx.user = usrInfo;
+    retval = rtdm_sem_timeddown(
         &uartCtx->tx.acc,
         uartCtx->tx.accTimeout,
         NULL);
@@ -1056,39 +1265,34 @@ static int handleWr(
     written  = 0U;
     src = (const uint8_t *)buff;
     rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+    transfer = buffTxCopyI(
+        uartCtx,
+        &lockCtx,
+        src,
+        bytes);
 
-    if ((TRUE == circIsEmpty(&uartCtx->tx.buffHandle)) || (TRUE == uartCtx->tx.cfg.flush)) {
-        buffTxFlushI(
+    if (0 > transfer) {
+        buffTxStopI(
             uartCtx);
-    }
-    if (FALSE == circIsFull(&uartCtx->tx.buffHandle)) {
-        transfer = buffTxCopyI(
-            uartCtx,
-            &lockCtx,
-            src,
-            bytes);
+        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+        rtdm_sem_up(
+            &uartCtx->tx.acc);
 
-        if (0 > transfer) {
-            buffTxStopI(
-                uartCtx);
-            rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-            rtdm_mutex_unlock(
-                &uartCtx->tx.acc);
-
-            return (transfer);
-        }
-        buffTxStartI(
-            uartCtx,
-            transfer);
-        src     += transfer;
-        bytes   -= transfer;
-        written += transfer;
+        return (transfer);
     }
+    buffTxStartI(
+        uartCtx,
+        bytes);
+    src     += transfer;
+    bytes   -= transfer;
+    written += transfer;
 
     while (0 < bytes) {
-        buffTxPendFreeI(
+#if (0 == CFG_DMA_ENABLE)
+        buffTxPendI(
             uartCtx,
             bytes);
+#endif
         rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
 
         retval = buffTxWait(
@@ -1119,8 +1323,6 @@ static int handleWr(
         written += transfer;
     }
     rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-    rtdm_mutex_unlock(
-        &uartCtx->tx.acc);
 
     if (RETVAL_SUCCESS == retval) {
         retval = written;
@@ -1132,6 +1334,7 @@ static int handleWr(
 static int handleIrq(
     rtdm_irq_t *        arg) {
 
+#if (0 == CFG_DMA_ENABLE)
     struct uartCtx *    uartCtx;
     volatile uint8_t *  io;
     int                 retval;
@@ -1244,6 +1447,12 @@ static int handleIrq(
     rtdm_lock_put(&uartCtx->lock);
 
     return (retval);
+#else
+    LOG_ERR("unhandled interrupt occured");
+
+    return (RTDM_IRQ_NONE);
+#endif
+
 }
 
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
@@ -1313,6 +1522,25 @@ void __exit moduleTerm(
     retval = portTerm(
         UartDev.device_data);
     LOG_WARN_IF(RETVAL_SUCCESS != retval, "failed terminate low-level device driver, err: %d", retval);
+}
+
+void userAssert(
+    const struct esDbgReport * dbgReport) {
+
+    printk(KERN_ERR " \n");
+    LOG_ERR(" ASSERTION FAILED ");
+    printk(KERN_ERR " Module name: %s\n", dbgReport->modName);
+    printk(KERN_ERR " Module desc: %s\n", dbgReport->modDesc);
+    printk(KERN_ERR " Module file: %s\n", dbgReport->modFile);
+    printk(KERN_ERR " Module author: %s\n", dbgReport->modAuthor);
+    printk(KERN_ERR " --\n");
+    printk(KERN_ERR " Function   : %s\n", dbgReport->fnName);
+    printk(KERN_ERR " Line       : %d\n", dbgReport->line);
+    printk(KERN_ERR " Expression : %s\n", dbgReport->expr);
+    printk(KERN_ERR " --\n");
+    printk(KERN_ERR " Msg num    : %d\n", dbgReport->msgNum);
+    printk(KERN_ERR " Msg text   : %s\n", dbgReport->msgText);
+    printk(KERN_ERR " --\n");
 }
 
 module_init(moduleInit);
