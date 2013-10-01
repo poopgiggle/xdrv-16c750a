@@ -111,6 +111,9 @@ size_t circRemainingOccGet(
 size_t circFreeGet(
     const circBuff_T *  buff);
 
+size_t circOccGet(
+    const circBuff_T *  buff);
+
 size_t circSizeGet(
     const circBuff_T *  buff);
 
