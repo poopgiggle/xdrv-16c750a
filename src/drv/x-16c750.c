@@ -816,7 +816,7 @@ static int uartCtxInit(
         &uartCtx->tx.heapHandle,
         0U,
         TM_INFINITE,
-        &buff);
+        (void **)&buff);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to allocate internal TX buffer, err: %d", retval);
@@ -866,7 +866,7 @@ static int uartCtxInit(
         &uartCtx->rx.heapHandle,
         0U,
         TM_INFINITE,
-        &buff);
+        (void **)&buff);
 
     if (RETVAL_SUCCESS != retval) {
         LOG_ERR("failed to allocate internal RX buffer, err: %d", retval);
@@ -1264,6 +1264,11 @@ static int handleWr(
         uartCtx->tx.oprTimeout);
     written  = 0U;
     src = (const uint8_t *)buff;
+
+    if (TRUE == circIsEmpty(&uartCtx->tx.buffHandle)) {
+        buffTxFlushI(
+            uartCtx);
+    }
     rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
     transfer = buffTxCopyI(
         uartCtx,
