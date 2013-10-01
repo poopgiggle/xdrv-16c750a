@@ -64,6 +64,62 @@
 #define MS_TO_NS(ms)                    (NS_PER_MS * (ms))
 #define SEC_TO_NS(sec)                  (NS_PER_S * (sec))
 
+#if (0 == CFG_CRITICAL_INT_ENABLE)
+#define CRITICAL_DECL(lockCtxName)                                              \
+    rtdm_lockctx_t lockCtxName
+
+#define CRITICAL_INIT(uartCtx)                                                  \
+    rtdm_lock_init(&((uartCtx)->lock))
+
+#define CRITICAL_ENTER(uartCtx, lockCtx)                                        \
+    rtdm_lock_get_irqsave(&((uartCtx)->lock), lockCtx)
+
+#define CRITICAL_ENTER_ISR(uartCtx)                                             \
+    rtdm_lock_get(&(uartCtx)->lock)
+
+#define CRITICAL_EXIT(uartCtx, lockCtx)                                         \
+    rtdm_lock_put_irqrestore(&((uartCtx)->lock), lockCtx)
+
+#define CRITICAL_EXIT_ISR(uartCtx)                                              \
+    rtdm_lock_put(&(uartCtx)->lock)
+
+#define CRITICAL_TYPE                                                           \
+    rtdm_lockctx_t
+
+#else
+#define CRITICAL_DECL(lockCtxName)                                              \
+    PORT_C_UNUSED uint8_t lockCtxName
+
+#define CRITICAL_INIT(uartCtx)                                                  \
+    (void)0
+
+#define CRITICAL_ENTER(uartCtx, lockCtx)                                        \
+    do {                                                                        \
+        lldRegWr(                                                               \
+            uartCtx->cache.io,                                                  \
+            wIER,                                                               \
+            0);                                                                 \
+    } while (0)
+
+#define CRITICAL_ENTER_ISR(uartCtx)                                             \
+    (void)0
+
+#define CRITICAL_EXIT(uartCtx, lockCtx)                                         \
+    do {                                                                        \
+        lldRegWr(                                                               \
+            uartCtx->cache.io,                                                  \
+            wIER,                                                               \
+            uartCtx->cache.IER);                                                \
+    } while (0)
+
+#define CRITICAL_EXIT_ISR(uartCtx)                                              \
+    (void)0
+
+#define CRITICAL_TYPE                                                           \
+    uint8_t
+
+#endif
+
 /*======================================================  LOCAL DATA TYPES  ==*/
 
 /**@brief       States of the context process
@@ -92,8 +148,7 @@ static void buffRxStopI(
     struct uartCtx *    uartCtx);
 
 static void buffRxPendI(
-    struct uartCtx *    uartCtx,
-    size_t              pending);
+    struct uartCtx *    uartCtx);
 
 #if (1 == CFG_DMA_ENABLE)
 static void buffRxContinue(
@@ -109,7 +164,7 @@ static int buffRxWait(
 
 static ssize_t buffRxCopyI(
     struct uartCtx *    uartCtx,
-    rtdm_lockctx_t *    lockCtx,
+    CRITICAL_TYPE *     lockCtx,
     uint8_t *           dst,
     size_t              pending);
 
@@ -124,16 +179,15 @@ static void buffTxStopI(
     struct uartCtx *    uartCtx);
 
 static void buffTxPendI(
-    struct uartCtx *    uartCtx,
-    size_t              pending);
+    struct uartCtx *    uartCtx);
 
 #if (1 == CFG_DMA_ENABLE)
 static void buffTxContinueI(
     void *              data);
+#endif
 
 static void buffTxFinishI(
-    void *              data);
-#endif
+    struct uartCtx *    uartCtx);
 
 static int buffTxWait(
     struct uartCtx *    uartCtx,
@@ -141,7 +195,7 @@ static int buffTxWait(
 
 static ssize_t buffTxCopyI(
     struct uartCtx *    uartCtx,
-    rtdm_lockctx_t *    lockCtx,
+    CRITICAL_TYPE *     lockCtx,
     const uint8_t *     src,
     size_t              bytes);
 
@@ -154,9 +208,17 @@ static void buffTxFlushI(
 static void cIntEnable(
     struct uartCtx *    uartCtx,
     enum cIntNum        cIntNum);
+
+static void cIntSetEnable(
+    struct uartCtx *    uartCtx,
+    enum cIntNum        cIntNum);
 #endif
 
 static void cIntDisable(
+    struct uartCtx *    uartCtx,
+    enum cIntNum        cIntNum);
+
+static void cIntSetDisable(
     struct uartCtx *    uartCtx,
     enum cIntNum        cIntNum);
 
@@ -284,10 +346,15 @@ static void buffRxStartI(
     size_t              bytes) {
 
 #if (0 == CFG_DMA_ENABLE)
-    uartCtx->rx.pend = 0U;
-    cIntEnable(
+    uartCtx->rx.done = 0U;
+    uartCtx->rx.transfer = bytes;
+    buffRxPendI(
+        uartCtx);
+    cIntSetEnable(
         uartCtx,
         C_INT_RX | C_INT_RX_TIMEOUT);
+    rtdm_event_clear(
+        &uartCtx->rx.opr);
 #else
     uartCtx->rx.done = 0U;
     buffRxPendI(
@@ -301,7 +368,7 @@ static void buffRxStopI(
 
 #if (0 == CFG_DMA_ENABLE)
     uartCtx->rx.pend = 0U;
-    cIntDisable(
+    cIntSetDisable(
         uartCtx,
         C_INT_RX | C_INT_RX_TIMEOUT);
 #else
@@ -313,13 +380,22 @@ static void buffRxStopI(
 }
 
 static void buffRxPendI(
-    struct uartCtx *    uartCtx,
-    size_t              pending) {
+    struct uartCtx *    uartCtx) {
 
 #if (0 == CFG_DMA_ENABLE)
-    uartCtx->rx.pend = min(pending, circSizeGet(&uartCtx->rx.buffHandle) - CFG_BUFF_BACKOFF);
-    rtdm_event_clear(
-        &uartCtx->rx.opr);
+    if (uartCtx->rx.transfer >= uartCtx->rx.done) {
+        uartCtx->rx.transfer -= uartCtx->rx.done;
+    } else {
+        uartCtx->rx.transfer = 0U;
+
+
+    }
+
+    if (uartCtx->rx.transfer > circSizeGet(&uartCtx->rx.buffHandle)) {
+        uartCtx->rx.pend = circSizeGet(&uartCtx->rx.buffHandle) - CFG_BUFF_BACKOFF;
+    } else {
+        uartCtx->rx.pend = uartCtx->rx.transfer;
+    }
 #else
     uint8_t *           dst;
     size_t              free;
@@ -403,7 +479,7 @@ static int buffRxWait(
 
 static ssize_t buffRxCopyI(
     struct uartCtx *    uartCtx,
-    rtdm_lockctx_t *    lockCtx,
+    CRITICAL_TYPE *     lockCtx,
     uint8_t *           dst,
     size_t              pending) {
 
@@ -424,7 +500,7 @@ static ssize_t buffRxCopyI(
     do {
         uint8_t *       src;
 
-        rtdm_lock_put_irqrestore(&uartCtx->lock, *lockCtx);
+        CRITICAL_EXIT(uartCtx, *lockCtx);
         dst += transfer;
         src = circMemTailGet(
             &uartCtx->rx.buffHandle);
@@ -440,7 +516,7 @@ static ssize_t buffRxCopyI(
                 transfer);
 
             if (RETVAL_SUCCESS != retval) {
-                rtdm_lock_get_irqsave(&uartCtx->lock, *lockCtx);
+                CRITICAL_ENTER(uartCtx, *lockCtx);
 
                 return (retval);
             }
@@ -452,7 +528,7 @@ static ssize_t buffRxCopyI(
         }
         pending -= transfer;
         cpd   += transfer;
-        rtdm_lock_get_irqsave(&uartCtx->lock, *lockCtx);
+        CRITICAL_ENTER(uartCtx, *lockCtx);
         circPosTailSet(
             &uartCtx->rx.buffHandle,
             transfer);
@@ -470,24 +546,21 @@ static void buffRxFlush(
     uartCtx->rx.done = 0U;
     circFlush(
         &uartCtx->rx.buffHandle);
-    lldFIFORxFlush(
-        uartCtx->cache.io);
 }
 
 static void buffTxStartI(
     struct uartCtx *    uartCtx,
     size_t              pending) {
 
-#if (0 == CFG_DMA_ENABLE)
-    cIntEnable(
+    uartCtx->tx.done = 0U;
+    uartCtx->tx.transfer += pending;
+    buffTxPendI(
+        uartCtx);
+    cIntSetEnable(
         uartCtx,
         C_INT_TX);
-#else
-    uartCtx->tx.done = 0U;
-    buffTxPendI(
-        uartCtx,
-        pending);
-#endif
+    rtdm_event_clear(
+        &uartCtx->tx.opr);
 }
 
 static void buffTxStopI(
@@ -495,7 +568,9 @@ static void buffTxStopI(
 
 #if (0 == CFG_DMA_ENABLE)
     uartCtx->tx.pend = 0U;
-    cIntDisable(
+    uartCtx->tx.done = 0U;
+    uartCtx->tx.transfer = 0U;
+    cIntSetDisable(
         uartCtx,
         C_INT_TX);
 #else
@@ -507,14 +582,18 @@ static void buffTxStopI(
 }
 
 static void buffTxPendI(
-    struct uartCtx *    uartCtx,
-    size_t              pending) {
+    struct uartCtx *    uartCtx) {
 
 #if (0 == CFG_DMA_ENABLE)
-    uartCtx->tx.pend = min(pending, circSizeGet(&uartCtx->tx.buffHandle));
-    cIntEnable(
-        uartCtx,
-        C_INT_TX);
+    uartCtx->tx.transfer -= uartCtx->tx.done;
+
+    if (uartCtx->tx.transfer > circSizeGet(&uartCtx->tx.buffHandle)) {
+        uartCtx->tx.pend = circSizeGet(&uartCtx->tx.buffHandle);
+    } else if (uartCtx->tx.transfer > circFreeGet(&uartCtx->tx.buffHandle)) {
+        uartCtx->tx.pend = uartCtx->tx.transfer - circFreeGet(&uartCtx->tx.buffHandle);
+    } else {
+        uartCtx->tx.pend = 0U;
+    }
 #else
     uint8_t *           src;
     size_t              occ;
@@ -564,19 +643,14 @@ static void buffTxContinueI(
     rtdm_event_signal(
         &uartCtx->tx.opr);
 }
+#endif
 
 static void buffTxFinishI(
-    void *              data) {
+    struct uartCtx *    uartCtx) {
 
-    struct uartCtx *    uartCtx;
-
-    uartCtx = (struct uartCtx *)data;
     buffTxStopI(
         uartCtx);
-    rtdm_sem_up(
-        &uartCtx->tx.acc); /* must be signaled in case other user is waiting to transmitt */
 }
-#endif
 
 static int buffTxWait(
     struct uartCtx *    uartCtx,
@@ -594,7 +668,7 @@ static int buffTxWait(
 
 static ssize_t buffTxCopyI(
     struct uartCtx *    uartCtx,
-    rtdm_lockctx_t *    lockCtx,
+    CRITICAL_TYPE *     lockCtx,
     const uint8_t *     src,
     size_t              bytes) {
 
@@ -615,7 +689,7 @@ static ssize_t buffTxCopyI(
     do {
         uint8_t *       dst;
 
-        rtdm_lock_put_irqrestore(&uartCtx->lock, *lockCtx);
+        CRITICAL_EXIT(uartCtx, *lockCtx);
         src += transfer;
         dst = circMemHeadGet(
             &uartCtx->tx.buffHandle);
@@ -631,7 +705,7 @@ static ssize_t buffTxCopyI(
                 transfer);
 
             if (RETVAL_SUCCESS != retval) {
-                rtdm_lock_get_irqsave(&uartCtx->lock, *lockCtx);
+                CRITICAL_ENTER(uartCtx, *lockCtx);
 
                 return (retval);
             }
@@ -643,7 +717,7 @@ static ssize_t buffTxCopyI(
         }
         bytes -= transfer;
         cpd   += transfer;
-        rtdm_lock_get_irqsave(&uartCtx->lock, *lockCtx);
+        CRITICAL_ENTER(uartCtx, *lockCtx);
         circPosHeadSet(
             &uartCtx->tx.buffHandle,
             transfer);
@@ -660,10 +734,9 @@ static void buffTxFlushI(
 
     uartCtx->tx.pend = 0U;
     uartCtx->tx.done = 0U;
+    uartCtx->tx.transfer = 0U;
     circFlush(
         &uartCtx->tx.buffHandle);
-    lldFIFOTxFlush(
-        uartCtx->cache.io);
 }
 #endif
 
@@ -675,14 +748,18 @@ static void cIntEnable(
     uint32_t            tmp;
 
     tmp = uartCtx->cache.IER | cIntNum;
+}
 
-    if (uartCtx->cache.IER != tmp) {
-        uartCtx->cache.IER |= cIntNum;
-        lldRegWr(
-            uartCtx->cache.io,
-            wIER,
-            uartCtx->cache.IER);
-    }
+static void cIntSetEnable(
+    struct uartCtx *    uartCtx,
+    enum cIntNum        cIntNum) {
+
+
+    uartCtx->cache.IER |= cIntNum;
+    lldRegWr(
+        uartCtx->cache.io,
+        wIER,
+        uartCtx->cache.IER);
 }
 #endif
 
@@ -693,14 +770,17 @@ static void cIntDisable(
     uint32_t            tmp;
 
     tmp = uartCtx->cache.IER & ~cIntNum;
+}
 
-    if (uartCtx->cache.IER != tmp) {
-        uartCtx->cache.IER &= ~cIntNum;
-        lldRegWr(
-            uartCtx->cache.io,
-            wIER,
-            uartCtx->cache.IER);
-    }
+static void cIntSetDisable(
+    struct uartCtx *    uartCtx,
+    enum cIntNum        cIntNum) {
+
+    uartCtx->cache.IER &= ~cIntNum;
+    lldRegWr(
+        uartCtx->cache.io,
+        wIER,
+        uartCtx->cache.IER);
 }
 
 static void uartCtxCleanup(
@@ -989,25 +1069,24 @@ static int handleOpen(
     rtdm_user_info_t *  usrInfo,
     int                 oflag) {
 
+    CRITICAL_DECL(lockCtx);
     int                 retval;
     struct uartCtx *    uartCtx;
-    rtdm_lockctx_t      lockCtx;
 
     uartCtx = uartCtxFromDevCtx(
         devCtx);
-    rtdm_lock_init(&uartCtx->lock);
+    CRITICAL_INIT(uartCtx);
     retval = uartCtxInit(
         uartCtx,
         devCtx->device->device_data,
         portIORemapGet(devCtx->device->device_data));
-    rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
 
     if (RETVAL_SUCCESS != retval) {
-        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
         LOG_ERR("failed to create device context");
 
         return (retval);
     }
+    CRITICAL_ENTER(uartCtx, lockCtx);
     retval = rtdm_irq_request(
         &uartCtx->irqHandle,
         PortIRQ[devCtx->device->device_id],
@@ -1015,7 +1094,7 @@ static int handleOpen(
         RTDM_IRQTYPE_EDGE,
         devCtx->device->proc_name,
         uartCtx);
-    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+    CRITICAL_EXIT(uartCtx, lockCtx);
     LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to register interrupt handler");
 
     return (retval);
@@ -1033,12 +1112,12 @@ static int handleClose(
 
     if (UART_CTX_SIGNATURE == uartCtx->signature) {                             /* Driver must be ready to accept close callbacks for       */
                                                                                 /* already closed devices.                                  */
-        rtdm_lockctx_t  lockCtx;
+        CRITICAL_DECL(lockCtx);
 
         /*
          * TODO: Here should be some sync mechanism to wait for driver shutdown
          */
-        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        CRITICAL_ENTER(uartCtx, lockCtx);
         cIntDisable(
             uartCtx,
             C_INT_TX | C_INT_RX | C_INT_RX_TIMEOUT);                            /* Turn off all interrupts                                  */
@@ -1048,9 +1127,7 @@ static int handleClose(
         retval = uartCtxTerm(
             uartCtx,
             devCtx->device->device_data);
-        rtdm_lock_put_irqrestore(
-            &uartCtx->lock,
-            lockCtx);
+        CRITICAL_EXIT(uartCtx, lockCtx);
         LOG_ERR_IF(RETVAL_SUCCESS != retval, "failed to destroy device context");
     }
 
@@ -1104,13 +1181,13 @@ static int handleIOctl(
             }
 
             if (TRUE == xProtoIsValid(&proto)) {
-                rtdm_lockctx_t  lockCtx;
+                CRITICAL_DECL(lockCtx);
 
-                rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+                CRITICAL_ENTER(uartCtx, lockCtx);
                 xProtoSet(
                     uartCtx,
                     &proto);
-                rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+                CRITICAL_EXIT(uartCtx, lockCtx);
             }
 
             break;
@@ -1130,7 +1207,7 @@ static int handleRd(
     void *              buff,
     size_t              bytes) {
 
-    rtdm_lockctx_t      lockCtx;
+    CRITICAL_DECL(lockCtx);
     rtdm_toseq_t        tmSeq;
     struct uartCtx *    uartCtx;
     uint8_t *           dst;
@@ -1162,12 +1239,11 @@ static int handleRd(
         uartCtx->rx.oprTimeout);
     read = 0U;
     dst = (uint8_t *)buff;
-
     buffRxFlush(
         uartCtx);
-    rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
-    rtdm_event_clear(
-        &uartCtx->rx.opr);
+    lldFIFORxFlush(
+        uartCtx->cache.io);
+    CRITICAL_ENTER(uartCtx, lockCtx);
     buffRxStartI(
         uartCtx,
         bytes);
@@ -1176,13 +1252,7 @@ static int handleRd(
         size_t          transfer;
         int             retval;
 
-#if (0 == CFG_DMA_ENABLE)
-        buffRxPendI(
-            uartCtx,
-            bytes);
-#endif
-        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-        LOG_INFO("rd block");
+        CRITICAL_EXIT(uartCtx, lockCtx);
         retval = buffRxWait(
             uartCtx,
             &tmSeq);
@@ -1195,7 +1265,7 @@ static int handleRd(
 
              break;
         }
-        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        CRITICAL_ENTER(uartCtx, lockCtx);
         transfer = buffRxCopyI(
             uartCtx,
             &lockCtx,
@@ -1206,7 +1276,6 @@ static int handleRd(
 
             break;
         }
-        LOG_INFO("rd transfer %d", transfer);
         dst   += transfer;
         bytes -= transfer;
         read  += transfer;
@@ -1214,7 +1283,7 @@ static int handleRd(
 
     buffRxStopI(
         uartCtx);
-    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+    CRITICAL_EXIT(uartCtx, lockCtx);
     rtdm_sem_up(
         &uartCtx->rx.acc);
 
@@ -1231,7 +1300,7 @@ static int handleWr(
     const void *        buff,
     size_t              bytes) {
 
-    rtdm_lockctx_t      lockCtx;
+    CRITICAL_DECL(lockCtx);
     rtdm_toseq_t        tmSeq;
     struct uartCtx *    uartCtx;
     const uint8_t *     src;
@@ -1269,7 +1338,7 @@ static int handleWr(
         buffTxFlushI(
             uartCtx);
     }
-    rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+    CRITICAL_ENTER(uartCtx, lockCtx);
     transfer = buffTxCopyI(
         uartCtx,
         &lockCtx,
@@ -1279,7 +1348,7 @@ static int handleWr(
     if (0 > transfer) {
         buffTxStopI(
             uartCtx);
-        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+        CRITICAL_EXIT(uartCtx, lockCtx);
         rtdm_sem_up(
             &uartCtx->tx.acc);
 
@@ -1293,13 +1362,7 @@ static int handleWr(
     written += transfer;
 
     while (0 < bytes) {
-#if (0 == CFG_DMA_ENABLE)
-        buffTxPendI(
-            uartCtx,
-            bytes);
-#endif
-        rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
-
+        CRITICAL_EXIT(uartCtx, lockCtx);
         retval = buffTxWait(
             uartCtx,
             &tmSeq);
@@ -1312,7 +1375,7 @@ static int handleWr(
 
              break;
         }
-        rtdm_lock_get_irqsave(&uartCtx->lock, lockCtx);
+        CRITICAL_ENTER(uartCtx, lockCtx);
         transfer = buffTxCopyI(
             uartCtx,
             &lockCtx,
@@ -1327,7 +1390,9 @@ static int handleWr(
         bytes   -= transfer;
         written += transfer;
     }
-    rtdm_lock_put_irqrestore(&uartCtx->lock, lockCtx);
+    CRITICAL_EXIT(uartCtx, lockCtx);
+    rtdm_sem_up(
+        &uartCtx->tx.acc);
 
     if (RETVAL_SUCCESS == retval) {
         retval = written;
@@ -1348,7 +1413,7 @@ static int handleIrq(
     uartCtx = rtdm_irq_get_arg(arg, struct uartCtx);
     io = uartCtx->cache.io;
     retval = RTDM_IRQ_HANDLED;
-    rtdm_lock_get(&uartCtx->lock);
+    CRITICAL_ENTER_ISR(uartCtx);
 
     while (LLD_INT_NONE != (intNum = lldIntGet(io))) {                                          /* Loop until there are interrupts to process               */
 
@@ -1374,7 +1439,7 @@ static int handleIrq(
                         &uartCtx->rx.buffHandle,
                         item);
                 } else {
-                    cIntDisable(
+                    cIntSetDisable(
                         uartCtx,
                         C_INT_RX | C_INT_RX_TIMEOUT);
                     lldFIFORxFlush(
@@ -1384,14 +1449,11 @@ static int handleIrq(
                 }
             } while (0U != occupied);
 
-            if (0U != uartCtx->rx.pend) {
-
-                if (uartCtx->rx.pend <= uartCtx->rx.done) {
-                    uartCtx->rx.done = 0U;
-                    uartCtx->rx.pend = 0U;
-                    rtdm_event_signal(
-                        &uartCtx->rx.opr);
-                }
+            if (uartCtx->rx.pend <= uartCtx->rx.done) {
+                buffRxPendI(
+                    uartCtx);
+                rtdm_event_signal(
+                    &uartCtx->rx.opr);
             }
 
         /*-- Transmit interrupt ----------------------------------------------*/
@@ -1415,18 +1477,20 @@ static int handleIrq(
                         wTHR,
                         item);
                 } else {
-                    cIntDisable(
-                        uartCtx,
-                        C_INT_TX);
+                    buffTxFinishI(
+                        uartCtx);
                     remaining = 0U;
                 }
             } while (0U != remaining);
 
-
             if (0U != uartCtx->tx.pend) {
 
                 if (uartCtx->tx.pend <= uartCtx->tx.done) {
-                    uartCtx->tx.pend = 0U;
+                    buffTxPendI(
+                        uartCtx);
+                    rtdm_event_signal(
+                        &uartCtx->tx.opr);
+                } else if (CFG_BUFF_BACKOFF >= circOccGet(&uartCtx->tx.buffHandle)) {
                     rtdm_event_signal(
                         &uartCtx->tx.opr);
                 }
@@ -1449,7 +1513,7 @@ static int handleIrq(
             break;
         }
     }
-    rtdm_lock_put(&uartCtx->lock);
+    CRITICAL_EXIT_ISR(uartCtx);
 
     return (retval);
 #else

@@ -78,6 +78,7 @@ struct uartCtx {
         nanosecs_rel_t      oprTimeout;
         size_t              pend;
         size_t              done;
+        size_t              transfer;
 #if (1 == CFG_DMA_ENABLE)
         size_t              chunk;
 #endif
