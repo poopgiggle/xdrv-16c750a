@@ -518,7 +518,7 @@ static void buffTxStopI(
         C_INT_TX);
 #elif (1 == CFG_DMA_MODE)
     uartCtx->tx.pend = 0U;
-    cIntSetDisable(
+    cIntDisable(
         uartCtx,
         C_INT_TX);
     portDMATxStopI(
