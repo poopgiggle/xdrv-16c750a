@@ -40,18 +40,23 @@
 #include "arch/compiler.h"
 
 /*===============================================================  MACRO's  ==*/
-
-/**@brief       Return value: operation was successful
- */
-#define RETVAL_SUCCESS                  0
-#define RETVAL_FAILURE                  !RETVAL_SUCCESS
-
 /*------------------------------------------------------  C++ extern begin  --*/
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /*============================================================  DATA TYPES  ==*/
+
+/**@brief       States of the context process
+ */
+enum ctxState {
+    CTX_STATE_INIT,                                                             /**<@brief STATE_INIT                                       */
+    CTX_STATE_LOCKS,
+    CTX_STATE_TX_BUFF,
+    CTX_STATE_TX_BUFF_ALLOC,
+    CTX_STATE_RX_BUFF,
+    CTX_STATE_RX_BUFF_ALLOC,
+};
 
 enum uartStatus {
     UART_STATUS_NORMAL,
@@ -70,35 +75,34 @@ struct uartCtx {
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
     struct unit {
         rtdm_event_t        opr;                                                /**<@brief Operational event                                */
-        rtdm_sem_t          acc;                                                /**<@brief Access mutex                                     */
-        rtdm_user_info_t *  user;
-        RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
-        circBuff_T          buffHandle;                                         /**<@brief Buffer handle                                    */
-        nanosecs_rel_t      accTimeout;
         nanosecs_rel_t      oprTimeout;
+        rtdm_sem_t          acc;                                                /**<@brief Access mutex                                     */
+        nanosecs_rel_t      accTimeout;
+        rtdm_user_info_t *  user;
+        struct buff {
+            circBuff_T          handle;                                         /**<@brief Buffer handle                                    */
+#if (0 == CFG_DMA_MODE)
+            RT_HEAP             storage;                                        /**<@brief Heap for internal buffers                        */
+#elif (1 == CFG_DMA_MODE)
+            volatile uint8_t *  phy;
+#elif (2 == CFG_DMA_MODE)
+            volatile uint8_t *  phy;
+#endif
+        }                   buff;
         size_t              pend;
-        size_t              done;
-        size_t              transfer;
-#if (1 == CFG_DMA_ENABLE)
+#if (1 == CFG_DMA_MODE)
         size_t              chunk;
+#elif (2 == CFG_DMA_MODE)
 #endif
         enum uartStatus     status;
-        struct config {
-            bool_T              flush;
-        }                   cfg;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
     struct cache {
         volatile uint8_t *  io;
-        uint32_t            DLL;
-        uint32_t            DLH;
-        uint32_t            EFR;
         uint32_t            IER;
-        uint32_t            LSR;
-        uint32_t            MCR;
-        uint32_t            SCR;
     }                   cache;
     struct devData *    devData;
     struct xUartProto   proto;
+    enum ctxState       state;
     uint32_t            signature;
 };
 
