@@ -44,8 +44,15 @@
 #define LOG_DBG(msg, ...)
 #endif
 
+#define LOG(msg, ...)                                                           \
+    rtdm_printk(KERN_INFO CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
+
+#if (1U == CFG_LOG_INFO_ENABLE)
 #define LOG_INFO(msg, ...)                                                      \
     rtdm_printk(KERN_INFO CFG_DRV_NAME ": " msg "\n", ##__VA_ARGS__)
+#else
+#define LOG_INFO(msg, ...)
+#endif
 
 #define LOG_WARN(msg, ...)                                                      \
     rtdm_printk(KERN_WARNING CFG_DRV_NAME " <WARN>: line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
