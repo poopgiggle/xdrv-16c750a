@@ -53,9 +53,7 @@ enum ctxState {
     CTX_STATE_INIT,                                                             /**<@brief STATE_INIT                                       */
     CTX_STATE_LOCKS,
     CTX_STATE_TX_BUFF,
-    CTX_STATE_TX_BUFF_ALLOC,
     CTX_STATE_RX_BUFF,
-    CTX_STATE_RX_BUFF_ALLOC,
 };
 
 enum uartStatus {
@@ -88,19 +86,19 @@ struct uartCtx {
 #elif (2 == CFG_DMA_MODE)
             volatile uint8_t *  phy;
 #endif
-        }                   buff;
-        size_t              pend;
+            size_t              pend;
 #if (1 == CFG_DMA_MODE)
-        size_t              chunk;
+            size_t              chunk;
 #elif (2 == CFG_DMA_MODE)
 #endif
+        }                   buff;
         enum uartStatus     status;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
     struct cache {
         volatile uint8_t *  io;
+        struct devData *    devData;
         uint32_t            IER;
     }                   cache;
-    struct devData *    devData;
     struct xUartProto   proto;
     enum ctxState       state;
     uint32_t            signature;
