@@ -144,10 +144,40 @@ enum hwReg {
 #define FCR_FIFO_EN                     (0x1U << 0)
 
 /* Trigger Level Register (TLR) : register bits                               */
-#define TLR_RX_FIFO_TRIG_DMA_Mask       (0xfU << 4)
-#define TLR_RX_FIFO_TRIG_DMA_0          (0x0U << 4)
-#define TLR_TX_FIFO_TRIG_DMA_Mask       (0xfU << 0)
-#define TLR_TX_FIFO_TRIG_DMA_0          (0x0U << 0)
+#define TLR_RX_FIFO_TRIG_DMA_Mask       (0x0fU << 4)
+#define TLR_RX_FIFO_TRIG_DMA_TO_FCR     (0x00U << 4)
+#define TLR_RX_FIFO_TRIG_DMA_4          (0x01U << 4)
+#define TLR_RX_FIFO_TRIG_DMA_8          (0x02U << 4)
+#define TLR_RX_FIFO_TRIG_DMA_12         (0x03U << 4)
+#define TLR_RX_FIFO_TRIG_DMA_16         (0x04U << 4)
+#define TLR_RX_FIFO_TRIG_DMA_20         (0x05U << 4)
+#define TLR_RX_FIFO_TRIG_DMA_22         (0x06U << 4)
+#define TLR_RX_FIFO_TRIG_DMA_28         (0x07U << 4)
+#define TLR_RX_FIFO_TRIG_DMA_32         (0x08U << 4)
+#define TLR_RX_FIFO_TRIG_DMA_36         (0x09U << 4)
+#define TLR_RX_FIFO_TRIG_DMA_40         (0x0aU << 4)
+#define TLR_RX_FIFO_TRIG_DMA_44         (0x0bU << 4)
+#define TLR_RX_FIFO_TRIG_DMA_48         (0x0cU << 4)
+#define TLR_RX_FIFO_TRIG_DMA_52         (0x0dU << 4)
+#define TLR_RX_FIFO_TRIG_DMA_56         (0x0eU << 4)
+#define TLR_RX_FIFO_TRIG_DMA_60         (0x0fU << 4)
+#define TLR_TX_FIFO_TRIG_DMA_Mask       (0x0fU << 0)
+#define TLR_TX_FIFO_TRIG_DMA_TO_FCR     (0x00U << 0)
+#define TLR_TX_FIFO_TRIG_DMA_4          (0x01U << 0)
+#define TLR_TX_FIFO_TRIG_DMA_8          (0x02U << 0)
+#define TLR_TX_FIFO_TRIG_DMA_12         (0x03U << 0)
+#define TLR_TX_FIFO_TRIG_DMA_16         (0x04U << 0)
+#define TLR_TX_FIFO_TRIG_DMA_20         (0x05U << 0)
+#define TLR_TX_FIFO_TRIG_DMA_22         (0x06U << 0)
+#define TLR_TX_FIFO_TRIG_DMA_28         (0x07U << 0)
+#define TLR_TX_FIFO_TRIG_DMA_32         (0x08U << 0)
+#define TLR_TX_FIFO_TRIG_DMA_36         (0x09U << 0)
+#define TLR_TX_FIFO_TRIG_DMA_40         (0x0aU << 0)
+#define TLR_TX_FIFO_TRIG_DMA_44         (0x0bU << 0)
+#define TLR_TX_FIFO_TRIG_DMA_48         (0x0cU << 0)
+#define TLR_TX_FIFO_TRIG_DMA_52         (0x0dU << 0)
+#define TLR_TX_FIFO_TRIG_DMA_56         (0x0eU << 0)
+#define TLR_TX_FIFO_TRIG_DMA_60         (0x0fU << 0)
 
 /* Supplementary Control Register (SCR) : register bits                       */
 #define SCR_RXTRIGGRANU1                (0x1U << 7)
@@ -253,7 +283,7 @@ extern const struct xUartProto DefProtocol;
  * @{ *//*--------------------------------------------------------------------*/
 
 /**@brief       Write a value into register
- * @param       io
+ * @param       ioRemap
  *              Pointer to IO remaped memory
  * @param       reg
  *              Register from enum hwReg.
@@ -342,10 +372,10 @@ uint16_t lldRegRdBits(
  * @name        Generic functions
  * @{ *//*--------------------------------------------------------------------*/
 
-int lldInit(
+int32_t lldInit(
     volatile uint8_t *  io);
 
-int lldTerm(
+int32_t lldTerm(
     volatile uint8_t *  io);
 
 /**@} *//*----------------------------------------------------------------*//**
@@ -353,7 +383,7 @@ int lldTerm(
  * @{ *//*--------------------------------------------------------------------*/
 
 /**@brief       Set configuration mode
- * @param       io
+ * @param       ioRemap
  *              Pointer to IO mapped memory
  * @param       cfgMode
  *              Configuration mod, @see lldCfgMode
@@ -370,7 +400,7 @@ void lldCfgModeSet(
  * @{ *//*--------------------------------------------------------------------*/
 
 /**@brief       Set peripheral operation mode
- * @param       io
+ * @param       ioRemap
  *              Pointer to IO mapped memory
  * @param       mode
  *              Peripheral operation mode, @see lldMode
@@ -382,7 +412,7 @@ void lldModeSet(
 uint16_t lldModeGet(
     volatile uint8_t *  io);
 
-int lldSoftReset(
+int32_t lldSoftReset(
     volatile uint8_t *  io);
 
 void lldEnhanced(
@@ -422,14 +452,14 @@ void lldFIFOInit(
     volatile uint8_t *  io);
 
 /**@brief       Setup UART module to use FIFO and DMA
- * @param       io
+ * @param       ioRemap
  *              Pointer to IO mapped memory
  */
-int lldDMAFIFOInit(
+int32_t lldDMAFIFOInit(
     volatile uint8_t *  io);
 
 /**@brief       Enable/disable finer granularity
- * @param       io
+ * @param       ioRemap
  *              Pointer to IO mapped memory
  * @param       state
  *  @arg        LLD_ENABLE
@@ -440,7 +470,7 @@ void lldFIFORxGranularityState(
     enum lldState       state);
 
 /**@brief       Set Rx FIFO notification limit
- * @param       io
+ * @param       ioRemap
  *              Pointer to IO mapped memory
  * @param       bytes
  *              Number of bytes for notification
@@ -452,7 +482,7 @@ void lldFIFORxGranularitySet(
 size_t lldFIFORxOccupied(
     volatile uint8_t *  io);
 
-size_t lldFIFOTxRemaining(
+size_t lldFIFOTxFree(
     volatile uint8_t *  io);
 
 void lldFIFORxFlush(
@@ -477,7 +507,7 @@ void lldFIFOTxFlush(
  *  @retval     ENOTSUPP : the configuration is not supported
  *  @retval     EINVAL : argument value is invalied, using default value
  */
-int lldProtocolSet(
+int32_t lldProtocolSet(
     volatile uint8_t *  io,
     const struct xUartProto * proto);
 
