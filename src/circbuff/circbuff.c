@@ -51,7 +51,7 @@
     do {                                                                        \
         if (var > buff->size) {                                                 \
             uint64_t i;\
-            LOG_ERR("INVALID QUEUE POINTER: %s in %s", #var, PORT_C_FUNC);      \
+            LOG_DBG("INVALID QUEUE POINTER: %s in %s", #var, PORT_C_FUNC);      \
             for (i = -1; i != 0; i--);\
         }                                                                       \
     } while (0)
@@ -65,10 +65,8 @@ void circInit(
     size_t              size) {
 
 
-#if (1U == CFG_DBG_ENABLE)
-    LOG_WARN("CIRCBUFF log enabled");
-    LOG_INFO("CIRCBUFF mem: %p", mem);
-#endif
+    LOG_DBG("CIRCBUFF log enabled");
+    LOG_DBG("CIRCBUFF mem: %p", mem);
 
     buff->mem  = (uint8_t *)mem;
     buff->head = 0U;
