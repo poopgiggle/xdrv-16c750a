@@ -93,13 +93,13 @@ struct devData * portInit(
  * @param       devResource
  *              Pointer returned by portInit()
  */
-int portTerm(
+int32_t portTerm(
     struct devData *    devData);
 
-uint32_t portModeGet(
+int32_t portModeGet(
     uint32_t            baudrate);
 
-uint32_t portDIVdataGet(
+int32_t portDIVdataGet(
     uint32_t            baudrate);
 
 volatile uint8_t * portIORemapGet(
@@ -125,12 +125,12 @@ bool_T portIsOnline(
  *              -ENOMEM - no abailable DMA memory
  *              -EINVAL - invalid resource
  */
-int portDMARxInit(
+int32_t portDMARxInit(
     struct devData *    devData,
     uint8_t **          buff,
     size_t              size);
 
-int portDMARxTerm(
+int32_t portDMARxTerm(
     struct devData *    devData);
 
 int portDMARxStart(
@@ -146,7 +146,7 @@ int portDMARxStart(
  * @return      Operation status
  *  @retval     0 - success
  */
-int portDMARxStopI(
+int32_t portDMARxStopI(
     struct devData *    devData);
 
 /**@brief       Request and create DMA coherent buffer segment and return
@@ -159,15 +159,15 @@ int portDMARxStopI(
  *              Pointer to event object which will be signaled when a transfer
  *              is done.
  */
-int portDMATxInit(
+int32_t portDMATxInit(
     struct devData *    devData,
     uint8_t **          buff,
     size_t              size);
 
-int portDMATxTerm(
+int32_t portDMATxTerm(
     struct devData *    devData);
 
-int portDMATxStart(
+int32_t portDMATxStart(
     struct devData *    devData,
     const uint8_t *     src,
     size_t              size,
@@ -181,7 +181,7 @@ int portDMATxStart(
  *  @retval     0 - success
  *  @retval     -EBUSY - DMA channel is still active
  */
-int portDMATxStopI(
+int32_t portDMATxStopI(
     struct devData *    devData);
 
 /** @} *//*-----------------------------------------------  C++ extern end  --*/
