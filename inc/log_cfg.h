@@ -47,7 +47,7 @@
  * @brief       brief description
  * @{ *//*--------------------------------------------------------------------*/
 
-#define CFG_LOG_DBG_ENABLE				0U
+#define CFG_LOG_DBG_ENABLE				1U
 
 #define CFG_LOG_INFO_ENABLE             1U
 

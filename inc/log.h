@@ -57,22 +57,8 @@
 #define LOG_WARN(msg, ...)                                                      \
     rtdm_printk(KERN_WARNING CFG_DRV_NAME " <WARN>: line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
 
-#define LOG_WARN_IF(expr, msg, ...)                                             \
-    do {                                                                        \
-        if ((expr)) {                                                           \
-            LOG_WARN(msg, ##__VA_ARGS__);                                       \
-        }                                                                       \
-    } while (0)
-
 #define LOG_ERR(msg, ...)                                                       \
     rtdm_printk(KERN_ERR CFG_DRV_NAME " <ERR>: line %d: " msg "\n", __LINE__, ##__VA_ARGS__)
-
-#define LOG_ERR_IF(expr, msg, ...)                                              \
-    do {                                                                        \
-        if ((expr)) {                                                           \
-            LOG_ERR(msg, ##__VA_ARGS__);                                        \
-        }                                                                       \
-    } while (0)
 
 #define LOG_VAR(var)                                                            \
     rtdm_printk(KERN_INFO CFG_DRV_NAME " VAR " #var " : %d\n", var )
