@@ -43,14 +43,14 @@
     ((val) >> 8)
 
 #if (CFG_FIFO_TRIG <= 8)
-# define FIFO_RX_LVL                    FCR_RX_FIFO_TRIG_8
-# define FIFO_TX_LVL                    FCR_TX_FIFO_TRIG_8
+# define FIFO_RX_LVL                    TLR_RX_FIFO_TRIG_DMA_8
+# define FIFO_TX_LVL                    TLR_TX_FIFO_TRIG_DMA_8
 #elif (CFG_FIFO_TRIG <= 16)
-# define FIFO_RX_LVL                    FCR_RX_FIFO_TRIG_16
-# define FIFO_TX_LVL                    FCR_TX_FIFO_TRIG_16
+# define FIFO_RX_LVL                    TLR_RX_FIFO_TRIG_DMA_16
+# define FIFO_TX_LVL                    TLR_TX_FIFO_TRIG_DMA_16
 #else
-# define FIFO_RX_LVL                    FCR_RX_FIFO_TRIG_56
-# define FIFO_TX_LVL                    FCR_TX_FIFO_TRIG_56
+# define FIFO_RX_LVL                    TLR_RX_FIFO_TRIG_DMA_56
+# define FIFO_TX_LVL                    TLR_TX_FIFO_TRIG_DMA_56
 #endif
 
 #define TX_FIFO_SIZE                    64U
@@ -143,29 +143,25 @@ void lldIntEnable(
             tmp = IER_THRIT;
             break;
         }
-
         case LLD_INT_RX : {
             tmp = IER_RHRIT;
             break;
         }
-
         case LLD_INT_RX_TIMEOUT : {
             tmp = IER_RHRIT;
             break;
         }
-
         case LLD_INT_LINEST : {
             tmp = IER_LINESTSIT;
             break;
         }
-
         case LLD_INT_ALL : {
             tmp = 0x00FFU;
             break;
         }
-
         default : {
             tmp = 0U;
+            break;
         }
     }
     lldRegSetBits(
@@ -185,29 +181,25 @@ void lldIntDisable(
             tmp = IER_THRIT;
             break;
         }
-
         case LLD_INT_RX : {
             tmp = IER_RHRIT;
             break;
         }
-
         case LLD_INT_RX_TIMEOUT : {
             tmp = IER_RHRIT;
             break;
         }
-
         case LLD_INT_LINEST : {
             tmp = IER_LINESTSIT;
             break;
         }
-
         case LLD_INT_ALL : {
             tmp = 0x00FFU;
             break;
         }
-
         default : {
             tmp = 0U;
+            break;
         }
     }
     lldRegResetBits(
@@ -237,12 +229,10 @@ void lldEnhanced(
             tmp |= EFR_ENHANCEDEN;
             break;
         }
-
         case LLD_DISABLE : {
             tmp &= ~EFR_ENHANCEDEN;
             break;
         }
-
         default : {
             break;
         }
@@ -257,10 +247,10 @@ void lldEnhanced(
         regLCR);
 }
 
-int lldSoftReset(
+int32_t lldSoftReset(
     volatile uint8_t *  io) {
 
-    int                 retval;
+    int32_t             retval;
     uint32_t            cnt;
 
     lldRegWr(
@@ -274,7 +264,7 @@ int lldSoftReset(
     }
 
     if (0U != cnt) {
-        retval = RETVAL_SUCCESS;
+        retval = 0;
     } else {
         retval = -EAGAIN;
     }
@@ -282,7 +272,7 @@ int lldSoftReset(
     return (retval);
 }
 
-int lldInit(
+int32_t lldInit(
     volatile uint8_t *  io) {
 
     int                 retval;
@@ -294,44 +284,45 @@ int lldInit(
 
         return (retval);
     }
-#if (1U == CFG_DMA_ENABLE)
-    lldDMAFIFOInit(
-        io);
-#else
     lldFIFOInit(
+        io);
+#if (2U == CFG_DMA_MODE)
+    lldDMAFIFOInit(
         io);
 #endif
     lldEnhanced(
         io,
         LLD_ENABLE);
+    lldFIFORxFlush(
+        io);
+    lldFIFOTxFlush(
+        io);
 
-    return (RETVAL_SUCCESS);
+    return (0);
 }
 
-int lldTerm(
+int32_t lldTerm(
     volatile uint8_t *  io) {
 
-    uint32_t            retval;
-
-    retval = RETVAL_SUCCESS;
-
-    return (retval);
+    return (0);
 }
 
 void lldFIFORxGranularitySet(
     volatile uint8_t *  io,
     size_t              bytes) {
 
-
+    /*
+     * TODO: napisati ovo
+     */
 }
 
 void lldFIFORxGranularityState(
     volatile uint8_t *  io,
     enum lldState       state) {
 
-    if (LLD_ENABLE == state) {
-
-    }
+    /*
+     * TODO: napisati ovo
+     */
 }
 
 size_t lldFIFORxOccupied(
@@ -340,7 +331,7 @@ size_t lldFIFORxOccupied(
     return (lldRegRd(io, RXFIFO_LVL));
 }
 
-size_t lldFIFOTxRemaining(
+size_t lldFIFOTxFree(
     volatile uint8_t *  io) {
 
     return (TX_FIFO_SIZE - lldRegRd(io, TXFIFO_LVL));
@@ -355,7 +346,6 @@ void lldFIFORxFlush(
         io,
         wFCR,
         FCR_RX_FIFO_CLEAR);
-
     intNum = lldIntGet(
         io);
 
@@ -380,67 +370,74 @@ void lldFIFOTxFlush(
 void lldFIFOInit(
     volatile uint8_t *  io) {
 
-    uint16_t                 tmp;
-    uint16_t                 regLCR;
-    uint16_t                 regEFR;
-    uint16_t                 regMCR;
-    uint16_t                 regDLL;
-    uint16_t                 regDLH;
+    uint16_t            regLCR;
+    uint16_t            regEFR;
+    uint16_t            regMCR;
 
-    regLCR = lldRegRd(                                                          /* Switch to register configuration mode B to access the    */
-        io,                                                                     /* EFR register                                             */
-        LCR);
-    lldCfgModeSet(
+    regLCR = lldRegRd(
         io,
+        LCR);
+    lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the    */
+        io,                                                                     /* EFR register                                             */
         LLD_CFG_MODE_B);
-    regEFR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
+    regEFR = lldRegRd(
+        io,
+        bEFR);
+    lldRegWr(                                                                   /* Enable register submode TCR_TLR to access the TLR        */
         io,                                                                     /* register (1/2)                                           */
-        bEFR,
+        wbEFR,
         EFR_ENHANCEDEN);
-    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        io,                                                                     /* register                                                 */
+    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the DLL*/
+        io,                                                                     /* DLH and MCR registers                                    */
         LLD_CFG_MODE_A);
-    regDLL = lldRegRd(io, aDLL);
-    lldRegWr(io, waDLL, 0);
-    regDLH = lldRegRd(io, aDLH);
-    lldRegWr(io, waDLH, 0);
-    regMCR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
+    lldRegWr(
+        io,
+        waDLL,
+        0);                                                                     /* Stop divisor to access FCR higher bits                   */
+    lldRegWr(
+        io,
+        waDLH,
+        0);                                                                     /* Stop divisor to access FCR higher bits                   */
+    regMCR = lldRegRd(
+        io,
+        aMCR);
+    lldRegWr(                                                                   /* Enable register submode TCR_TLR to access the TLR        */
         io,                                                                     /* register (2/2)                                           */
-        aMCR,
-        MCR_TCRTLR);
-    (void)lldRegResetBits(                                                      /* Load the new FIFO triggers (3/3) and the new DMA mode    */
-        io,                                                                     /* (2/2)                                                    */
-        SCR,
-        SCR_RXTRIGGRANU1 | SCR_TXTRIGGRANU1 | SCR_DMAMODE2_Mask |
-            SCR_DMAMODECTL);
-    lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
-        io,                                                                     /* (1/2)                                                    */
-        waFCR,
-        FIFO_RX_LVL | FIFO_TX_LVL |
-            FCR_TX_FIFO_CLEAR | FCR_RX_FIFO_CLEAR | FCR_FIFO_EN);
+        waMCR,
+        regMCR | MCR_TCRTLR);
     lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
         io,                                                                     /* register                                                 */
         LLD_CFG_MODE_B);
     lldRegWr(                                                                   /* Load the new FIFO triggers (2/3)                         */
         io,
         wbTLR,
-        TLR_RX_FIFO_TRIG_DMA_0 | TLR_TX_FIFO_TRIG_DMA_0);
-    tmp = regEFR & EFR_ENHANCEDEN;                                              /* Restore EFR<4> ENHANCED_EN bit                           */
-    tmp |= lldRegRd(io, bEFR) & ~EFR_ENHANCEDEN;
-    lldRegWr(
-        io,
-        bEFR,
-        tmp);
+        FIFO_RX_LVL | FIFO_TX_LVL);
     lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
         io,                                                                     /* register                                                 */
         LLD_CFG_MODE_A);
-    tmp = regMCR & MCR_TCRTLR;                                                  /* Restore MCR<6> TCRTLR bit                                */
-    tmp |= lldRegRd(io, aMCR) & ~MCR_TCRTLR;
-    lldRegWr(
+    lldRegWr(                                                                   /* Load the new FIFO triggers (3/3) and the new DMA mode    */
+        io,                                                                     /* (2/2)                                                    */
+        wSCR,
+        0);
+    lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
+        io,                                                                     /* (1/2)                                                    */
+        waFCR,
+        FCR_RX_FIFO_CLEAR | FCR_TX_FIFO_CLEAR | FCR_FIFO_EN);                   /* BUG NOTE: HW does not listen these FIFO granularity      */
+    lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
+        io,                                                                     /* register                                                 */
+        LLD_CFG_MODE_B);
+    lldRegWr(                                                                   /* Restore EFR register                                     */
         io,
-        aMCR,
-        tmp);
-    lldRegWr(                                                                   /* Restore LCR                                              */
+        wbEFR,
+        regEFR);
+    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
+        io,                                                                     /* register                                                 */
+        LLD_CFG_MODE_A);
+    lldRegWr(                                                                   /* Restore MCR register                                     */
+        io,
+        waMCR,
+        regMCR);
+    lldRegWr(                                                                   /* Restore LCR register                                     */
         io,
         LCR,
         regLCR);
@@ -449,66 +446,11 @@ void lldFIFOInit(
 int lldDMAFIFOInit(
     volatile uint8_t *  io) {
 
-    uint16_t                 tmp;
-    uint16_t                 regLCR;
-    uint16_t                 regEFR;
-    uint16_t                 regMCR;
+    /*
+     * TODO: napisati ovo
+     */
 
-    regLCR = lldRegRd(                                                          /* Switch to register configuration mode B to access the    */
-        io,                                                                     /* EFR register                                             */
-        LCR);
-    lldCfgModeSet(
-        io,
-        LLD_CFG_MODE_B);
-    regEFR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        io,                                                                     /* register (1/2)                                           */
-        bEFR,
-        EFR_ENHANCEDEN);
-    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        io,                                                                     /* register                                                 */
-        LLD_CFG_MODE_A);
-    regMCR = lldRegSetBits(                                                     /* Enable register submode TCR_TLR to access the TLR        */
-        io,                                                                     /* register (2/2)                                           */
-        aMCR,
-        MCR_TCRTLR);
-    lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
-        io,                                                                     /* (1/2)                                                    */
-        waFCR,
-        FCR_RX_FIFO_TRIG_56 | FCR_TX_FIFO_TRIG_56 | FCR_DMA_MODE |
-            FCR_TX_FIFO_CLEAR | FCR_RX_FIFO_CLEAR | FCR_FIFO_EN);
-    lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
-        io,                                                                     /* register                                                 */
-        LLD_CFG_MODE_B);
-    lldRegWr(                                                                   /* Load the new FIFO triggers (2/3)                         */
-        io,
-        wbTLR,
-        TLR_RX_FIFO_TRIG_DMA_0 | TLR_TX_FIFO_TRIG_DMA_0);
-    (void)lldRegResetBits(                                                      /* Load the new FIFO triggers (3/3) and the new DMA mode    */
-        io,                                                                     /* (2/2)                                                    */
-        SCR,
-        SCR_RXTRIGGRANU1 | SCR_TXTRIGGRANU1 | SCR_DMAMODE2_Mask |
-            SCR_DMAMODECTL);
-    tmp = regEFR & EFR_ENHANCEDEN;                                              /* Restore EFR<4> ENHANCED_EN bit                           */
-    tmp |= lldRegRd(io, bEFR) & ~EFR_ENHANCEDEN;
-    lldRegWr(
-        io,
-        bEFR,
-        tmp);
-    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        io,                                                                     /* register                                                 */
-        LLD_CFG_MODE_A);
-    tmp = regMCR & MCR_TCRTLR;                                                  /* Restore MCR<6> TCRTLR bit                                */
-    tmp |= lldRegRd(io, aMCR) & ~MCR_TCRTLR;
-    lldRegWr(
-        io,
-        aMCR,
-        tmp);
-    lldRegWr(                                                                   /* Restore LCR                                              */
-        io,
-        LCR,
-        regLCR);
-
-    return (RETVAL_SUCCESS);
+    return (0);
 }
 
 void lldProtocolPrint(
@@ -523,17 +465,14 @@ void lldProtocolPrint(
             parity = "none";
             break;
         }
-
         case XUART_PARITY_EVEN : {
             parity = "even";
             break;
         }
-
         case XUART_PARITY_ODD : {
             parity = "odd";
             break;
         }
-
         default : {
             parity = "unknown";
             break;
@@ -545,17 +484,14 @@ void lldProtocolPrint(
             stopBits = "1";
             break;
         }
-
         case XUART_STOP_1n5 : {
             stopBits = "1n5";
             break;
         }
-
         case XUART_STOP_2 : {
             stopBits = "2";
             break;
         }
-
         default : {
             stopBits = "unknown";
             break;
@@ -567,12 +503,10 @@ void lldProtocolPrint(
             dataBits = "8";
             break;
         }
-
         case XUART_DATA_5 : {
             dataBits = "5";
             break;
         }
-
         default : {
             dataBits = "unknown";
             break;
@@ -588,7 +522,7 @@ void lldProtocolPrint(
 /*
  * TODO: Break this function into a set of smaller functions
  */
-int lldProtocolSet(
+int32_t lldProtocolSet(
     volatile uint8_t *  io,
     const struct xUartProto * protocol) {
 
@@ -597,7 +531,7 @@ int lldProtocolSet(
     uint16_t            retval;
     uint16_t            regEFR;
 
-    retval = RETVAL_SUCCESS;
+    retval = 0;
     lldModeSet(                                                                 /* Disable UART to access DLL and DLH registers             */
         io,
         LLD_MODE_DISABLE);
@@ -619,8 +553,8 @@ int lldProtocolSet(
     tmp = portDIVdataGet(                                                       /* Get the new divisor value                                */
         protocol->baud);
 
-    if (RETVAL_FAILURE == tmp) {
-        LOG_DBG("protocol: invalid baud rate");
+    if (0 > tmp) {
+        LOG_INFO("protocol: invalid baud rate");
         retval = -EINVAL;
     } else {
         lldCfgModeSet(                                                              /* Switch to config mode B to access DLH and DLL registers  */
@@ -645,12 +579,10 @@ int lldProtocolSet(
     lldCfgModeSet(
         io,
         LLD_CFG_MODE_B);
-    tmp = (lldRegRd(io, bEFR) & ~EFR_ENHANCEDEN);
-    tmp |= regEFR & EFR_ENHANCEDEN;
     lldRegWr(
         io,
         wbEFR,
-        tmp);
+        regEFR);
     lldRegResetBits(
         io,
         LCR,
@@ -661,20 +593,17 @@ int lldProtocolSet(
             arg = 0U;
             break;
         }
-
         case XUART_PARITY_EVEN : {
             arg = LCR_PARITY_EN | LCR_PARITY_TYPE1;
             break;
         }
-
         case XUART_PARITY_ODD : {
             arg = LCR_PARITY_EN;
             break;
         }
-
         default : {                                                             /* Use default value and report warning                     */
+            LOG_INFO("protocol: invalid parity");
             arg = 0;
-            LOG_DBG("protocol: invalid parity");
             retval = -EINVAL;
             break;
         }
@@ -690,11 +619,10 @@ int lldProtocolSet(
             arg = LCR_CHAR_LENGTH_8;
             break;
         }
-
         default : {                                                             /* Use default value and report warning                     */
+            LOG_INFO("protocol: invalid data bits");
             arg = LCR_CHAR_LENGTH_8;
-            LOG_DBG("protocol: invalid data bits");
-            retval   = -EINVAL;
+            retval = -EINVAL;
             break;
         }
     }
@@ -705,12 +633,10 @@ int lldProtocolSet(
         arg);
 
     switch (protocol->stopBits) {
-
         case XUART_STOP_1 : {
             arg = 0U;
             break;
         }
-
         case XUART_STOP_1n5 : {
 
             if (XUART_DATA_5 == protocol->dataBits) {
@@ -720,16 +646,14 @@ int lldProtocolSet(
             }
             break;
         }
-
         case XUART_STOP_2 : {
             arg = LCR_NB_STOP;
             break;
         }
-
         default : {                                                             /* Use default value and report warning                     */
+            LOG_INFO("protocol: invalid stop bits");
             arg = 0U;
-            LOG_DBG("protocol: invalid stop bits");
-            retval   = -EINVAL;
+            retval = -EINVAL;
             break;
         }
     }
@@ -741,13 +665,16 @@ int lldProtocolSet(
     tmp = portModeGet(
         protocol->baud);
 
-    if (RETVAL_FAILURE != tmp) {
-        lldModeSet(
-            io,
-            tmp);
-    }
+    if (0 > tmp) {
+        LOG_INFO("protocol: failed to find mode, err: %d", tmp);
 
-    return (retval);
+        return (tmp);
+    }
+    lldModeSet(
+        io,
+        tmp);
+
+    return (0);
 }
 
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/

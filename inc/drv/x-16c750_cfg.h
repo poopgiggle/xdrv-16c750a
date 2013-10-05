@@ -65,7 +65,14 @@
 
 #define CFG_BUFF_BACKOFF                56
 
-#define CFG_DMA_ENABLE                  0
+/**@brief       DMA mode
+ * @details     0 - DMA mode not enabled
+ *              1 - Software triggered DMA mode
+ *              2 - Hardware triggered DMA mode
+ */
+#define CFG_DMA_MODE                    1
+
+#define CFG_CRITICAL_INT_ENABLE         0
 
 /** @} *//*-------------------------------------------------------------------*/
 /*================================*//** @cond *//*==  CONFIGURATION ERRORS  ==*/

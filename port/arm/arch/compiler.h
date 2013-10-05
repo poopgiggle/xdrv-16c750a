@@ -65,6 +65,8 @@
  */
 #define PORT_C_NORETURN                 __attribute__((noreturn))
 
+#define PORT_C_UNUSED                   __attribute__((unused))
+
 #define PORT_C_ROM
 
 #define PORT_C_ROM_VAR

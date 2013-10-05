@@ -32,6 +32,7 @@
 /*=========================================================  INCLUDE FILES  ==*/
 
 #include "arch/compiler.h"
+#include "dbg/dbg.h"
 
 /*===============================================================  MACRO's  ==*/
 /*------------------------------------------------------  C++ extern begin  --*/
@@ -52,6 +53,9 @@ struct circBuff {
     uint32_t   			tail;
     uint32_t            size;
     uint32_t            free;
+#if (1 == CFG_DBG_API_VALIDATION)
+    uint32_t            signature;
+#endif
 };
 
 typedef struct circBuff circBuff_T;
@@ -109,6 +113,9 @@ size_t circRemainingOccGet(
     const circBuff_T *  buff);
 
 size_t circFreeGet(
+    const circBuff_T *  buff);
+
+size_t circOccGet(
     const circBuff_T *  buff);
 
 size_t circSizeGet(

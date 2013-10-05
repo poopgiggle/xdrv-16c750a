@@ -31,6 +31,8 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
+#include <mach/edma.h>
+
 #include "drv/x-16c750_lld.h"
 
 /*===============================================================  MACRO's  ==*/
@@ -42,24 +44,47 @@
  /*
   *       | UART #    | IOMEM                     | IRQ
   */
-#define UART_DATA_TABLE(entry)                                                  \
-    entry(  UARTO,      0x44e09000UL,               72)                         \
-    entry(  UART1,      0x48022000UL,               73)                         \
-    entry(  UART2,      0x48024000UL,               74)                         \
-    entry(  UART3,      0x481a6000UL,               44)                         \
-    entry(  UART4,      0x481a8000UL,               45)                         \
-    entry(  UART5,      0x481aa000UL,               46)
+# define UART_DATA_TABLE(entry)                                                 \
+    entry(  UARTO,      0x44e09000ul,               72)                         \
+    entry(  UART1,      0x48022000ul,               73)                         \
+    entry(  UART2,      0x48024000ul,               74)                         \
+    entry(  UART3,      0x481a6000ul,               44)                         \
+    entry(  UART4,      0x481a8000ul,               45)                         \
+    entry(  UART5,      0x481aa000ul,               46)
 
 /*
  *        | Baud-rate | UART mode                 | Divisor
  */
-#define BAUD_RATE_CFG_TABLE(entry)                                              \
+# define BAUD_RATE_CFG_TABLE(entry)                                             \
     entry(  9600,       LLD_MODE_UART16,            313)                        \
     entry(  19200,      LLD_MODE_UART16,            156)                        \
     entry(  38400,      LLD_MODE_UART16,            78)                         \
     entry(  115200,     LLD_MODE_UART16,            26)                         \
     entry(  921600,     LLD_MODE_UART13,            4)
 
+# define EDMA_TPCC_BASE                 0x49000000u
+# define EDMA_TPCC_SIZE                 0x000fffffu
+# define EDMA_TPTC0_BASE                0x49800000u
+# define EDMA_TPTC1_BASE                0x49900000u
+# define EDMA_TPTC2_BASE                0x49a00000u
+# define EDMA_COMP_IRQ                  12u
+# define EDMA_MPERR_IRQ                 13u
+# define EDMA_ERR_IRQ                   14u
+
+# if (1 == CFG_DMA_MODE)
+#  define EDMA_CHN_TX                   EDMA_CHANNEL_ANY
+# elif (2 == CFG_DMA_MODE)
+#  define EDMA_CHN_TX                   7
+# endif
+
+# if (1 == CFG_DMA_MODE)
+#  define EDMA_CHN_RX                   EDMA_CHANNEL_ANY
+# elif (2 == CFG_DMA_MODE)
+#  define EDMA_CHN_RX                   8
+# endif
+
+# define EDMA_SH_BASE                   0x2000u
+# define EDMA_SH_INCR                   0x200u                                  /* Increment to next shadow region                          */
 #endif
 
 /*------------------------------------------------------  C++ extern begin  --*/

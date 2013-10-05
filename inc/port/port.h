@@ -93,13 +93,13 @@ struct devData * portInit(
  * @param       devResource
  *              Pointer returned by portInit()
  */
-int portTerm(
+int32_t portTerm(
     struct devData *    devData);
 
-uint32_t portModeGet(
+int32_t portModeGet(
     uint32_t            baudrate);
 
-uint32_t portDIVdataGet(
+int32_t portDIVdataGet(
     uint32_t            baudrate);
 
 volatile uint8_t * portIORemapGet(
@@ -120,29 +120,31 @@ bool_T portIsOnline(
  *              Pointer to buffer pointer which is accessible from Linux domain
  * @param       size
  *              The size of requested buffer in bytes
- * @param       evt
- *              Pointer to event object which will be signaled when a transfer
- *              is done.
  * @return      Operation status
  *  @retval     0 - success
  *              -ENOMEM - no abailable DMA memory
  *              -EINVAL - invalid resource
  */
-int portDMARxInit(
+int32_t portDMARxInit(
     struct devData *    devData,
-    void **             buff,
-    size_t              size,
-    rtdm_event_t *      evt);
+    void (* callback)(void *),
+    void *              arg);
 
-int portDMARxTerm(
+int32_t portDMARxTerm(
+    struct devData *    devData);
+
+int32_t portDMARxBeginI(
     struct devData *    devData,
-    void *              buff,
+    uint8_t *           dst,
     size_t              size);
 
-int portDMARxStart(
+int32_t portDMARxContinueI(
     struct devData *    devData,
-    void *              buff,
+    uint8_t *           dst,
     size_t              size);
+
+int32_t portDMARxStartI(
+    struct devData *    devData);
 
 /**@brief       Stop RX DMA activity
  * @param       devData
@@ -150,36 +152,35 @@ int portDMARxStart(
  * @return      Operation status
  *  @retval     0 - success
  */
-int portDMARxStopI(
+int32_t portDMARxStopI(
     struct devData *    devData);
 
 /**@brief       Request and create DMA coherent buffer segment and return
  *              virtual address to that buffer
  * @param       devData
  *              Device data structure
- * @param       buff
- *              Pointer to buffer pointer which is accessible from Linux domain
- * @param       size
- *              The size of requested buffer in bytes
- * @param       evt
- *              Pointer to event object which will be signaled when a transfer
- *              is done.
  */
-int portDMATxInit(
+int32_t portDMATxInit(
     struct devData *    devData,
-    void **             buff,
-    size_t              size,
-    rtdm_event_t *      evt);
+    void (* callback)(void *),
+    void *              arg);
 
-int portDMATxTerm(
+int32_t portDMATxTerm(
+    struct devData *    devData);
+
+int32_t portDMATxBeginI(
     struct devData *    devData,
-    void *              buff,
+    const uint8_t *     src,
     size_t              size);
 
-int portDMATxStart(
+int32_t portDMATxContinueI(
     struct devData *    devData,
-    const void *        buff,
+    const uint8_t *     src,
     size_t              size);
+
+int32_t portDMATxStartI(
+    struct devData *    devData);
+
 
 /**@brief       Stop TX DMA activity
  * @param       devData
@@ -188,7 +189,7 @@ int portDMATxStart(
  *  @retval     0 - success
  *  @retval     -EBUSY - DMA channel is still active
  */
-int portDMATxStopI(
+int32_t portDMATxStopI(
     struct devData *    devData);
 
 /** @} *//*-----------------------------------------------  C++ extern end  --*/
