@@ -127,18 +127,24 @@ bool_T portIsOnline(
  */
 int32_t portDMARxInit(
     struct devData *    devData,
-    uint8_t **          buff,
-    size_t              size);
+    void (* callback)(void *),
+    void *              arg);
 
 int32_t portDMARxTerm(
     struct devData *    devData);
 
-int portDMARxStart(
+int32_t portDMARxBeginI(
     struct devData *    devData,
     uint8_t *           dst,
-    size_t              size,
-    void (* callback)(void *),
-    void *              arg);
+    size_t              size);
+
+int32_t portDMARxContinueI(
+    struct devData *    devData,
+    uint8_t *           dst,
+    size_t              size);
+
+int32_t portDMARxStartI(
+    struct devData *    devData);
 
 /**@brief       Stop RX DMA activity
  * @param       devData
@@ -153,26 +159,28 @@ int32_t portDMARxStopI(
  *              virtual address to that buffer
  * @param       devData
  *              Device data structure
- * @param       buff
- *              Pointer to buffer pointer which is accessible from Linux domain
- * @param       evt
- *              Pointer to event object which will be signaled when a transfer
- *              is done.
  */
 int32_t portDMATxInit(
     struct devData *    devData,
-    uint8_t **          buff,
-    size_t              size);
+    void (* callback)(void *),
+    void *              arg);
 
 int32_t portDMATxTerm(
     struct devData *    devData);
 
-int32_t portDMATxStart(
+int32_t portDMATxBeginI(
     struct devData *    devData,
     const uint8_t *     src,
-    size_t              size,
-    void (* callback)(void *),
-    void *              arg);
+    size_t              size);
+
+int32_t portDMATxContinueI(
+    struct devData *    devData,
+    const uint8_t *     src,
+    size_t              size);
+
+int32_t portDMATxStartI(
+    struct devData *    devData);
+
 
 /**@brief       Stop TX DMA activity
  * @param       devData
