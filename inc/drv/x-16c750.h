@@ -35,6 +35,7 @@
 #include <native/heap.h>
 
 #include "drv/x-16c750_ioctl.h"
+#include "drv/x-16c750_cfg.h"
 #include "circbuff/circbuff.h"
 #include "arch/compiler.h"
 
@@ -68,14 +69,22 @@ struct uartCtx {
     rtdm_lock_t         lock;                                                   /**<@brief Lock to protect this structure                   */
     rtdm_irq_t          irqHandle;                                              /**<@brief IRQ routine handler structure                    */
     struct unit {
+        rtdm_event_t        opr;                                                /**<@brief Operational event                                */
+        rtdm_sem_t          acc;                                                /**<@brief Access mutex                                     */
+        rtdm_user_info_t *  user;
         RT_HEAP             heapHandle;                                         /**<@brief Heap for internal buffers                        */
         circBuff_T          buffHandle;                                         /**<@brief Buffer handle                                    */
         nanosecs_rel_t      accTimeout;
         nanosecs_rel_t      oprTimeout;
-        rtdm_event_t        opr;                                                /**<@brief Operational event                                */
-        rtdm_mutex_t        acc;                                                /**<@brief Access mutex                                     */
         size_t              pend;
+        size_t              done;
+#if (1 == CFG_DMA_ENABLE)
+        size_t              chunk;
+#endif
         enum uartStatus     status;
+        struct config {
+            bool_T              flush;
+        }                   cfg;
     }                   tx, rx;                                                 /**<@brief TX and RX channel                                */
     struct cache {
         volatile uint8_t *  io;
@@ -87,12 +96,9 @@ struct uartCtx {
         uint32_t            MCR;
         uint32_t            SCR;
     }                   cache;
-    struct config {
-        bool_T              flushTx;
-        bool_T              flushRx;
-    }                   config;
+    struct devData *    devData;
     struct xUartProto   proto;
-    uint32_t                signature;
+    uint32_t            signature;
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/

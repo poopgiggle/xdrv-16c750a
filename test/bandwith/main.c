@@ -27,6 +27,7 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
+#include <time.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -39,8 +40,9 @@
 
 #include <native/task.h>
 #include <native/timer.h>
-#include <native/heap.h>
+#include <native/event.h>
 #include <native/sem.h>
+#include <native/heap.h>
 #include <rtdm/rtdm.h>
 
 /*=========================================================  LOCAL MACRO's  ==*/
@@ -50,25 +52,26 @@
 #define CFG_TX_PERIOD_NS                MS_TO_NS(100)
 #define CFG_NUM_OF_TESTS                0UL
 #define CFG_LINES_PER_HEADER            20UL
+#define CFG_ALGORITHM                   0
 
 #define APP_VER_MAJOR                   1U
 #define APP_VER_MINOR                   0U
-#define APP_VER_PATCH                   0U
-#define APP_NAME                        "UART_bandwith"
-#define APP_DESC                        "Real-Time UART driver latency tester"
+#define APP_VER_PATCH                   2U
+#define APP_NAME                        "RTDEV_bandwith"
+#define APP_DESC                        "Real-Time RTDEV driver latency tester"
 #define APP_MAINTAINER                  "Nenad Radulovic <nenad.b.radulovic@gmail.com>"
 
-#define TASK_SEND_NAME                  "UART_tester_send"
+#define TASK_SEND_NAME                  "RTDEV_test_send"
 #define TASK_SEND_STKSZ                 0
 #define TASK_SEND_MODE                  0
-#define TASK_SEND_PRIO                  99
+#define TASK_SEND_PRIO                  T_HIPRIO-2
 
-#define TASK_RECV_NAME                  "UART_tester_recv"
+#define TASK_RECV_NAME                  "RTDEV_test_recv"
 #define TASK_RECV_STKSZ                 0
 #define TASK_RECV_MODE                  0
-#define TASK_RECV_PRIO                  98
+#define TASK_RECV_PRIO                  T_HIPRIO-1
 
-#define TASK_PRINT_NAME                 "UART_tester_print"
+#define TASK_PRINT_NAME                 "RTDEV_test_print"
 #define TASK_PRINT_STKSZ                0
 #define TASK_PRINT_MODE                 0
 #define TASK_PRINT_PRIO                 T_LOPRIO
@@ -78,7 +81,7 @@
 #define TASK_MAN_PRIO                   T_HIPRIO
 
 #define HEAP_SIZE                       (1024ULL*1024ULL*10ULL)
-
+#define RECV_PERIODIC                   1U
 #define DEF_RECV_RETRY_CNT              10U
 #define DEF_MAX_TEST_DATA_SIZE          HEAP_SIZE
 
@@ -120,6 +123,11 @@
 #define NS_TO_MS(ns)                    ((ns) / NS_PER_MS)
 #define SEC_TO_NS(sec)                  (NS_PER_S * (sec))
 
+#define COLOR_BLUE                      "\e[1;34m"
+#define COLOR_WHITE                     "\e[0m"
+#define COLOR_RED                       "\e[1;31m"
+#define COLOR_GREEN                     "\e[1;32m"
+
 #define LOG_INFO(msg, ...)                                                      \
     printf(APP_NAME " " msg "\n", ##__VA_ARGS__)
 
@@ -143,6 +151,12 @@
         }                                                                       \
     } while (0)
 
+#define LOG_DBG(msg, ...)                                                       \
+    do {                                                                        \
+        RTIME now = rt_timer_read();                                            \
+        printf("[ %llu ] " msg "\n", now, ##__VA_ARGS__);                       \
+    } while (0)
+
 #define LOG_VAR(var)                                                            \
     printf(APP_NAME " _VAR_ " #var " : %d\n", var )
 
@@ -152,11 +166,14 @@
 /*======================================================  LOCAL DATA TYPES  ==*/
 
 enum dataType {
-    DATA_LINEAR
+    DATA_LINEAR         = 0,
+    DATA_ZERO           = 1,
+    DATA_ONE            = 2,
+    DATA_RANDOM         = 3,
+    DATA_LAST_ALGO
 };
 
 struct timeMeas {
-    volatile RTIME      period;
     volatile RTIME      txBegin;
     volatile RTIME      txEnd;
     volatile RTIME      rxBegin;
@@ -176,6 +193,9 @@ struct appConfig {
     RTIME               txPeriod;
     uint32_t            numOfTests;
     uint32_t            linesPerHeader;
+    uint32_t            taskStats;
+    uint32_t            algo;
+    bool                dumpBuff;
 };
 
 enum appBootState {
@@ -238,8 +258,9 @@ static void appPrintConfig(
 /*=======================================================  LOCAL VARIABLES  ==*/
 
 static RT_SEM           SemPrint;
-static RT_SEM           SemExit;
 static RT_SEM           SemSend;
+static RT_SEM           SemRecv;
+static RT_SEM           SemExit;
 
 static RT_TASK          Taskman;
 static RT_TASK          TaskSend;
@@ -261,7 +282,10 @@ static struct appConfig AppConfig = {
     .testDataSize       = CFG_TEST_DATA_SIZE,
     .txPeriod           = CFG_TX_PERIOD_NS,
     .numOfTests         = CFG_NUM_OF_TESTS,
-    .linesPerHeader     = CFG_LINES_PER_HEADER
+    .linesPerHeader     = CFG_LINES_PER_HEADER,
+    .taskStats          = 0,
+    .algo               = CFG_ALGORITHM,
+    .dumpBuff           = false
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/
@@ -277,7 +301,7 @@ static void taskManager(
     retval = appInit();
 
     if (0 != retval) {
-        LOG_ERR("could not start the app, err: %s. Exiting", strerror(retval));
+        LOG_ERR("could not start the application, err: %s. Exiting", strerror(retval));
         appTerm();
         kill(
             getpid(),
@@ -296,14 +320,16 @@ static void taskSend(
     void *              arg) {
 
     int                 retval;
+
     (void)arg;
 
     dataGen(
-        DATA_LINEAR,
+        AppConfig.algo,
         TxBuff,
         AppConfig.testDataSize);
 
     while (true) {
+        ssize_t len;
         retval = rt_sem_p(
             &SemSend,
             TM_INFINITE);
@@ -311,18 +337,21 @@ static void taskSend(
         if (0 != retval) {
 
             if (-EIDRM != retval) {
-                LOG_ERR("sem pend, err: %s", strerror(retval));
+                LOG_ERR("evt pend, err: %s", strerror(retval));
             }
 
             return;
         }
-        rt_task_sleep(MS_TO_NS(20)); /* WTF Xeno? Why I need to sleep here in order to exec a higher prio task? */
         Time.txBegin = rt_timer_read();
-        rt_dev_write(
+        len = rt_dev_write(
             UARTDevice,
             TxBuff,
             AppConfig.testDataSize);
         Time.txEnd = rt_timer_read();
+
+        if ((0 > len) || (len != (ssize_t)AppConfig.testDataSize)) {
+            LOG_ERR("failed transmission, err: %s", strerror(len));
+        }
     }
 }
 
@@ -331,12 +360,12 @@ static void taskRecv(
 
     int                 retval;
     uint32_t            retry;
-    RTIME               previous;
 
     (void)arg;
 
+#if (1u == RECV_PERIODIC)
     retval = rt_task_set_periodic(
-        &TaskSend,
+        NULL,
         TM_NOW,
         AppConfig.txPeriod);
 
@@ -345,24 +374,25 @@ static void taskRecv(
 
         return;
     }
+#endif
     retry = DEF_RECV_RETRY_CNT;
-
-    previous = rt_timer_read();
 
     while (true) {
         ssize_t         len;
         uint32_t        differentChars;
         int32_t         invalidNum;
 
+#if (1U == RECV_PERIODIC)
         rt_task_wait_period(
             NULL);
+#endif
         retval = rt_sem_v(
             &SemSend);
 
         if (0 != retval) {
 
             if (-EIDRM != retval) {
-                LOG_ERR("sem signal, err: %s", strerror(retval));
+                LOG_ERR("evt signal, err: %s", strerror(retval));
             }
 
             return;
@@ -373,9 +403,6 @@ static void taskRecv(
             RxBuff,
             AppConfig.testDataSize);
         Time.rxEnd = rt_timer_read();
-
-        Time.period = Time.rxEnd - previous;
-        previous = Time.rxEnd;
 
         if (0 > len) {
 
@@ -390,20 +417,47 @@ static void taskRecv(
         invalidNum = ((ssize_t)AppConfig.testDataSize - len);
 
         if (0U != invalidNum) {
-            LOG_WARN("received string has invalid number of chars: %d, retry: %u", invalidNum, retry);
+            LOG_WARN("received string has invalid number of chars: %d, retry: %u", len, retry);
         }
         differentChars = dataIsValid(
             TxBuff,
             RxBuff,
             AppConfig.testDataSize);
+
+        if (0U != differentChars) {
+            LOG_WARN("received string has different chars: %u, retry: %u", differentChars, retry);
+
+            if (true == AppConfig.dumpBuff) {
+                size_t cnt;
+                uint8_t * src;
+                uint8_t * dst;
+
+                src = (uint8_t *)RxBuff;
+                dst = (uint8_t *)TxBuff;
+
+                printf("\n\n Dumping invalid buffer content: \n");
+
+                for (cnt = 0; cnt < AppConfig.testDataSize; cnt++) {
+
+                    if (0 == (cnt % 16)) {
+                        printf("\n 0x%x\t", cnt);
+                    }
+
+                    if (src[cnt] != dst[cnt]) {
+                        printf(COLOR_RED);
+                        printf(" %4x", src[cnt]);
+                        printf(COLOR_WHITE);
+                    } else {
+                        printf(" %4x", src[cnt]);
+                    }
+                }
+                printf("\n\n done\n");
+            }
+        }
         memset(
             RxBuff,
             0,
             AppConfig.testDataSize);
-
-        if (0U != differentChars) {
-            LOG_WARN("received string has different chars: %u, retry: %u", differentChars, retry);
-        }
 
         if ((0U == invalidNum) && (0U == differentChars)) {
             retry = DEF_RECV_RETRY_CNT;
@@ -422,7 +476,7 @@ static void taskRecv(
             &SemPrint);
 
         if (0 != retval) {
-            LOG_ERR("sem signal, err: %s", strerror(retval));
+            LOG_ERR("evt signal, err: %s", strerror(retval));
 
             return;
         }
@@ -478,7 +532,7 @@ static void taskPrint(
 
         if (0U == cntr) {
             printf("\n-----------------------------------------------------------------\n");
-            printf("  Message length: %u\n", AppConfig.testDataSize);
+            printf("  Test data size: %u\n", AppConfig.testDataSize);
             printf("-----------------------------------------------------------------\n\n");
         }
 
@@ -506,6 +560,29 @@ static void taskPrint(
             AFTER_DECIMAL(tx.max),
             BEFORE_DECIMAL(tx.avg),
             AFTER_DECIMAL(tx.avg));
+
+        if (0 != AppConfig.taskStats) {
+
+            if (0 == (cntr % AppConfig.taskStats)) {
+                RT_TASK_INFO recv;
+                RT_TASK_INFO send;
+
+                rt_task_inquire(
+                    &TaskRecv,
+                    &recv);
+                rt_task_inquire(
+                    &TaskSend,
+                    &send);
+                printf(" task %s: modesw: %d, ctxsw: %d\n",
+                    recv.name,
+                    recv.modeswitches,
+                    recv.ctxswitches);
+                printf(" task %s: modesw: %d, ctxsw: %d\n",
+                    send.name,
+                    send.modeswitches,
+                    send.ctxswitches);
+            }
+        }
 
         if (0U != AppConfig.numOfTests) {
 
@@ -564,18 +641,37 @@ static void dataGen(
 
     switch (type) {
         case DATA_LINEAR : {
-            uint32_t i;
+            uint32_t    i;
 
             for (i = 0U; i < size; i++) {
                 src[i] = (uint8_t)(0xFFU & i);
             }
             break;
         }
-
-        default : {
-            memset(src, 0xFFU, size);
-
+        case DATA_ZERO :
+            memset(
+                src,
+                0x00U,
+                size);
             break;
+        case DATA_ONE :
+            memset(
+                src,
+                0xFFU,
+                size);
+            break;
+        case DATA_RANDOM : {
+            uint32_t    i;
+
+            srand((unsigned int)time(NULL));
+
+            for (i = 0U; i < size; i++) {
+                src[i] = (uint8_t)(rand() % 255);
+            }
+            break;
+        }
+        default : {
+
         }
     }
 }
@@ -644,7 +740,7 @@ static int appInit(
     retval = rt_heap_alloc(
         &HeapTx,
         HEAP_SIZE,
-        TM_NONBLOCK,
+        TM_INFINITE,
         &TxBuff);
 
     if (0 != retval) {
@@ -671,7 +767,7 @@ static int appInit(
     retval = rt_heap_alloc(
         &HeapRx,
         HEAP_SIZE,
-        TM_NONBLOCK,
+        TM_INFINITE,
         &RxBuff);
 
     if (0 != retval) {
@@ -685,10 +781,10 @@ static int appInit(
         &SemPrint,
         "print",
         0,
-        S_FIFO);
+        S_PRIO);
 
     if (0 != retval) {
-        LOG_ERR("create semaphore, err: %s", strerror(retval));
+        LOG_ERR("sem create, err: %s", strerror(retval));
 
         return (retval);
     }
@@ -698,7 +794,18 @@ static int appInit(
         &SemSend,
         "send",
         0,
-        S_FIFO);
+        S_PULSE);
+
+    if (0 != retval) {
+        LOG_ERR("sem create, err: %s", strerror(retval));
+
+        return (retval);
+    }
+    retval = rt_sem_create(
+        &SemRecv,
+        "recv",
+        0,
+        S_PULSE);
 
     if (0 != retval) {
         LOG_ERR("sem create, err: %s", strerror(retval));
@@ -797,10 +904,15 @@ static void appTerm(
     void) {
 
     LOG_INFO("exiting application");
+    /*
+     * TODO: zavrsiti
+     */
     rt_sem_delete(
         &SemPrint);
     rt_sem_delete(
         &SemSend);
+    rt_sem_delete(
+        &SemRecv);
     rt_dev_close(
         UARTDevice);
     switch (AppBootState) {
@@ -857,11 +969,14 @@ static void appTerm(
 static void appPrintConfig(
     void) {
 
-    printf("\n### Using configuration \n");
+    printf("------------------------\n");
+    printf("### Using configuration \n");
     printf(" - test data size      : %u bytes\n", AppConfig.testDataSize);
     printf(" - transmission period : %llu ms\n", NS_TO_MS(AppConfig.txPeriod));
     printf(" - lines per header    : %u\n", AppConfig.linesPerHeader);
     printf(" - num of tests        : %u\n", AppConfig.numOfTests);
+    printf(" - tasks statistics    : %u\n", AppConfig.taskStats);
+    printf(" - algorithm           : %u\n\n", AppConfig.algo);
 }
 
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
@@ -878,9 +993,21 @@ int main(
 
     printf("\n" APP_DESC "\n");
 
-    while (EOF != (cmd = getopt(argc, argv, "s:p:l:n:v"))) {
+    while (EOF != (cmd = getopt(argc, argv, "a:s:p:l:n:t:vd"))) {
 
         switch (cmd) {
+            case 'a' :
+                AppConfig.algo = (uint32_t)atoi(optarg);
+
+                if (DATA_LAST_ALGO <= AppConfig.algo) {
+                    printf(" Invalid algorithm number %d\n", AppConfig.algo);
+                    printf(" Valid range: 0 - %d\n", DATA_LAST_ALGO - 1);
+                    exit(2);
+                }
+                break;
+            case 'd' :
+                AppConfig.dumpBuff = true;
+                break;
             case 's' :
                 AppConfig.testDataSize = (size_t)atoi(optarg);
 
@@ -908,24 +1035,31 @@ int main(
                     exit(2);
                 }
                 break;
+            case 't' :
+                AppConfig.taskStats = (uint32_t)atoi(optarg);
+                break;
             case 'v' :
                 printf(" Version: %u.%u.%u\n", APP_VER_MAJOR, APP_VER_MINOR, APP_VER_PATCH);
                 printf(" Maintainer: %s\n", APP_MAINTAINER);
                 exit(0);
             default :
                 fprintf(stderr,
-                    "usage: latency [options]                                           \n"
-                    "                                                                   \n"
-                    "  -s <size>                - default %u bytes, [1-%llu] test data size      \n"
-                    "  -p <period_ms>           - default %llu ms, [1-10000] transmission period \n"
-                    "  -l <lines_per_header>    - default %u, 0 to supress headers      \n"
-                    "  -n <num_of_tests>        - default infinite                      \n"
-                    "  -v                       - show version information              \n"
-                    "                                                                   \n",
+                    "usage: latency [options]                                                   \n"
+                    "                                                                           \n"
+                    "  -s <size>                - default %u bytes, [1-%llu] test data size     \n"
+                    "  -p <period_ms>           - default %llu ms, [1-10000] transmission period\n"
+                    "  -l <lines_per_header>    - default %u, 0 to supress headers              \n"
+                    "  -n <num_of_tests>        - default infinite                              \n"
+                    "  -t <lines_per_info>      - default %u, 0 to supress task statistics      \n"
+                    "  -a <algorithm>           - default lin, available const and lin          \n"
+                    "  -d                       - dump received buffer in case it is not valid  \n"
+                    "  -v                       - show version information                      \n"
+                    "                                                                           \n",
                     AppConfig.testDataSize,
                     DEF_MAX_TEST_DATA_SIZE,
                     NS_TO_MS(AppConfig.txPeriod),
-                    AppConfig.linesPerHeader);
+                    AppConfig.linesPerHeader,
+                    AppConfig.taskStats);
                 exit(2);
         }
     }
@@ -963,7 +1097,7 @@ int main(
     }
     retval = rt_task_create(
         &Taskman,
-        "UART_tester_taskman",
+        "RTDEV_test_man",
         TASK_MAN_STKSZ,
         TASK_MAN_PRIO,
         TASK_MAN_MODE);

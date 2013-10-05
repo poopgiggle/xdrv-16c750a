@@ -1,4 +1,4 @@
-M_BASE_OBJS     := src/drv/x-16c750.o src/drv/x-16c750_lld.o
+M_BASE_OBJS     := src/drv/x-16c750.o src/drv/x-16c750_lld.o src/dbg/dbg.o
 M_CIRCBUFF_OBJS := src/circbuff/circbuff.o 
 
 M_PORT_ARCH 	:= arm

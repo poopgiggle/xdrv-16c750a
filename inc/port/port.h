@@ -134,6 +134,11 @@ int portDMARxInit(
     size_t              size,
     rtdm_event_t *      evt);
 
+int portDMARxTerm(
+    struct devData *    devData,
+    void *              buff,
+    size_t              size);
+
 int portDMARxStart(
     struct devData *    devData,
     void *              buff,
@@ -165,6 +170,11 @@ int portDMATxInit(
     void **             buff,
     size_t              size,
     rtdm_event_t *      evt);
+
+int portDMATxTerm(
+    struct devData *    devData,
+    void *              buff,
+    size_t              size);
 
 int portDMATxStart(
     struct devData *    devData,

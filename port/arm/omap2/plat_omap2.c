@@ -484,6 +484,31 @@ int portDMARxInit(
     return (RETVAL_SUCCESS);
 }
 
+int portDMARxTerm(
+    struct devData *    devData,
+    void *              buff,
+    size_t              size) {
+
+    rtdm_lockctx_t      lockCtx;
+    struct platform_device * platDev;
+
+    platDev = devData->platDev;
+
+    rtdm_lock_get_irqsave(&devData->rx.dma.lock, lockCtx);
+    (void)portDMARxStopI(
+        devData);
+    rtdm_lock_put_irqrestore(&devData->rx.dma.lock, lockCtx);
+    dma_free_coherent(
+        &platDev->dev,
+        size,
+        buff,
+        devData->rx.dma.phyAddr);
+    rtdm_event_signal(
+        devData->rx.dma.evt);
+
+    return (RETVAL_SUCCESS);
+}
+
 int portDMARxStart(
     struct devData *    devData,
     void *              buff,
@@ -592,6 +617,31 @@ int portDMATxInit(
 
         return (-ENOMEM);
     }
+
+    return (RETVAL_SUCCESS);
+}
+
+int portDMATxTerm(
+    struct devData *    devData,
+    void *              buff,
+    size_t              size) {
+
+    rtdm_lockctx_t      lockCtx;
+    struct platform_device * platDev;
+
+    platDev = devData->platDev;
+
+    rtdm_lock_get_irqsave(&devData->tx.dma.lock, lockCtx);
+    (void)portDMATxStopI(
+        devData);
+    rtdm_lock_put_irqrestore(&devData->tx.dma.lock, lockCtx);
+    dma_free_coherent(
+        &platDev->dev,
+        size,
+        buff,
+        devData->tx.dma.phyAddr);
+    rtdm_event_signal(
+        devData->tx.dma.evt);
 
     return (RETVAL_SUCCESS);
 }

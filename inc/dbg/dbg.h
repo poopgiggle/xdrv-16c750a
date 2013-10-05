@@ -58,6 +58,9 @@
         .auth = modAuth,                                                        \
         .file = PORT_C_FILE                                                     \
     }
+#else
+# define DECL_MODULE_INFO(modName, modDesc, modAuth)                            \
+    extern int unused##modName__
 #endif
 
 /**@} *//*----------------------------------------------------------------*//**
@@ -237,11 +240,10 @@ struct esDbgReport {
     enum esDbgMsg       msgNum;
 };
 
-/**@{ *//*--------------------------------------------------------------------*/
+/**@} *//*--------------------------------------------------------------------*/
 
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*===================================================  FUNCTION PROTOTYPES  ==*/
-
 
 /*------------------------------------------------------------------------*//**
  * @name        Error checking
@@ -265,7 +267,7 @@ struct esDbgReport {
  *              macros.
  * @notapi
  */
-PORT_C_NORETURN void dbgAssert(
+void dbgAssert(
     const PORT_C_ROM struct dbgCobj * cObj,
     const PORT_C_ROM char * expr,
     enum esDbgMsg       msg);
