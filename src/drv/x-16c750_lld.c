@@ -553,7 +553,7 @@ int32_t lldProtocolSet(
     tmp = portDIVdataGet(                                                       /* Get the new divisor value                                */
         protocol->baud);
 
-    if (0 != tmp) {
+    if (0 > tmp) {
         LOG_INFO("protocol: invalid baud rate");
         retval = -EINVAL;
     } else {
