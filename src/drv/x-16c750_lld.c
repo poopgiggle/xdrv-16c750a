@@ -557,7 +557,7 @@ int32_t lldProtocolSet(
         LOG_INFO("protocol: invalid baud rate");
         retval = -EINVAL;
     } else {
-        lldCfgModeSet(                                                              /* Switch to config mode B to access DLH and DLL registers  */
+        lldCfgModeSet(                                                          /* Switch to config mode B to access DLH and DLL registers  */
             io,
             LLD_CFG_MODE_B);
         lldRegWr(
@@ -572,7 +572,6 @@ int32_t lldProtocolSet(
             io,
             LLD_CFG_MODE_NORM);
     }
-
     lldIntEnable(
         io,
         LLD_INT_RX);
