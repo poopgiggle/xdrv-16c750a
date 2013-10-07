@@ -177,6 +177,14 @@ uint8_t * circMemTailGet(
     return ((uint8_t *)&buff->mem[buff->tail]);
 }
 
+uint32_t circPosHeadGet(
+    const circBuff_T *  buff) {
+
+    DBG_VALIDATE(buff, buff->head);
+
+    return (buff->head);
+}
+
 void circPosHeadSet(
     circBuff_T *         buff,
     int32_t              position) {
@@ -191,6 +199,14 @@ void circPosHeadSet(
     }
     DBG_VALIDATE(buff, buff->head);
     DBG_VALIDATE(buff, buff->free);
+}
+
+uint32_t circPosTailGet(
+    const circBuff_T *  buff) {
+
+    DBG_VALIDATE(buff, buff->tail);
+
+    return (buff->tail);
 }
 
 void circPosTailSet(

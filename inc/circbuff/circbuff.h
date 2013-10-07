@@ -130,9 +130,15 @@ uint8_t * circMemHeadGet(
 uint8_t * circMemTailGet(
     const circBuff_T *  buff);
 
+uint32_t circPosHeadGet(
+    const circBuff_T *  buff);
+
 void circPosHeadSet(
     circBuff_T *        buff,
     int32_t             position);
+
+uint32_t circPosTailGet(
+    const circBuff_T *  buff);
 
 void circPosTailSet(
     circBuff_T *        buff,
