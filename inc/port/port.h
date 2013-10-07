@@ -135,7 +135,7 @@ int32_t portDMARxTerm(
 
 int32_t portDMARxBeginI(
     struct devData *    devData,
-    uint8_t *           dst,
+    volatile uint8_t *  dst,
     size_t              size);
 
 int32_t portDMARxContinueI(
@@ -170,7 +170,7 @@ int32_t portDMATxTerm(
 
 int32_t portDMATxBeginI(
     struct devData *    devData,
-    const uint8_t *     src,
+    volatile const uint8_t * src,
     size_t              size);
 
 int32_t portDMATxContinueI(
@@ -178,7 +178,7 @@ int32_t portDMATxContinueI(
     const uint8_t *     src,
     size_t              size);
 
-int32_t portDMATxStartI(
+void portDMATxStartI(
     struct devData *    devData);
 
 
@@ -189,7 +189,7 @@ int32_t portDMATxStartI(
  *  @retval     0 - success
  *  @retval     -EBUSY - DMA channel is still active
  */
-int32_t portDMATxStopI(
+void portDMATxStopI(
     struct devData *    devData);
 
 /** @} *//*-----------------------------------------------  C++ extern end  --*/
