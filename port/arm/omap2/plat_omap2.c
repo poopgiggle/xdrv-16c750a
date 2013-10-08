@@ -520,8 +520,8 @@ struct devData * portInit(
     struct omap_hwmod * hwmod;
     enum portState      state;
     int                 retval;
-    char                uartName[DEF_UART_NAME_MAX_SIZE + 1U];
-    char                hwmodUartName[DEF_UART_NAME_MAX_SIZE + 1U];
+    char                uartName[DEF_UART_NAME_MAX_SIZE + 1u];
+    char                hwmodUartName[DEF_UART_NAME_MAX_SIZE + 1u];
 
     /*-- Initializaion state -------------------------------------------------*/
     state = PLAT_STATE_INIT;
@@ -547,7 +547,7 @@ struct devData * portInit(
         hwmodUartName,
         DEF_UART_NAME_MAX_SIZE,
         DEF_OMAP_UART_NAME "%d",
-        id + 1U);                                                               /* NOTE: hwmod UART count starts at 1, so we must add 1 here */
+        id + 1u);                                                               /* NOTE: hwmod UART count starts at 1, so we must add 1 here */
     hwmod = omap_hwmod_lookup(
         hwmodUartName);
 
@@ -769,18 +769,24 @@ int32_t portDMARxInit(
     return (0);
 }
 
-int32_t portDMARxTerm(
+void portDMARxTerm(
     struct devData *    devData) {
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
-    (void)portDMARxStopI(
+    portDMARxStopI(
         devData);
-
-    return (0);
 }
 
-int32_t portDMARxBeginI(
+bool_T portDMARxIsRunning(
+    struct devData *    devData) {
+
+    ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
+
+    return (devData->dma.rx.isRunning);
+}
+
+void portDMARxBeginI(
     struct devData *    devData,
     volatile uint8_t *  dst,
     size_t              size) {
@@ -789,10 +795,6 @@ int32_t portDMARxBeginI(
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
-    if (TRUE == devData->dma.rx.isRunning) {
-
-        return (-EBUSY);
-    }
     LOG_DBG("DMA Rx: begin: dst  : %p", dst);
     LOG_DBG("DMA Rx: begin: chn  : %d", devData->dma.rx.chn);
     LOG_DBG("DMA Rx: begin: src  : %p", devData->ioAddr.phy);
@@ -832,33 +834,27 @@ int32_t portDMARxBeginI(
         1,
         size,
         ABSYNC);
-
-    return (0);
 }
 
-int32_t portDMARxContinueI(
+void portDMARxContinueI(
     struct devData *    devData,
     uint8_t *           dst,
     size_t              size) {
 
-    int32_t             retval;
-
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
-    retval = -ENODEV;
     /*
      * TODO linkovanje kanala
      */
-    return (retval);
 }
 
-int32_t portDMARxStartI(
+void portDMARxStartI(
     struct devData *    devData) {
 
     int32_t             retval;
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
-#if (1U == CFG_LOG_DBG_ENABLE)
+#if (1u == CFG_LOG_DBG_ENABLE)
     printPaRAM(
         devData->dma.tx.chn);
 #endif
@@ -867,15 +863,10 @@ int32_t portDMARxStartI(
         devData->dma.rx.chn);
     retval = (int32_t)edma_start(
         devData->dma.rx.chn);
-
-    if (0 != retval) {
-        LOG_ERR("DMA: failed to start Rx channel, err: %d", -retval);
-    }
-
-    return (retval);
+    ES_DBG_API_ENSURE(ES_DBG_UNKNOWN_ERROR, 0 == retval);
 }
 
-int32_t portDMARxStopI(
+void portDMARxStopI(
     struct devData *    devData) {
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
@@ -888,8 +879,6 @@ int32_t portDMARxStopI(
             devData->dma.rx.chn);
         devData->dma.rx.chn = EDMA_CHANNEL_ANY;
     }
-
-    return (0);
 }
 
 int32_t portDMATxInit(
@@ -923,18 +912,24 @@ int32_t portDMATxInit(
     return (0);
 }
 
-int32_t portDMATxTerm(
+void portDMATxTerm(
     struct devData *    devData) {
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
-    (void)portDMATxStopI(
+    portDMATxStopI(
         devData);
-
-    return (0);
 }
 
-int32_t portDMATxBeginI(
+bool_T portDMATxIsRunning(
+    struct devData *    devData) {
+
+    ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
+
+    return (devData->dma.tx.isRunning);
+}
+
+void portDMATxBeginI(
     struct devData *    devData,
     volatile const uint8_t * src,
     size_t              size) {
@@ -943,10 +938,6 @@ int32_t portDMATxBeginI(
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
-    if (TRUE == devData->dma.tx.isRunning) {
-
-        return (-EBUSY);
-    }
     LOG_DBG("DMA Tx: begin: dst  : %p", devData->ioAddr.phy);
     LOG_DBG("DMA Tx: begin: chn  : %d", devData->dma.tx.chn);
     LOG_DBG("DMA Tx: begin: src  : %p", src);
@@ -986,24 +977,18 @@ int32_t portDMATxBeginI(
         1,
         size,
         ABSYNC);
-
-    return (0);
 }
 
-int32_t portDMATxContinueI(
+void portDMATxContinueI(
     struct devData *    devData,
     const uint8_t *     src,
     size_t              size) {
 
-    int32_t             retval;
-
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
-    retval = -ENODEV;
     /*
      * TODO linkovanje kanala
      */
-    return (retval);
 }
 
 void portDMATxStartI(
@@ -1016,7 +1001,7 @@ void portDMATxStartI(
     (void)edmaShRd(devData->dma.addr.remap, EDMA_IPR);
     LOG_DBG("DMA Tx: start chn %d", devData->dma.tx.chn);
 
-#if (1U == CFG_LOG_DBG_ENABLE)
+#if (1u == CFG_LOG_DBG_ENABLE)
     printPaRAM(
         devData->dma.tx.chn);
 #endif

@@ -130,20 +130,23 @@ int32_t portDMARxInit(
     void (* callback)(void *),
     void *              arg);
 
-int32_t portDMARxTerm(
+void portDMARxTerm(
     struct devData *    devData);
 
-int32_t portDMARxBeginI(
+bool_T portDMARxIsRunning(
+    struct devData *    devData);
+
+void portDMARxBeginI(
     struct devData *    devData,
     volatile uint8_t *  dst,
     size_t              size);
 
-int32_t portDMARxContinueI(
+void portDMARxContinueI(
     struct devData *    devData,
     uint8_t *           dst,
     size_t              size);
 
-int32_t portDMARxStartI(
+void portDMARxStartI(
     struct devData *    devData);
 
 /**@brief       Stop RX DMA activity
@@ -152,7 +155,7 @@ int32_t portDMARxStartI(
  * @return      Operation status
  *  @retval     0 - success
  */
-int32_t portDMARxStopI(
+void portDMARxStopI(
     struct devData *    devData);
 
 /**@brief       Request and create DMA coherent buffer segment and return
@@ -165,15 +168,18 @@ int32_t portDMATxInit(
     void (* callback)(void *),
     void *              arg);
 
-int32_t portDMATxTerm(
+void portDMATxTerm(
     struct devData *    devData);
 
-int32_t portDMATxBeginI(
+bool_T portDMATxIsRunning(
+    struct devData *    devData);
+
+void portDMATxBeginI(
     struct devData *    devData,
     volatile const uint8_t * src,
     size_t              size);
 
-int32_t portDMATxContinueI(
+void portDMATxContinueI(
     struct devData *    devData,
     const uint8_t *     src,
     size_t              size);

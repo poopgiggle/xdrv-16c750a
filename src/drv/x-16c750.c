@@ -942,7 +942,6 @@ static void buffTxTrans(
     } while (0U != size);
 #elif (1 == CFG_DMA_MODE)
     size_t              rem;
-    int32_t             retval;
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, UART_CTX_SIGNATURE == uartCtx->signature);
 
@@ -953,48 +952,36 @@ static void buffTxTrans(
         /* two DMA transfers */
         LOG_DBG("two DMA transfers");
         uartCtx->tx.buff.chunk = size;
-        retval = portDMATxBeginI(
+
+        if (TRUE == portDMATxIsRunning(uartCtx->cache.devData)) {
+            LOG_DBG("skipping setup transfer");
+
+            return;
+        }
+        portDMATxBeginI(
             uartCtx->cache.devData,
             circMemTailGet(&uartCtx->tx.buff.handle),
             rem);
-
-        if (0 != retval) {
-
-            if (-EBUSY != retval) {
-                LOG_ERR("failed to begin DMA transfer");
-            }
-
-            return;
-        }
-        retval = portDMATxContinueI(
+        portDMATxContinueI(
             uartCtx->cache.devData,
             circMemBaseGet(&uartCtx->tx.buff.handle),
             size - rem);
-
-        if (0 != retval) {
-            LOG_ERR("failed to link DMA transfers");
-
-            return;
-        }
         portDMATxStartI(
             uartCtx->cache.devData);
     } else {
         /* single DMA transfer */
         LOG_DBG("single DMA transfer");
         uartCtx->tx.buff.chunk = rem;
-        retval = portDMATxBeginI(
-            uartCtx->cache.devData,
-            uartCtx->tx.buff.phy + circPosTailGet(&uartCtx->tx.buff.handle),
-            rem);
 
-        if (0 != retval) {
-
-            if (-EBUSY != retval) {
-                LOG_ERR("failed to begin DMA transfer");
-            }
+        if (TRUE == portDMATxIsRunning(uartCtx->cache.devData)) {
+            LOG_DBG("skipping setup transfer");
 
             return;
         }
+        portDMATxBeginI(
+            uartCtx->cache.devData,
+            uartCtx->tx.buff.phy + circPosTailGet(&uartCtx->tx.buff.handle),
+            rem);
         portDMATxStartI(
             uartCtx->cache.devData);
     }
