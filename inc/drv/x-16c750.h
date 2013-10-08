@@ -53,7 +53,9 @@ enum ctxState {
     CTX_STATE_INIT,                                                             /**<@brief STATE_INIT                                       */
     CTX_STATE_LOCKS,
     CTX_STATE_TX_BUFF,
+    CTX_STATE_TX_BUFF_INIT,
     CTX_STATE_RX_BUFF,
+    CTX_STATE_RX_BUFF_INIT
 };
 
 enum uartStatus {

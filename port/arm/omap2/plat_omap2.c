@@ -758,15 +758,9 @@ int32_t portDMARxInit(
         edmaDummyCallback,
         NULL,
         EVENTQ_0);
-
-    if (0 > retval) {
-        LOG_ERR("DMA Rx: failed to alloc channel, err: %d", -retval);
-
-        return (retval);
-    }
     devData->dma.rx.chn = retval;
 
-    return (0);
+    return (retval);
 }
 
 void portDMARxTerm(

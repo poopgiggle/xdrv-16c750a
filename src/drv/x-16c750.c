@@ -463,13 +463,25 @@ static int uartCtxInit(
 
         return (retval);
     }
+    uartCtx->state = CTX_STATE_TX_BUFF;
+
+    /*-- STATE: Init TX buffer -----------------------------------------------*/
 #if (1 == CFG_DMA_MODE) || (2 == CFG_DMA_MODE)
+    LOG_INFO("init Tx buffer");
     portDMATxInit(
         devData,
         dmaCallbackTx,
         uartCtx);
+
+    if (0 > retval) {
+        LOG_ERR("failed to init Tx DMA, err: %d", -retval);
+        buffDealloc(
+            &uartCtx->tx.buff);
+
+        return (retval);
+    }
 #endif
-    uartCtx->state = CTX_STATE_TX_BUFF;
+    uartCtx->state = CTX_STATE_TX_BUFF_INIT;
 
     /*-- STATE: Create RX buffer ---------------------------------------------*/
     LOG_INFO("create Rx buffer");
@@ -482,13 +494,25 @@ static int uartCtxInit(
 
         return (retval);
     }
+    uartCtx->state = CTX_STATE_RX_BUFF;
+
+    /*-- STATE: Init RX buffer -----------------------------------------------*/
 #if (1 == CFG_DMA_MODE) || (2 == CFG_DMA_MODE)
+    LOG_INFO("init Rx buffer");
     portDMARxInit(
         devData,
         dmaCallbackRx,
         uartCtx);
+
+    if (0 > retval) {
+        LOG_ERR("failed to init Rx DMA, err: %d", -retval);
+        buffDealloc(
+            &uartCtx->rx.buff);
+
+        return (retval);
+    }
 #endif
-    uartCtx->state = CTX_STATE_RX_BUFF;
+    uartCtx->state = CTX_STATE_RX_BUFF_INIT;
 
     /*-- Prepare UART data ---------------------------------------------------*/
     LOG_INFO("init context data");
@@ -519,6 +543,12 @@ static void uartCtxTerm(
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, UART_CTX_SIGNATURE == uartCtx->signature);
 
     switch (uartCtx->state) {
+        case CTX_STATE_RX_BUFF_INIT :
+#if (1 == CFG_DMA_MODE) || (2 == CFG_DMA_MODE)
+            LOG_INFO("term Rx buffer");
+            portDMARxTerm(
+                uartCtx->cache.devData);
+#endif
         case CTX_STATE_RX_BUFF : {
             LOG_INFO("deleting Rx buffer");
             retval = buffDealloc(
@@ -528,6 +558,13 @@ static void uartCtxTerm(
                 LOG_ERR("failed to delete Rx buffer, err: %d", -retval);
             }
         } /* fall through */
+        case CTX_STATE_TX_BUFF_INIT : {
+#if (1 == CFG_DMA_MODE) || (2 == CFG_DMA_MODE)
+            LOG_INFO("term Tx buffer");
+            portDMATxTerm(
+                uartCtx->cache.devData);
+#endif
+        }
         case CTX_STATE_TX_BUFF : {
             LOG_INFO("deleting Tx buffer");
             retval = buffDealloc(
