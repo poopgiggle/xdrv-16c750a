@@ -128,20 +128,20 @@ enum hwReg {
 #define MCR_TCRTLR                      (1U << 6)
 
 /* FCR register bits                                                          */
-#define FCR_RX_FIFO_TRIG_Mask           (0x3U << 6)
-#define FCR_RX_FIFO_TRIG_8              (0x0U << 6)
-#define FCR_RX_FIFO_TRIG_16             (0x1U << 6)
-#define FCR_RX_FIFO_TRIG_56             (0x2U << 6)
-#define FCR_RX_FIFO_TRIG_60             (0x3U << 6)
-#define FCR_TX_FIFO_TRIG_Mask           (0x3U << 4)
-#define FCR_TX_FIFO_TRIG_8              (0x0U << 4)
-#define FCR_TX_FIFO_TRIG_16             (0x1U << 4)
-#define FCR_TX_FIFO_TRIG_32             (0x2U << 4)
-#define FCR_TX_FIFO_TRIG_56             (0x3U << 4)
-#define FCR_DMA_MODE                    (0x1U << 3)
-#define FCR_TX_FIFO_CLEAR               (0x1U << 2)
-#define FCR_RX_FIFO_CLEAR               (0x1U << 1)
-#define FCR_FIFO_EN                     (0x1U << 0)
+#define FCR_RX_FIFO_TRIG_Mask           (0x3u << 6)
+#define FCR_RX_FIFO_TRIG_8              (0x0u << 6)
+#define FCR_RX_FIFO_TRIG_16             (0x1u << 6)
+#define FCR_RX_FIFO_TRIG_56             (0x2u << 6)
+#define FCR_RX_FIFO_TRIG_60             (0x3u << 6)
+#define FCR_TX_FIFO_TRIG_Mask           (0x3u << 4)
+#define FCR_TX_FIFO_TRIG_8              (0x0u << 4)
+#define FCR_TX_FIFO_TRIG_16             (0x1u << 4)
+#define FCR_TX_FIFO_TRIG_32             (0x2u << 4)
+#define FCR_TX_FIFO_TRIG_56             (0x3u << 4)
+#define FCR_DMA_MODE                    (0x1u << 3)
+#define FCR_TX_FIFO_CLEAR               (0x1u << 2)
+#define FCR_RX_FIFO_CLEAR               (0x1u << 1)
+#define FCR_FIFO_EN                     (0x1u << 0)
 
 /* Trigger Level Register (TLR) : register bits                               */
 #define TLR_RX_FIFO_TRIG_DMA_Mask       (0x0fU << 4)
@@ -180,35 +180,38 @@ enum hwReg {
 #define TLR_TX_FIFO_TRIG_DMA_60         (0x0fU << 0)
 
 /* Supplementary Control Register (SCR) : register bits                       */
-#define SCR_RXTRIGGRANU1                (0x1U << 7)
-#define SCR_TXTRIGGRANU1                (0x1U << 6)
-#define SCR_DMAMODE2_Mask               (0x3U << 1)
-#define SCR_DMAMODE2_NO_DMA             (0x0U << 1)
-#define SCR_DMAMODE2_TX_AND_RX          (0x1U << 1)
-#define SCR_DMAMODE2_RX                 (0x2U << 1)
-#define SCR_DMAMODE2_TX                 (0x3U << 1)
-#define SCR_DMAMODECTL                  (0x1U << 0)
+#define SCR_RXTRIGGRANU1                (0x1u << 7)
+#define SCR_TXTRIGGRANU1                (0x1u << 6)
+#define SCR_DMAMODE2_Mask               (0x3u << 1)
+#define SCR_DMAMODE2_NO_DMA             (0x0u << 1)
+#define SCR_DMAMODE2_TX_AND_RX          (0x1u << 1)
+#define SCR_DMAMODE2_RX                 (0x2u << 1)
+#define SCR_DMAMODE2_TX                 (0x3u << 1)
+#define SCR_DMAMODECTL                  (0x1u << 0)
 
 /* Mode Definition Register 1 (MDR1) : register bits                          */
-#define MDR1_MODESELECT_Mask            (0x7U << 0)
-#define MDR1_MODESELECT_UART16          (0x0U << 0)
-#define MDR1_MODESELECT_SIR             (0x1U << 0)
-#define MDR1_MODESELECT_UART16AUTO      (0x2U << 0)
-#define MDR1_MODESELECT_UART13          (0x3U << 0)
-#define MDR1_MODESELECT_MIR             (0x4U << 0)
-#define MDR1_MODESELECT_FIR             (0x5U << 0)
-#define MDR1_MODESELECT_CIR             (0x6U << 0)
-#define MDR1_MODESELECT_DISABLE         (0x7U << 0)
+#define MDR1_MODESELECT_Mask            (0x7u << 0)
+#define MDR1_MODESELECT_UART16          (0x0u << 0)
+#define MDR1_MODESELECT_SIR             (0x1u << 0)
+#define MDR1_MODESELECT_UART16AUTO      (0x2u << 0)
+#define MDR1_MODESELECT_UART13          (0x3u << 0)
+#define MDR1_MODESELECT_MIR             (0x4u << 0)
+#define MDR1_MODESELECT_FIR             (0x5u << 0)
+#define MDR1_MODESELECT_CIR             (0x6u << 0)
+#define MDR1_MODESELECT_DISABLE         (0x7u << 0)
+
+/* Mode Definition Register 3 (MDR3) : register bits                          */
+#define MDR3_SET_DMA_TX_THRESHOLD       (0x01u << 2)
 
 /* Interrupt Enable Register (IER) : register bits                            */
-#define IER_CTSIT                       (0x1U << 7)
-#define IER_RTSIT                       (0x1U << 6)
-#define IER_XOFFIT                      (0x1U << 5)
-#define IER_SLEEPMODE                   (0x1U << 4)
-#define IER_MODEMSTSIT                  (0x1U << 3)
-#define IER_LINESTSIT                   (0x1U << 2)
-#define IER_THRIT                       (0x1U << 1)
-#define IER_RHRIT                       (0x1U << 0)
+#define IER_CTSIT                       (0x1u << 7)
+#define IER_RTSIT                       (0x1u << 6)
+#define IER_XOFFIT                      (0x1u << 5)
+#define IER_SLEEPMODE                   (0x1u << 4)
+#define IER_MODEMSTSIT                  (0x1u << 3)
+#define IER_LINESTSIT                   (0x1u << 2)
+#define IER_THRIT                       (0x1u << 1)
+#define IER_RHRIT                       (0x1u << 0)
 
 /* Interrupt Identification Register (IIR) : register bits                    */
 #define IIR_IT_TYPE_Mask                (0x3FU << 0)
@@ -220,23 +223,26 @@ enum hwReg {
 #define IIR_IT_PENDING                  (0x01U << 0)
 
 /* Line Control Register (LCR) : register bits                                */
-#define LCR_DIV_EN                      (0x1U << 7)
-#define LCR_BREAK_EN                    (0x1U << 6)
-#define LCR_PARITY_TYPE2                (0x1U << 5)
-#define LCR_PARITY_TYPE1                (0x1U << 4)
-#define LCR_PARITY_EN                   (0x1U << 3)
-#define LCR_NB_STOP                     (0x1U << 2)
-#define LCR_CHAR_LENGTH_Mask            (0x3U << 0)
-#define LCR_CHAR_LENGTH_8               (0x3U << 0)
-#define LCR_CHAR_LENGTH_7               (0x2U << 0)
-#define LCR_CHAR_LENGTH_6               (0x1U << 0)
-#define LCR_CHAR_LENGTH_5               (0x0U << 0)
+#define LCR_DIV_EN                      (0x1u << 7)
+#define LCR_BREAK_EN                    (0x1u << 6)
+#define LCR_PARITY_TYPE2                (0x1u << 5)
+#define LCR_PARITY_TYPE1                (0x1u << 4)
+#define LCR_PARITY_EN                   (0x1u << 3)
+#define LCR_NB_STOP                     (0x1u << 2)
+#define LCR_CHAR_LENGTH_Mask            (0x3u << 0)
+#define LCR_CHAR_LENGTH_8               (0x3u << 0)
+#define LCR_CHAR_LENGTH_7               (0x2u << 0)
+#define LCR_CHAR_LENGTH_6               (0x1u << 0)
+#define LCR_CHAR_LENGTH_5               (0x0u << 0)
 
 /* Supplementary Status Register (SSR) : register bits                        */
 #define SSR_TXFIFOFULL                  (0x01U << 0)
 
 /* Line Status Register (LSR) : register bits                                 */
 #define LSR_RXFIFOE                     (0x01U << 0)
+
+/* Tx DMA Threshold Register (TXDMA) : register bits                          */
+#define TXDMA_TX_DMA_THRESHOLD_Mask     (0x3fu << 0)
 
 /** @} *//*-------------------------------------------------------------------*/
 /*============================================================  DATA TYPES  ==*/
@@ -270,6 +276,18 @@ enum lldIntNum {
 enum lldState {
     LLD_ENABLE,
     LLD_DISABLE
+};
+
+enum lldDMAMode {
+    LLD_DMA_MODE_DISABLED   = SCR_DMAMODE2_NO_DMA,
+    LLD_DMA_MODE_TX_AND_RX  = SCR_DMAMODE2_TX_AND_RX,
+    LLD_DMA_MODE_RX         = SCR_DMAMODE2_RX,
+    LLD_DMA_MODE_TX         = SCR_DMAMODE2_TX
+};
+
+enum lldDMATxThreshold {
+    LLD_DMA_TX_THRESHOLD_64 = MDR3_SET_DMA_TX_THRESHOLD,
+    LLD_DMA_TX_THRESHOLD_REG = 0x0u
 };
 
 /*======================================================  GLOBAL VARIABLES  ==*/
@@ -448,7 +466,7 @@ static inline uint16_t lldIntGet(
  * @name        FIFO related actions
  * @{ *//*--------------------------------------------------------------------*/
 
-void lldFIFOInit(
+void lldFIFODMAInit(
     volatile uint8_t *  io);
 
 /**@brief       Setup UART module to use FIFO and DMA
@@ -490,6 +508,29 @@ void lldFIFORxFlush(
 
 void lldFIFOTxFlush(
     volatile uint8_t *  io);
+
+/**@brief       This function controls the method of setting the Transmit DMA
+ *              threshold value.
+ * @details     The Transmit DMA threshold value can be set to a default value
+ *              of 64 characters or can take the value in  TX_DMA_THRESHOLD
+ *              register.
+ */
+void lldUARTTxDMAThresholdCtrl(
+    volatile uint8_t *  io,
+    enum lldDMATxThreshold threshold);
+
+/**@brief       This function programs the TX_DMA_THRESHOLD register which holds
+ *              Transmit DMA threshold value to be used.
+ * @details     When a TX DMA threshold value other than 64 characters is
+ *              required, this function can be used to program the same.
+ * @param       io
+ *              Memory IO address
+ * @param       val
+ *              The transmit DMA threshold value
+ */
+void lldUARTDMATxThresholdVal(
+    volatile uint8_t *  io,
+    uint32_t            val);
 
 /**@} *//*----------------------------------------------------------------*//**
  * @name        Protocol

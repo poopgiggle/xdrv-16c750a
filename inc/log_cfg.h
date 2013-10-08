@@ -1,8 +1,6 @@
 /*
  * This file is part of x-16c750
  *
- * Template version: 1.1.15 (03.07.2013)
- *
  * Copyright (C) 2011, 2012 - Nenad Radulovic
  *
  * x-16c750 is free software; you can redistribute it and/or modify
@@ -24,9 +22,8 @@
  * e-mail  :    blueskyniss@gmail.com
  *//***********************************************************************//**
  * @file
- * @author  	nenad
+ * @author  	Nenad Radulovic
  * @brief   	Configuration of log_cfg.
- * @addtogroup  module_cfg
  *********************************************************************//** @{ */
 
 #if !defined(LOG_CFG_H_)
@@ -47,7 +44,7 @@
  * @brief       brief description
  * @{ *//*--------------------------------------------------------------------*/
 
-#define CFG_LOG_DBG_ENABLE				1U
+#define CFG_LOG_DBG_ENABLE				0u
 
 #define CFG_LOG_INFO_ENABLE             1U
 

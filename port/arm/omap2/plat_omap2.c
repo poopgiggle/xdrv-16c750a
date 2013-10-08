@@ -29,6 +29,8 @@
 /*=========================================================  INCLUDE FILES  ==*/
 
 #include <linux/kernel.h>
+#include <linux/ioport.h>
+
 #include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
 
@@ -48,6 +50,11 @@
  */
 #define DEF_OMAP_UART_NAME              "uart"
 #define DEF_UART_NAME_MAX_SIZE          10
+
+/**@brief       This switch will suppress kernel coding rules violations for
+ *              requesting access to IO memory.
+ */
+#define DEF_SUPPRESS_MEM_REQ_WARNING    1
 
 #define BAUD_RATE_CFG_EXPAND_AS_BAUD(a, b, c)                                   \
     a,
@@ -71,11 +78,11 @@
 /**@brief       Platform setup states
  */
 enum portState {
-    PLAT_STATE_INIT,                                                            /**<@brief PLAT_STATE_INIT                                  */
-    PLAT_STATE_LOOKUP,                                                          /**<@brief PLAT_STATE_LOOKUP                                */
-    PLAT_STATE_BUILD,                                                           /**<@brief PLAT_STATE_BUILD                                 */
-    PLAT_STATE_ECLK,                                                            /**<@brief PLAT_STATE_ECLK                                  */
-    PLAT_STATE_ENABLE                                                           /**<@brief PLAT_STATE_ENABLE                                */
+    PLAT_STATE_INIT,                                                            /**<@brief PLAT_STATE_INIT                                  *///!< PLAT_STATE_INIT
+    PLAT_STATE_LOOKUP,                                                          /**<@brief PLAT_STATE_LOOKUP                                *///!< PLAT_STATE_LOOKUP
+    PLAT_STATE_BUILD,                                                           /**<@brief PLAT_STATE_BUILD                                 *///!< PLAT_STATE_BUILD
+    PLAT_STATE_ECLK,                                                            /**<@brief PLAT_STATE_ECLK                                  *///!< PLAT_STATE_ECLK
+    PLAT_STATE_ENABLE                                                           /**<@brief PLAT_STATE_ENABLE                                *///!< PLAT_STATE_ENABLE
 };
 
 enum uartId {
@@ -106,6 +113,7 @@ struct devData {
     struct dma {
         struct hwAddr       addr;
         struct dmaPerUnit{
+            struct edmacc_param param;
             int                 chn;
             bool_T              isRunning;
             void (* callback)(void *);
@@ -119,34 +127,55 @@ struct devData {
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
 
+static int32_t baudRateCfgFindIndex(
+    uint32_t            baudrate);
+
 static void portCleanup(
     struct devData *    devData,
     enum portState      state);
 
-static int32_t baudRateCfgFindIndex(
-    uint32_t            baudrate);
-
 #if (1 == CFG_DMA_MODE) || (2 == CFG_DMA_MODE)
+
+#if (1u == CFG_LOG_DBG_ENABLE)
+static void printPaRAM(
+    uint32_t            chn);
+#endif /* (1u == CFG_LOG_DBG_ENABLE) */
+
 static inline uint32_t edmaRd(
+    volatile uint8_t *  io,
     enum edmaReg        reg);
 
 static inline void edmaWr(
+    volatile uint8_t *  io,
     enum edmaReg        reg,
     uint32_t            val);
+
+static inline uint32_t edmaShRd(
+    volatile uint8_t *  io,
+    enum edmaReg        reg);
+
+static inline void edmaShWr(
+    volatile uint8_t *  io,
+    enum edmaReg        reg,
+    uint32_t            val);
+
+static void edmaIntrClear(
+    volatile uint8_t *  io,
+    uint32_t            tcc);
 
 static int edmaHandleIrq(
     rtdm_irq_t *        handle);
 
-static void edmaTxCallback(
+static int32_t edmaInit(
+    struct devData *    devData);
+
+static int32_t edmaTerm(
+    struct devData *    devData);
+
+static void edmaDummyCallback(
     unsigned int        chn,
     uint16_t            status,
     void *              data);
-
-static void edmaRxCallback(
-    unsigned int        chn,
-    uint16_t            status,
-    void *              data);
-
 #endif
 
 /*=======================================================  LOCAL VARIABLES  ==*/
@@ -234,17 +263,20 @@ static void portCleanup(
 
 #if (1 == CFG_DMA_MODE) || (2 == CFG_DMA_MODE)
 
-/* For debugging only */
-#if 0
-static void printPaRAM(uint32_t chn) {
+#if (1u == CFG_LOG_DBG_ENABLE)
+
+/* For debugging only                                                         */
+static void printPaRAM(
+    uint32_t            chn) {
+
     struct edmacc_param paramSet;
 
     edma_read_slot(chn, &paramSet);
     LOG_INFO(" OPT     : %x", paramSet.opt);
-    LOG_INFO(" SRC     : %p", paramSet.src);
+    LOG_INFO(" SRC     : %p", (void *)paramSet.src);
     LOG_INFO(" BCNT    : %d", paramSet.a_b_cnt >> 16U);
     LOG_INFO(" ACNT    : %d", paramSet.a_b_cnt && 0x00FFU);
-    LOG_INFO(" DST     : %p", paramSet.dst);
+    LOG_INFO(" DST     : %p", (void *)paramSet.dst);
     LOG_INFO(" DSTBIDX : %d", paramSet.src_dst_bidx >> 16U);
     LOG_INFO(" SRCBIDX : %d", paramSet.src_dst_bidx && 0x00FFU);
     LOG_INFO(" BCNTRLD : %d", paramSet.link_bcntrld >> 16U);
@@ -253,66 +285,103 @@ static void printPaRAM(uint32_t chn) {
     LOG_INFO(" SRCCIDX : %d", paramSet.src_dst_cidx && 0x00FFU);
     LOG_INFO(" CCNT    : %d", paramSet.ccnt && 0x00FFU);
 }
-#endif
+#endif /* (1u == CFG_LOG_DBG_ENABLE) */
 
 static inline uint32_t edmaRd(
+    volatile uint8_t *  io,
     enum edmaReg        reg)  {
 
-    return (__raw_readl(EDMA_TPCC_BASE + reg));
+    uint32_t            retval;
+
+    retval = __raw_readl(io + reg);
+
+    LOG_DBG("EDMA rd: %p, %x : %x", io, reg, retval);
+
+    return (retval);
 }
 
 static inline void edmaWr(
+    volatile uint8_t *  io,
     enum edmaReg        reg,
     uint32_t            val) {
 
-    __raw_writel(val, EDMA_TPCC_BASE + reg);
+    LOG_DBG("EDMA wr: %p, %x = %x", io, reg, val);
+
+    __raw_writel(val, io + reg);
 }
 
 static inline uint32_t edmaShRd(
+    volatile uint8_t *  io,
     enum edmaReg        reg) {
 
-    return (edmaRd(EDMA_SH_BASE + reg));
+    return (edmaRd(io, EDMA_SH_BASE + reg));
 }
 
 static inline void edmaShWr(
+    volatile uint8_t *  io,
     enum edmaReg        reg,
     uint32_t            val) {
 
-    edmaWr(val, EDMA_SH_BASE + reg);
+    edmaWr(
+        io,
+        EDMA_SH_BASE + reg,
+        val);
 }
 
-int edmaHandleIrq(
+static void edmaIntrClear(
+    volatile uint8_t *  io,
+    uint32_t            tcc) {
+
+    if (31 < tcc) {
+        edmaShWr(io, EDMA_ICRH, 0x1u << (tcc - 32));
+    } else {
+        edmaShWr(io, EDMA_ICR, 0x1u << tcc);
+    }
+}
+
+static int edmaHandleIrq(
     rtdm_irq_t *        handle) {
 
     struct devData *    devData;
+    volatile uint8_t *  io;
     uint64_t            ipr;
 
-    LOG_DBG("DMA IRQ handler");
+    LOG_DBG("ISR DMA");
     devData = rtdm_irq_get_arg(handle, struct devData);
-    ipr = ((uint64_t)edmaShRd(EDMA_IPRH) << 32u) | (uint64_t)edmaShRd(EDMA_IPR);
+
+    io = devData->dma.addr.remap;
+    ipr = ((uint64_t)edmaShRd(io, EDMA_IPRH) << 32u) | (uint64_t)edmaShRd(io, EDMA_IPR);
 
     if ((uint64_t)0ul != (ipr & ((uint64_t)0x1ul << devData->dma.rx.chn))) {
-        ipr &= ~((uint64_t)0x1ul << devData->dma.rx.chn);
         edmaShWr(
-            EDMA_ICR + BIT_EXTRACT(devData->dma.rx.chn, 5u),
-            0x1u << BIT_RESET(devData->dma.rx.chn, 5u));
+            io,
+            EDMA_ICR,
+            (uint32_t)(0xffffu & ipr));
+        edmaShWr(
+            io,
+            EDMA_ICRH,
+            (uint32_t)(0xffffu & (ipr >> 32)));
+        ipr &= ~((uint64_t)0x1ul << devData->dma.rx.chn);
         devData->dma.rx.isRunning = FALSE;
 
         if (NULL != devData->dma.rx.callback) {
-            LOG_DBG("DMA Rx: callback");
             devData->dma.rx.callback(devData->dma.rx.arg);
         }
     }
 
     if ((uint64_t)0ul != (ipr & ((uint64_t)0x1ul << devData->dma.tx.chn))) {
-        ipr &= ~((uint64_t)0x1ul << devData->dma.tx.chn);
         edmaShWr(
-            EDMA_ICR + BIT_EXTRACT(devData->dma.tx.chn, 5u),
-            0x1u << BIT_RESET(devData->dma.tx.chn, 5u));
+            io,
+            EDMA_ICR,
+            (uint32_t)(0xffffu & ipr));
+        edmaShWr(
+            io,
+            EDMA_ICRH,
+            (uint32_t)(0xffffu & (ipr >> 32)));
         devData->dma.tx.isRunning = FALSE;
+        ipr &= ~((uint64_t)0x1ul << devData->dma.tx.chn);
 
         if (NULL != devData->dma.tx.callback) {
-            LOG_DBG("DMA Tx: callback");
             devData->dma.tx.callback(devData->dma.tx.arg);
         }
     }
@@ -320,59 +389,26 @@ int edmaHandleIrq(
     if ((uint64_t)0ul == ipr) {
 
         return (RTDM_IRQ_HANDLED);
-    } else {
-
-        return (RTDM_IRQ_NONE);
     }
+
+    return (RTDM_IRQ_NONE);
 }
 
-static void edmaTxCallback(
-    unsigned int        chn,
-    uint16_t            status,
-    void *              data) {
-
-    struct devData *    devData;
-
-    LOG_DBG("EDMA Tx callback");
-    devData = (struct devData *)data;
-    devData->dma.tx.isRunning = FALSE;
-
-    if (NULL != devData->dma.tx.callback) {
-        devData->dma.tx.callback(devData->dma.tx.arg);
-    }
-}
-
-static void edmaRxCallback(
-    unsigned int        chn,
-    uint16_t            status,
-    void *              data) {
-
-    struct devData *    devData;
-
-    LOG_DBG("EDMA Rx callback");
-    devData = (struct devData *)data;
-
-    if (NULL != devData->dma.rx.callback) {
-        devData->dma.rx.callback(devData->dma.rx.arg);
-    }
-}
-
-#include <linux/ioport.h>
-
-/*
- * NOTE: This function violates kernel coding rules. It will require memory area
- *       which is already in use.
- */
 static int32_t edmaInit(
     struct devData *    devData) {
-#if 0
-    struct resource *   res;
+
     uint32_t            retval;
+
+#if (0 == DEF_SUPPRESS_MEM_REQ_WARNING)
+    struct resource *   res;
+#endif /* (0 == DEF_SUPPRESS_MEM_REQ_WARNING) */
 
     devData->dma.addr.phy = (volatile uint8_t *)EDMA_TPCC_BASE;
     devData->dma.addr.size = (size_t)EDMA_TPCC_SIZE;
     LOG_DBG("EDMA mem start: %p", devData->dma.addr.phy);
     LOG_DBG("EDMA mem size : %x", devData->dma.addr.size);
+
+#if (0 == DEF_SUPPRESS_MEM_REQ_WARNING)
     res = request_mem_region(
         (resource_size_t)devData->dma.addr.phy,
         (resource_size_t)devData->dma.addr.size,
@@ -381,13 +417,9 @@ static int32_t edmaInit(
     if (NULL == res) {
         LOG_ERR("OMAP UART DMA: failed to request memory, err: %d", ENOMEM);
 
-        /*
-         * See notes above
-         */
-#if 0
         return (-ENOMEM);
-#endif
     }
+#endif /* (0 == DEF_SUPPRESS_MEM_REQ_WARNING) */
     devData->dma.addr.remap = ioremap(
         (long unsigned int)devData->dma.addr.phy,
         devData->dma.addr.size);
@@ -395,9 +427,11 @@ static int32_t edmaInit(
 
     if (NULL == devData->dma.addr.remap) {
         LOG_ERR("OMAP UART DMA: failed to remap memory, err: %d", ENOMEM);
+#if (0 == DEF_SUPPRESS_MEM_REQ_WARNING)
         release_mem_region(
             (resource_size_t)devData->dma.addr.phy,
             (resource_size_t)devData->dma.addr.size);
+#endif /* (0 == DEF_SUPPRESS_MEM_REQ_WARNING) */
 
         return (-ENOMEM);
     }
@@ -413,13 +447,15 @@ static int32_t edmaInit(
         LOG_ERR("OMAP UART DMA: failed to request DMA IRQ, err: %d", -retval);
         iounmap(
             devData->dma.addr.phy);
+#if (0 == DEF_SUPPRESS_MEM_REQ_WARNING)
         release_mem_region(
             (resource_size_t)devData->dma.addr.phy,
             (resource_size_t)devData->dma.addr.size);
+#endif /* (0 == DEF_SUPPRESS_MEM_REQ_WARNING) */
 
         return (retval);
     }
-#endif
+
     /*
      * NOTE: Since DMA stop functions are called within module deinitialization
      *       we must initialize these at this time.
@@ -436,11 +472,12 @@ static int32_t edmaTerm(
     int32_t             retval;
 
     LOG_DBG("OMAP UART DMA: terminating");
+
+    retval = 0;
     portDMATxStopI(
         devData);
     portDMARxStopI(
         devData);
-#if 0
     retval = (int32_t)rtdm_irq_free(
         &devData->dma.irqHandle);
 
@@ -449,13 +486,29 @@ static int32_t edmaTerm(
     }
     iounmap(
         devData->dma.addr.phy);
+#if (0 == DEF_SUPPRESS_MEM_REQ_WARNING)
     release_mem_region(
         (resource_size_t)devData->dma.addr.phy,
         (resource_size_t)devData->dma.addr.size);
-#endif
-    return (0);
+#endif /* (0 == DEF_SUPPRESS_MEM_REQ_WARNING) */
+
+    return (retval);
 }
-#endif
+
+/*
+ * NOTE:        We need dummy callback function for Linux domain.
+ */
+static void edmaDummyCallback(
+    unsigned int        chn,
+    uint16_t            status,
+    void *              data) {
+
+    (void)chn;
+    (void)status;
+    (void)data;
+}
+
+#endif /* (1 == CFG_DMA_MODE) || (2 == CFG_DMA_MODE) */
 
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
@@ -685,11 +738,12 @@ bool_T portIsOnline(
 }
 
 #if (1 == CFG_DMA_MODE) || (2 == CFG_DMA_MODE)
-
 int32_t portDMARxInit(
     struct devData *    devData,
     void (* callback)(void *),
     void *              arg) {
+
+    int32_t             retval;
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
@@ -699,6 +753,18 @@ int32_t portDMARxInit(
     devData->dma.rx.isRunning = FALSE;
     devData->dma.rx.callback = callback;
     devData->dma.rx.arg = arg;
+    retval = (int32_t)edma_alloc_channel(
+        EDMA_CHN_RX,
+        edmaDummyCallback,
+        NULL,
+        EVENTQ_0);
+
+    if (0 > retval) {
+        LOG_ERR("DMA Rx: failed to alloc channel, err: %d", -retval);
+
+        return (retval);
+    }
+    devData->dma.rx.chn = retval;
 
     return (0);
 }
@@ -716,36 +782,22 @@ int32_t portDMARxTerm(
 
 int32_t portDMARxBeginI(
     struct devData *    devData,
-    uint8_t *           dst,
+    volatile uint8_t *  dst,
     size_t              size) {
 
     struct edmacc_param paramSet;
-    int32_t             retval;
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
-    if (EDMA_CHANNEL_ANY == devData->dma.rx.chn) {
-        retval = (int32_t)edma_alloc_channel(
-            EDMA_CHN_RX,
-            edmaRxCallback,
-            devData,
-            EVENTQ_0);
+    if (TRUE == devData->dma.rx.isRunning) {
 
-        if (0 > retval) {
-            LOG_ERR("DMA Rx: failed to alloc channel, err: %d", -retval);
-
-            return (retval);
-        }
-        devData->dma.rx.chn = retval;
-        LOG_DBG("DMA Rx: chn     : %d", devData->dma.rx.chn);
-        LOG_DBG("DMA Rx: SRC addr: %p", devData->ioAddr.phy);
-    } else {
-
-        if (TRUE == devData->dma.rx.isRunning) {
-
-            return (-EBUSY);
-        }
+        return (-EBUSY);
     }
+    LOG_DBG("DMA Rx: begin: dst  : %p", dst);
+    LOG_DBG("DMA Rx: begin: chn  : %d", devData->dma.rx.chn);
+    LOG_DBG("DMA Rx: begin: src  : %p", devData->ioAddr.phy);
+    LOG_DBG("DMA Rx: begin: size : %d", size);
+
     devData->dma.rx.isRunning = TRUE;
     edma_set_src(
         devData->dma.rx.chn,
@@ -806,7 +858,13 @@ int32_t portDMARxStartI(
     int32_t             retval;
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
-
+#if (1U == CFG_LOG_DBG_ENABLE)
+    printPaRAM(
+        devData->dma.tx.chn);
+#endif
+    edmaIntrClear(
+        devData->dma.addr.remap,
+        devData->dma.rx.chn);
     retval = (int32_t)edma_start(
         devData->dma.rx.chn);
 
@@ -839,6 +897,8 @@ int32_t portDMATxInit(
     void (* callback)(void *),
     void *              arg) {
 
+    int32_t             retval;
+
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
     LOG_DBG("DMA Tx: init");
@@ -847,6 +907,18 @@ int32_t portDMATxInit(
     devData->dma.tx.isRunning = FALSE;
     devData->dma.tx.callback = callback;
     devData->dma.tx.arg = arg;
+    retval = (int32_t)edma_alloc_channel(
+        EDMA_CHN_TX,
+        edmaDummyCallback,
+        NULL,
+        EVENTQ_1);
+
+    if (0 > retval) {
+        LOG_ERR("DMA Tx: failed to alloc channel, err: %d", -retval);
+
+        return (retval);
+    }
+    devData->dma.tx.chn = retval;
 
     return (0);
 }
@@ -864,40 +936,22 @@ int32_t portDMATxTerm(
 
 int32_t portDMATxBeginI(
     struct devData *    devData,
-    const uint8_t *     src,
+    volatile const uint8_t * src,
     size_t              size) {
 
     struct edmacc_param paramSet;
-    int32_t             retval;
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
+    if (TRUE == devData->dma.tx.isRunning) {
+
+        return (-EBUSY);
+    }
+    LOG_DBG("DMA Tx: begin: dst  : %p", devData->ioAddr.phy);
+    LOG_DBG("DMA Tx: begin: chn  : %d", devData->dma.tx.chn);
     LOG_DBG("DMA Tx: begin: src  : %p", src);
     LOG_DBG("DMA Tx: begin: size : %d", size);
 
-    if (EDMA_CHANNEL_ANY == devData->dma.tx.chn) {
-
-        retval = (int32_t)edma_alloc_channel(
-            EDMA_CHN_TX,
-            edmaTxCallback,
-            devData,
-            EVENTQ_1);
-
-        if (0 > retval) {
-            LOG_ERR("DMA Tx: failed to alloc channel, err: %d", -retval);
-
-            return (retval);
-        }
-        devData->dma.tx.chn = retval;
-        LOG_DBG("DMA Tx: begin: dst  : %p", devData->ioAddr.phy);
-        LOG_DBG("DMA Tx: begin: chn  : %d", devData->dma.tx.chn);
-    } else {
-
-        if (TRUE == devData->dma.tx.isRunning) {
-
-            return (-EBUSY);
-        }
-    }
     devData->dma.tx.isRunning = TRUE;
     edma_set_dest(
         devData->dma.tx.chn,
@@ -932,14 +986,6 @@ int32_t portDMATxBeginI(
         1,
         size,
         ABSYNC);
-    retval = (int32_t)edma_start(
-        devData->dma.tx.chn);
-
-    if (0 != retval) {
-        LOG_ERR("DMA: failed to start Tx channel, err: %d", -retval);
-
-        return (retval);
-    }
 
     return (0);
 }
@@ -960,26 +1006,29 @@ int32_t portDMATxContinueI(
     return (retval);
 }
 
-int32_t portDMATxStartI(
+void portDMATxStartI(
     struct devData *    devData) {
 
     int32_t             retval;
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
 
+    (void)edmaShRd(devData->dma.addr.remap, EDMA_IPR);
     LOG_DBG("DMA Tx: start chn %d", devData->dma.tx.chn);
 
+#if (1U == CFG_LOG_DBG_ENABLE)
+    printPaRAM(
+        devData->dma.tx.chn);
+#endif
+    edmaIntrClear(
+        devData->dma.addr.remap,
+        devData->dma.tx.chn);
     retval = (int32_t)edma_start(
         devData->dma.tx.chn);
-
-    if (0 != retval) {
-        LOG_ERR("DMA: failed to start Tx channel, err: %d", -retval);
-    }
-
-    return (retval);
+    ES_DBG_API_ENSURE(ES_DBG_UNKNOWN_ERROR, 0 == retval);
 }
 
-int32_t portDMATxStopI(
+void portDMATxStopI(
     struct devData *    devData) {
 
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, DEVDATA_SIGNATURE == devData->signature);
@@ -992,8 +1041,6 @@ int32_t portDMATxStopI(
             devData->dma.tx.chn);
         devData->dma.tx.chn = EDMA_CHANNEL_ANY;
     }
-
-    return (0);
 }
 #endif
 

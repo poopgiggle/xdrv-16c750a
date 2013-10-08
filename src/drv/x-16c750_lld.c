@@ -284,12 +284,8 @@ int32_t lldInit(
 
         return (retval);
     }
-    lldFIFOInit(
+    lldFIFODMAInit(
         io);
-#if (2U == CFG_DMA_MODE)
-    lldDMAFIFOInit(
-        io);
-#endif
     lldEnhanced(
         io,
         LLD_ENABLE);
@@ -367,7 +363,7 @@ void lldFIFOTxFlush(
         FCR_TX_FIFO_CLEAR);
 }
 
-void lldFIFOInit(
+void lldFIFODMAInit(
     volatile uint8_t *  io) {
 
     uint16_t            regLCR;
@@ -386,7 +382,7 @@ void lldFIFOInit(
     lldRegWr(                                                                   /* Enable register submode TCR_TLR to access the TLR        */
         io,                                                                     /* register (1/2)                                           */
         wbEFR,
-        EFR_ENHANCEDEN);
+        regEFR | EFR_ENHANCEDEN);
     lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the DLL*/
         io,                                                                     /* DLH and MCR registers                                    */
         LLD_CFG_MODE_A);
@@ -423,6 +419,11 @@ void lldFIFOInit(
         io,                                                                     /* (1/2)                                                    */
         waFCR,
         FCR_RX_FIFO_CLEAR | FCR_TX_FIFO_CLEAR | FCR_FIFO_EN);                   /* BUG NOTE: HW does not listen these FIFO granularity      */
+#if (2u == CFG_DMA_MODE)
+    lldUARTDMAStateSet(
+        io,
+        LLD_DMA_MODE_TX_AND_RX);
+#endif
     lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
         io,                                                                     /* register                                                 */
         LLD_CFG_MODE_B);
@@ -441,6 +442,62 @@ void lldFIFOInit(
         io,
         LCR,
         regLCR);
+}
+
+void lldUARTDMAStateSet(
+    volatile uint8_t *  io,
+    enum lldDMAMode     mode) {
+
+    uint16_t            reg;
+
+    reg = lldRegRd(
+        io,
+        SCR);
+    reg |= SCR_DMAMODECTL;
+    lldRegWr(
+        io,
+        wSCR,
+        reg);
+    reg &= ~SCR_DMAMODE2_Mask;
+    reg |= mode & SCR_DMAMODE2_Mask;
+    lldRegWr(
+        io,
+        wSCR,
+        reg);
+}
+
+void lldUARTTxDMAThresholdCtrl(
+    volatile uint8_t *  io,
+    enum lldDMATxThreshold threshold) {
+
+    uint16_t            val;
+
+    val = lldRegRd(
+        io,
+        MDR3);
+    val &= ~MDR3_SET_DMA_TX_THRESHOLD;
+    val |= threshold & MDR3_SET_DMA_TX_THRESHOLD;
+    lldRegWr(
+        io,
+        wMDR3,
+        val);
+}
+
+void lldUARTDMATxThresholdVal(
+    volatile uint8_t *  io,
+    uint32_t            val) {
+
+    uint16_t            regval;
+
+    regval = lldRegRd(
+        io,
+        TXDMA);
+    regval &= ~TXDMA_TX_DMA_THRESHOLD_Mask;
+    regval |= val & TXDMA_TX_DMA_THRESHOLD_Mask;
+    lldRegWr(
+        io,
+        wTXDMA,
+        regval);
 }
 
 int lldDMAFIFOInit(
