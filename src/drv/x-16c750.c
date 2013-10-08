@@ -135,7 +135,7 @@ enum cIntNum {
  * ===========================================================================*/
 #if (0 == CFG_DMA_MODE) || (1 == CFG_DMA_MODE)
 
-static uint32_t buffAlloc(
+static int32_t buffAlloc(
     struct buff *       buff,
     size_t              size);
 
@@ -624,29 +624,39 @@ static void xProtoSet(
  * ===========================================================================*/
 #if (0 == CFG_DMA_MODE) || (1 == CFG_DMA_MODE)
 
-static uint32_t buffAlloc(
+static int32_t buffAlloc(
     struct buff *       buff,
     size_t              size) {
 #if (0 == CFG_DMA_MODE)
-    uint8_t *           buffRemap;
+    int32_t             retval;
+    uint8_t *           storage;
 
     retval = rt_heap_create(
         &buff->storage,
         NULL,
-        size,lldFIFODMAInit
+        size,
         H_SINGLE | H_DMA);
 
+    if (0 != retval) {
+
+        return (retval);
+    }
     retval = rt_heap_alloc(
         &buff->storage,
         0U,
         TM_INFINITE,
-        (void **)&buffRemap);
+        (void **)&storage);
 
-    if (RETVAL_SUCCESS != retval) {
-        LOG_ERR("failed to allocate internal TX buffer, err: %d", -retval);
+    if (0 != retval) {
 
         return (retval);
     }
+    circInit(
+        &buff->handle,
+        storage,
+        size);
+
+    return (retval);
 #elif (1 == CFG_DMA_MODE)
     uint8_t *           buffRemap;
 
@@ -675,9 +685,15 @@ static uint32_t buffDealloc(
     struct buff *       buff) {
 
 #if (0 == CFG_DMA_MODE)
-    /*
-     * TODO:    Napisati
-     */
+    int32_t             retval;
+
+    rt_heap_free(
+        &buff->storage,
+        circMemBaseGet(&buff->handle));
+    retval = rt_heap_delete(
+        &buff->storage);
+
+    return (retval);
 #elif (1 == CFG_DMA_MODE)
     dma_free_coherent(
         NULL,
@@ -849,7 +865,7 @@ static void buffTxStopI(
     ES_DBG_API_REQUIRE(ES_DBG_OBJECT_NOT_VALID, UART_CTX_SIGNATURE == uartCtx->signature);
 
 #if (0 == CFG_DMA_MODE)
-    uartCtx->tx.pend = 0U;
+    uartCtx->tx.buff.pend = 0U;
     cIntSetDisable(
         uartCtx,
         C_INT_TX);
@@ -971,9 +987,9 @@ static void buffTxTrans(
 
         size--;
         item = circItemGet(
-            &uartCtx->tx.buffHandle);
+            &uartCtx->tx.buff.handle);
         lldRegWr(
-            uartCtx->cache.ioRemap,
+            uartCtx->cache.io,
             wTHR,
             item);
     } while (0U != size);
