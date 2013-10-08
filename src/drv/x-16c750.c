@@ -95,7 +95,7 @@
 #define CRITICAL_ENTER(uartCtx, lockCtx)                                        \
     do {                                                                        \
         lldRegWr(                                                               \
-            uartCtx->cache.ioRemap,                                                  \
+            uartCtx->cache.io,                                                  \
             wIER,                                                               \
             0);                                                                 \
     } while (0)
@@ -106,7 +106,7 @@
 #define CRITICAL_EXIT(uartCtx, lockCtx)                                         \
     do {                                                                        \
         lldRegWr(                                                               \
-            uartCtx->cache.ioRemap,                                                  \
+            uartCtx->cache.io,                                                  \
             wIER,                                                               \
             uartCtx->cache.IER);                                                \
     } while (0)
