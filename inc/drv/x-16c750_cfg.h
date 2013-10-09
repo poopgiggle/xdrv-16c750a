@@ -53,6 +53,7 @@
 /**@brief       Internal buffer sizes - MUST be of size of power of 2!
  */
 #define CFG_DRV_BUFF_SIZE               4096U
+
 #define CFG_TIMEOUT_MS                  2000
 
 /**@brief       Trigger level of UART FIFO
@@ -70,7 +71,7 @@
  *              1 - Software triggered DMA mode
  *              2 - Hardware triggered DMA mode
  */
-#define CFG_DMA_MODE                    1
+#define CFG_DMA_MODE                    0
 
 #define CFG_CRITICAL_INT_ENABLE         0
 
