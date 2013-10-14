@@ -33,9 +33,7 @@
 #include "circbuff/circbuff.h"
 #include "dbg/dbg.h"
 
-#if (1U == CFG_DBG_ENABLE)
-# include "log.h"
-#endif
+#include "log.h"
 
 /*=========================================================  LOCAL MACRO's  ==*/
 
