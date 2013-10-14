@@ -92,6 +92,7 @@ struct uartCtx {
 #if (1 == CFG_DMA_MODE)
             size_t              chunk;
 #elif (2 == CFG_DMA_MODE)
+            size_t              chunk;
 #endif
         }                   buff;
         enum uartStatus     status;

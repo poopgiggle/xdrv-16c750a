@@ -248,9 +248,9 @@ enum hwReg {
 /*============================================================  DATA TYPES  ==*/
 
 enum lldCfgMode {
-    LLD_CFG_MODE_NORM   = 0x0000U,
-    LLD_CFG_MODE_A      = 0x0080U,
-    LLD_CFG_MODE_B      = 0x00bfU
+    LLD_CFG_MODE_NORM   = 0x007fu,
+    LLD_CFG_MODE_A      = 0x0080u,
+    LLD_CFG_MODE_B      = 0x00bfu
 };
 
 enum lldMode {
@@ -313,6 +313,8 @@ static inline void lldRegWr(
     enum hwReg          reg,
     uint16_t            val) {
 
+    LOG_DBG("UART wr: %p, %x = %x", io, reg, val);
+
     iowrite16(val, io + (uint32_t)reg);
 }
 
@@ -325,6 +327,8 @@ static inline uint16_t lldRegRd(
     uint16_t            retval;
 
     retval = ioread16(io + (uint32_t)reg);
+
+    LOG_DBG("UART rd: %p, %x : %x", io, reg, retval);
 
     return (retval);
 }
@@ -394,6 +398,9 @@ int32_t lldInit(
     volatile uint8_t *  io);
 
 int32_t lldTerm(
+    volatile uint8_t *  io);
+
+size_t lldFIFOSizeGet(
     volatile uint8_t *  io);
 
 /**@} *//*----------------------------------------------------------------*//**
@@ -466,16 +473,6 @@ static inline uint16_t lldIntGet(
  * @name        FIFO related actions
  * @{ *//*--------------------------------------------------------------------*/
 
-void lldFIFODMAInit(
-    volatile uint8_t *  io);
-
-/**@brief       Setup UART module to use FIFO and DMA
- * @param       ioRemap
- *              Pointer to IO mapped memory
- */
-int32_t lldDMAFIFOInit(
-    volatile uint8_t *  io);
-
 /**@brief       Enable/disable finer granularity
  * @param       ioRemap
  *              Pointer to IO mapped memory
@@ -508,6 +505,10 @@ void lldFIFORxFlush(
 
 void lldFIFOTxFlush(
     volatile uint8_t *  io);
+
+void lldUARTDMAStateSet(
+    volatile uint8_t *  io,
+    enum lldDMAMode     mode);
 
 /**@brief       This function controls the method of setting the Transmit DMA
  *              threshold value.

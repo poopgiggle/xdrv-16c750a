@@ -53,7 +53,7 @@
 # define FIFO_TX_LVL                    TLR_TX_FIFO_TRIG_DMA_56
 #endif
 
-#define TX_FIFO_SIZE                    64U
+#define DEF_FIFO_SIZE                   64U
 
 /*======================================================  LOCAL DATA TYPES  ==*/
 
@@ -65,9 +65,101 @@ const struct xUartProto DefProtocol = {
 };
 
 /*=============================================  LOCAL FUNCTION PROTOTYPES  ==*/
+
+static void lldInit_(
+    volatile uint8_t *  io);
+
 /*=======================================================  LOCAL VARIABLES  ==*/
 /*======================================================  GLOBAL VARIABLES  ==*/
 /*============================================  LOCAL FUNCTION DEFINITIONS  ==*/
+
+static void lldInit_(
+    volatile uint8_t *  io) {
+
+    uint16_t            regLCR;
+    uint16_t            regEFR;
+    uint16_t            regMCR;
+
+    regLCR = lldRegRd(
+        io,
+        LCR);
+    lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the    */
+        io,                                                                     /* EFR register                                             */
+        LLD_CFG_MODE_B);
+    regEFR = lldRegRd(
+        io,
+        bEFR);
+    lldRegWr(                                                                   /* Enable register submode TCR_TLR to access the TLR        */
+        io,                                                                     /* register (1/2)                                           */
+        wbEFR,
+        regEFR | EFR_ENHANCEDEN);
+    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the DLL*/
+        io,                                                                     /* DLH and MCR registers                                    */
+        LLD_CFG_MODE_A);
+    lldRegWr(
+        io,
+        waDLL,
+        0);                                                                     /* Stop divisor to access FCR higher bits                   */
+    lldRegWr(
+        io,
+        waDLH,
+        0);                                                                     /* Stop divisor to access FCR higher bits                   */
+    regMCR = lldRegRd(
+        io,
+        aMCR);
+    lldRegWr(                                                                   /* Enable register submode TCR_TLR to access the TLR        */
+        io,                                                                     /* register (2/2)                                           */
+        waMCR,
+        regMCR | MCR_TCRTLR);
+    lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
+        io,                                                                     /* register                                                 */
+        LLD_CFG_MODE_B);
+    lldRegWr(                                                                   /* Load the new FIFO triggers (2/3)                         */
+        io,
+        wbTLR,
+        FIFO_RX_LVL | FIFO_TX_LVL);
+    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
+        io,                                                                     /* register                                                 */
+        LLD_CFG_MODE_A);
+    lldRegWr(                                                                   /* Load the new FIFO triggers (3/3) and the new DMA mode    */
+        io,                                                                     /* (2/2)                                                    */
+        wSCR,
+        0);
+    lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
+        io,                                                                     /* (1/2)                                                    */
+        waFCR,
+        FCR_FIFO_EN);                                                           /* BUG NOTE: HW does not listen these FIFO granularity      */
+#if (2u == CFG_DMA_MODE)
+    lldUARTDMAStateSet(
+        io,
+        LLD_DMA_MODE_TX_AND_RX);
+    lldRegWr(io, wMDR3, MDR3_SET_DMA_TX_THRESHOLD);
+    lldRegWr(io, wTXDMA, 0x08);
+#endif
+    lldRegWr(
+        io,
+        waFCR,
+        FCR_RX_FIFO_CLEAR | FCR_TX_FIFO_CLEAR | FCR_FIFO_EN);
+    lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
+        io,                                                                     /* register                                                 */
+        LLD_CFG_MODE_B);
+    lldRegWr(                                                                   /* Restore EFR register                                     */
+        io,
+        wbEFR,
+        regEFR);
+    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
+        io,                                                                     /* register                                                 */
+        LLD_CFG_MODE_A);
+    lldRegWr(                                                                   /* Restore MCR register                                     */
+        io,
+        waMCR,
+        regMCR);
+    lldRegWr(                                                                   /* Restore LCR register                                     */
+        io,
+        LCR,
+        regLCR);
+}
+
 /*===================================  GLOBAL PRIVATE FUNCTION DEFINITIONS  ==*/
 /*====================================  GLOBAL PUBLIC FUNCTION DEFINITIONS  ==*/
 
@@ -284,7 +376,7 @@ int32_t lldInit(
 
         return (retval);
     }
-    lldFIFODMAInit(
+    lldInit_(
         io);
     lldEnhanced(
         io,
@@ -293,6 +385,9 @@ int32_t lldInit(
         io);
     lldFIFOTxFlush(
         io);
+    lldCfgModeSet(
+        io,
+        LLD_CFG_MODE_NORM);
 
     return (0);
 }
@@ -301,6 +396,12 @@ int32_t lldTerm(
     volatile uint8_t *  io) {
 
     return (0);
+}
+
+size_t lldFIFOSizeGet(
+    volatile uint8_t *  io) {
+
+    return (DEF_FIFO_SIZE);
 }
 
 void lldFIFORxGranularitySet(
@@ -330,7 +431,7 @@ size_t lldFIFORxOccupied(
 size_t lldFIFOTxFree(
     volatile uint8_t *  io) {
 
-    return (TX_FIFO_SIZE - lldRegRd(io, TXFIFO_LVL));
+    return (DEF_FIFO_SIZE - lldRegRd(io, TXFIFO_LVL));
 }
 
 void lldFIFORxFlush(
@@ -361,87 +462,6 @@ void lldFIFOTxFlush(
         io,
         wFCR,
         FCR_TX_FIFO_CLEAR);
-}
-
-void lldFIFODMAInit(
-    volatile uint8_t *  io) {
-
-    uint16_t            regLCR;
-    uint16_t            regEFR;
-    uint16_t            regMCR;
-
-    regLCR = lldRegRd(
-        io,
-        LCR);
-    lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the    */
-        io,                                                                     /* EFR register                                             */
-        LLD_CFG_MODE_B);
-    regEFR = lldRegRd(
-        io,
-        bEFR);
-    lldRegWr(                                                                   /* Enable register submode TCR_TLR to access the TLR        */
-        io,                                                                     /* register (1/2)                                           */
-        wbEFR,
-        regEFR | EFR_ENHANCEDEN);
-    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the DLL*/
-        io,                                                                     /* DLH and MCR registers                                    */
-        LLD_CFG_MODE_A);
-    lldRegWr(
-        io,
-        waDLL,
-        0);                                                                     /* Stop divisor to access FCR higher bits                   */
-    lldRegWr(
-        io,
-        waDLH,
-        0);                                                                     /* Stop divisor to access FCR higher bits                   */
-    regMCR = lldRegRd(
-        io,
-        aMCR);
-    lldRegWr(                                                                   /* Enable register submode TCR_TLR to access the TLR        */
-        io,                                                                     /* register (2/2)                                           */
-        waMCR,
-        regMCR | MCR_TCRTLR);
-    lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
-        io,                                                                     /* register                                                 */
-        LLD_CFG_MODE_B);
-    lldRegWr(                                                                   /* Load the new FIFO triggers (2/3)                         */
-        io,
-        wbTLR,
-        FIFO_RX_LVL | FIFO_TX_LVL);
-    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        io,                                                                     /* register                                                 */
-        LLD_CFG_MODE_A);
-    lldRegWr(                                                                   /* Load the new FIFO triggers (3/3) and the new DMA mode    */
-        io,                                                                     /* (2/2)                                                    */
-        wSCR,
-        0);
-    lldRegWr(                                                                   /* Load the new FIFO triggers (1/3) and the new DMA mode    */
-        io,                                                                     /* (1/2)                                                    */
-        waFCR,
-        FCR_RX_FIFO_CLEAR | FCR_TX_FIFO_CLEAR | FCR_FIFO_EN);                   /* BUG NOTE: HW does not listen these FIFO granularity      */
-#if (2u == CFG_DMA_MODE)
-    lldUARTDMAStateSet(
-        io,
-        LLD_DMA_MODE_TX_AND_RX);
-#endif
-    lldCfgModeSet(                                                              /* Switch to register configuration mode B to access the EFR*/
-        io,                                                                     /* register                                                 */
-        LLD_CFG_MODE_B);
-    lldRegWr(                                                                   /* Restore EFR register                                     */
-        io,
-        wbEFR,
-        regEFR);
-    lldCfgModeSet(                                                              /* Switch to register configuration mode A to access the MCR*/
-        io,                                                                     /* register                                                 */
-        LLD_CFG_MODE_A);
-    lldRegWr(                                                                   /* Restore MCR register                                     */
-        io,
-        waMCR,
-        regMCR);
-    lldRegWr(                                                                   /* Restore LCR register                                     */
-        io,
-        LCR,
-        regLCR);
 }
 
 void lldUARTDMAStateSet(
@@ -498,16 +518,6 @@ void lldUARTDMATxThresholdVal(
         io,
         wTXDMA,
         regval);
-}
-
-int lldDMAFIFOInit(
-    volatile uint8_t *  io) {
-
-    /*
-     * TODO: napisati ovo
-     */
-
-    return (0);
 }
 
 void lldProtocolPrint(
