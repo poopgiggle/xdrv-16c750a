@@ -166,7 +166,8 @@ void portDMARxStopI(
 int32_t portDMATxInit(
     struct devData *    devData,
     void (* callback)(void *),
-    void *              arg);
+    void *              arg,
+    size_t              chunk);
 
 void portDMATxTerm(
     struct devData *    devData);

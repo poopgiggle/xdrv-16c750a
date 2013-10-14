@@ -74,13 +74,13 @@
 # if (1 == CFG_DMA_MODE)
 #  define EDMA_CHN_TX                   EDMA_CHANNEL_ANY
 # elif (2 == CFG_DMA_MODE)
-#  define EDMA_CHN_TX                   7
+#  define EDMA_CHN_TX                   (7u + 63u)
 # endif
 
 # if (1 == CFG_DMA_MODE)
 #  define EDMA_CHN_RX                   EDMA_CHANNEL_ANY
 # elif (2 == CFG_DMA_MODE)
-#  define EDMA_CHN_RX                   8
+#  define EDMA_CHN_RX                   (8u + 63u)
 # endif
 
 # define EDMA_SH_BASE                   0x2000u
