@@ -22,7 +22,7 @@
  * e-mail  :    blueskyniss@gmail.com
  *//***********************************************************************//**
  * @file
- * @author  	Nenad Radulovic
+ * @author      Nenad Radulovic
  * @brief       Port interface
  *********************************************************************//** @{ */
 
@@ -96,15 +96,26 @@ struct devData * portInit(
 int32_t portTerm(
     struct devData *    devData);
 
+/**@brief       Get the mode register value which is needed for specified
+ *              baudrate
+ */
 int32_t portModeGet(
     uint32_t            baudrate);
 
+/**@brief       Get the DLL/DLH register values which is needed for specified
+ *              baudrate
+ */
 int32_t portDIVdataGet(
     uint32_t            baudrate);
 
+/**@brief       Get remaped hardware IO memory
+ */
 volatile uint8_t * portIORemapGet(
     struct devData *    devData);
 
+/**@brief       Return if hardware with specified id is free to be managed
+ *              by real-time driver
+ */
 bool_T portIsOnline(
     uint32_t            id);
 
@@ -130,22 +141,33 @@ int32_t portDMARxInit(
     void (* callback)(void *),
     void *              arg);
 
+/**@brief       Terminate and destroy DMA buffers and release DMA related
+ *              resources
+ */
 void portDMARxTerm(
     struct devData *    devData);
 
+/**@brief       Returns if Rx DMA is running
+ */
 bool_T portDMARxIsRunning(
     struct devData *    devData);
 
+/**@brief       Setup the transfer for one block
+ */
 void portDMARxBeginI(
     struct devData *    devData,
     volatile uint8_t *  dst,
     size_t              size);
 
+/**@brief       Add another transfer to previous one
+ */
 void portDMARxContinueI(
     struct devData *    devData,
     uint8_t *           dst,
     size_t              size);
 
+/**@brief       Start transfers
+ */
 void portDMARxStartI(
     struct devData *    devData);
 
@@ -169,22 +191,33 @@ int32_t portDMATxInit(
     void *              arg,
     size_t              chunk);
 
+/**@brief       Terminate and destroy DMA buffers and release DMA related
+ *              resources
+ */
 void portDMATxTerm(
     struct devData *    devData);
 
+/**@brief       Returns if Tx DMA is running
+ */
 bool_T portDMATxIsRunning(
     struct devData *    devData);
 
+/**@brief       Setup the transfer for one block
+ */
 void portDMATxBeginI(
     struct devData *    devData,
     volatile const uint8_t * src,
     size_t              size);
 
+/**@brief       Add another transfer to previous one
+ */
 void portDMATxContinueI(
     struct devData *    devData,
     const uint8_t *     src,
     size_t              size);
 
+/**@brief       Start transfers
+ */
 void portDMATxStartI(
     struct devData *    devData);
 
