@@ -31,7 +31,7 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include <mach/edma.h>
+#include <linux/platform_data/edma.h>
 
 #include "drv/x-16c750_lld.h"
 
