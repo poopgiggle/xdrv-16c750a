@@ -1,0 +1,159 @@
+diff --git a/arch/arm/mach-omap2/omap_device.c b/arch/arm/mach-omap2/omap_device.c
+index 2cf12c1..b38480d 100644
+--- a/arch/arm/mach-omap2/omap_device.c
++++ b/arch/arm/mach-omap2/omap_device.c
+@@ -753,6 +753,8 @@ void omap_device_delete(struct omap_device *od)
+ 	kfree(od);
+ }
+ 
++EXPORT_SYMBOL(omap_device_delete);
++
+ /**
+  * omap_device_build - build and register an omap_device with one omap_hwmod
+  * @pdev_name: name of the platform_device driver to use
+@@ -786,6 +788,8 @@ struct platform_device __init *omap_device_build(const char *pdev_name, int pdev
+ 				    is_early_device);
+ }
+ 
++EXPORT_SYMBOL(omap_device_build);
++
+ /**
+  * omap_device_build_ss - build and register an omap_device with multiple hwmods
+  * @pdev_name: name of the platform_device driver to use
+@@ -1019,6 +1023,8 @@ int omap_device_enable(struct platform_device *pdev)
+ 	return ret;
+ }
+ 
++EXPORT_SYMBOL(omap_device_enable);
++
+ /**
+  * omap_device_idle - idle an omap_device
+  * @od: struct omap_device * to idle
+@@ -1089,6 +1095,8 @@ int omap_device_shutdown(struct platform_device *pdev)
+ 	return ret;
+ }
+ 
++EXPORT_SYMBOL(omap_device_shutdown);
++
+ /**
+  * omap_device_assert_hardreset - set a device's hardreset line
+  * @pdev: struct platform_device * to reset
+@@ -1224,6 +1232,8 @@ void __iomem *omap_device_get_rt_va(struct omap_device *od)
+ 	return omap_hwmod_get_mpu_rt_va(od->hwmods[0]);
+ }
+ 
++EXPORT_SYMBOL(omap_device_get_rt_va);
++
+ /**
+  * omap_device_get_by_hwmod_name() - convert a hwmod name to
+  * device pointer.
+@@ -1317,6 +1327,8 @@ int omap_device_disable_clocks(struct omap_device *od)
+ 	return 0;
+ }
+ 
++EXPORT_SYMBOL(omap_device_disable_clocks);
++
+ /**
+  * omap_device_enable_clocks - enable all main and interface clocks
+  * @od: struct omap_device *od
+@@ -1335,6 +1347,8 @@ int omap_device_enable_clocks(struct omap_device *od)
+ 	return 0;
+ }
+ 
++EXPORT_SYMBOL(omap_device_enable_clocks);
++
+ static struct notifier_block platform_nb = {
+ 	.notifier_call = _omap_device_notifier_call,
+ };
+diff --git a/arch/arm/mach-omap2/omap_hwmod.c b/arch/arm/mach-omap2/omap_hwmod.c
+index 2b58e21..6b03d40 100644
+--- a/arch/arm/mach-omap2/omap_hwmod.c
++++ b/arch/arm/mach-omap2/omap_hwmod.c
+@@ -138,6 +138,7 @@
+ #include <linux/spinlock.h>
+ #include <linux/slab.h>
+ #include <linux/bootmem.h>
++#include <linux/export.h>
+ 
+ #include "clock.h"
+ #include "omap_hwmod.h"
+@@ -3171,6 +3172,8 @@ struct omap_hwmod *omap_hwmod_lookup(const char *name)
+ 	return oh;
+ }
+ 
++EXPORT_SYMBOL(omap_hwmod_lookup);
++
+ /**
+  * omap_hwmod_for_each - call function for each registered omap_hwmod
+  * @fn: pointer to a callback function
+@@ -3374,6 +3377,7 @@ int omap_hwmod_shutdown(struct omap_hwmod *oh)
+ 	return 0;
+ }
+ 
++
+ /**
+  * omap_hwmod_enable_clocks - enable main_clk, all interface clocks
+  * @oh: struct omap_hwmod *oh
+diff --git a/drivers/tty/serial/Kconfig b/drivers/tty/serial/Kconfig
+index 02e706e..2e61d2f 100644
+--- a/drivers/tty/serial/Kconfig
++++ b/drivers/tty/serial/Kconfig
+@@ -1072,32 +1072,32 @@ config SERIAL_OF_PLATFORM
+ 	  Currently, only 8250 compatible ports are supported, but
+ 	  others can easily be added.
+ 
+-config SERIAL_OMAP
+-	tristate "OMAP serial port support"
+-	depends on ARCH_OMAP2PLUS
+-	select SERIAL_CORE
+-	help
+-	  If you have a machine based on an Texas Instruments OMAP CPU you
+-	  can enable its onboard serial ports by enabling this option.
+-
+-	  By enabling this option you take advantage of dma feature available
+-	  with the omap-serial driver. DMA support can be enabled from platform
+-	  data.
+-
+-config SERIAL_OMAP_CONSOLE
+-	bool "Console on OMAP serial port"
+-	depends on SERIAL_OMAP=y
+-	select SERIAL_CORE_CONSOLE
+-	help
+-	  Select this option if you would like to use omap serial port as
+-	  console.
+-
+-	  Even if you say Y here, the currently visible virtual console
+-	  (/dev/tty0) will still be used as the system console by default, but
+-	  you can alter that using a kernel command line option such as
+-	  "console=ttyOx". (Try "man bootparam" or see the documentation of
+-	  your boot loader about how to pass options to the kernel at
+-	  boot time.)
++#config SERIAL_OMAP
++#	tristate "OMAP serial port support"
++#	depends on ARCH_OMAP2PLUS
++#	select SERIAL_CORE
++#	help
++#	  If you have a machine based on an Texas Instruments OMAP CPU you
++#	  can enable its onboard serial ports by enabling this option.
++#
++#	  By enabling this option you take advantage of dma feature available
++#	  with the omap-serial driver. DMA support can be enabled from platform
++#	  data.
++
++#config SERIAL_OMAP_CONSOLE
++#	bool "Console on OMAP serial port"
++#	depends on SERIAL_OMAP=y
++#	select SERIAL_CORE_CONSOLE
++#	help
++#	  Select this option if you would like to use omap serial port as
++#	  console.
++#
++#	  Even if you say Y here, the currently visible virtual console
++#	  (/dev/tty0) will still be used as the system console by default, but
++#	  you can alter that using a kernel command line option such as
++#	  "console=ttyOx". (Try "man bootparam" or see the documentation of
++#	  your boot loader about how to pass options to the kernel at
++#	  boot time.)
+ 
+ config SERIAL_OF_PLATFORM_NWPSERIAL
+ 	tristate "NWP serial port driver"
