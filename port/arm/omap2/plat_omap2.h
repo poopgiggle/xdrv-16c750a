@@ -37,7 +37,7 @@
 
 /*===============================================================  MACRO's  ==*/
 
-#if defined(CONFIG_SOC_OMAPAM33XX)
+#if defined(CONFIG_SOC_AM33XX)
 
 /**@brief       Available UARTs on AM335x
  */
