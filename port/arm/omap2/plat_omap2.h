@@ -31,13 +31,13 @@
 
 /*=========================================================  INCLUDE FILES  ==*/
 
-#include <mach/edma.h>
+#include <linux/platform_data/edma.h>
 
 #include "drv/x-16c750_lld.h"
 
 /*===============================================================  MACRO's  ==*/
 
-#if defined(CONFIG_SOC_OMAPAM33XX)
+#if defined(CONFIG_SOC_AM33XX)
 
 /**@brief       Available UARTs on AM335x
  */
