@@ -27,7 +27,7 @@ and $(LINUX_SRC)/arch/arm/mach-omap2/omap_hwmod.c. The included patch xenomai-ua
 be exported are:
 
     omap_device_disable_clocks
-    omap_device_delte
+    omap_device_delete
     omap_device_enable_clocks
     omap_hwmod_lookup
     omap_device_shutdown
@@ -35,7 +35,7 @@ be exported are:
     omap_device_enable
     omap_device_get_rt_va
 
-You'll also need to add the line #include <linux/export.h> to the top of omap_hwmod.c
+You'll also need to include linux/export.h at the top of omap_hwmod.c
 
 When the project is configured do the following in driver root directory:
 
